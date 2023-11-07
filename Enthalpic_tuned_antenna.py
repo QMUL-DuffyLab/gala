@@ -22,7 +22,7 @@ from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 
 #Ts=['2300','2600','2800','3300','3800','4300','4800','5800']
 Ts='2300'
-filename='Scaled_Spectrum_PHOENIX_'
+filename='PHOENIX/Scaled_Spectrum_PHOENIX_'
 
 
 '''************************************************************************'''
@@ -73,7 +73,7 @@ layer_colours=['red','darkorange','yellow',
 ''' Input                                                                  '''
 '''************************************************************************'''
 
-fin=open(filename+Ts+'K.txt','r')
+fin=open(filename+Ts+'K.dat','r')
 l, Ip_y=[],[]
 for line in fin:
     line=line.rstrip()

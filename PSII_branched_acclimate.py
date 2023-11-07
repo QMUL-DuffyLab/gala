@@ -14,7 +14,7 @@ from scipy.constants import Boltzmann as kB
 import Lattice_antenna as lattice
 import PSII_params as PSII
 
-filename='Scaled_Spectrum_PHOENIX_'
+filename='PHOENIX/Scaled_Spectrum_PHOENIX_'
 #Ts=['2300','2600','2800','3300','3800','4300','4800','5800']
 #colours=['maroon','red','darkorange','gold','darkgreen','darkcyan','darkblue','fuchsia']
 
@@ -52,7 +52,7 @@ phi_F_hex, nu_e_hex=[],[]
 
 for t, Temp in enumerate(Ts):      
 
-    fin=open(filename+Temp+'K.txt','r')
+    fin=open(filename+Temp+'K.dat','r')
     l, Ip_y=[],[]
     for line in fin:
         line=line.rstrip()

@@ -15,7 +15,7 @@ import Lattice_antenna as lattice
 import PSII_params as PSII
 
 Ts=['2300','2600','2800','3300','3800','4300','4800','5800']
-filename='Scaled_Spectrum_PHOENIX_'
+filename='PHOENIX/Scaled_Spectrum_PHOENIX_'
 
 N1=18.0
 N2=24.0
@@ -41,7 +41,7 @@ phi_F_N1, nu_e_N1=[],[]
 phi_F_N6, nu_e_N6=[],[]
 phi_F_hex, nu_e_hex=[],[]
 for Temp in Ts:      
-    fin=open(filename+Temp+'K.txt','r')
+    fin=open(filename+Temp+'K.dat','r')
     l, Ip_y=[],[]
     for line in fin:
         line=line.rstrip()
@@ -144,7 +144,7 @@ fout.close()
 
 nu_e_list, phi_F_list=[],[]
 for Temp in Ts: 
-    fin=open(filename+Temp+'K.txt','r')
+    fin=open(filename+Temp+'K.dat','r')
     l, Ip_y=[],[]
     for line in fin:
         line=line.rstrip()

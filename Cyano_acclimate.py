@@ -22,7 +22,7 @@ from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 
 #Ts=['2300','2600','2800','3300','3800','4300','4800','5800']
 Ts=['2300','2600','2800']
-filename='Scaled_Spectrum_PHOENIX_'
+filename='PHOENIX/Scaled_Spectrum_PHOENIX_'
 #colours=['maroon','red','darkorange','gold','darkgreen','darkcyan','darkblue','fuchsia']
 colours=['maroon','red','darkorange']
 
@@ -70,7 +70,7 @@ flog=open('Cyano_branched_log.txt','w')
 
 nu_e_Ts, phi_F_Ts=[], [] #data points
 for t, Temp in enumerate(Ts):
-    fin=open(filename+Temp+'K.txt','r')
+    fin=open(filename+Temp+'K.dat','r')
     l, Ip_y=[],[]
     for line in fin:
         line=line.rstrip()

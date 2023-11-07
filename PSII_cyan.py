@@ -15,7 +15,7 @@ import Lattice_antenna as lattice
 import PSII_params as PSII
 
 Ts=['2300','2600','2800','3300','3800','4300','4800','5800']
-filename='Scaled_Spectrum_PHOENIX_'
+filename='PHOENIX/Scaled_Spectrum_PHOENIX_'
 colours=['maroon','red','darkorange','gold','darkgreen','darkcyan','darkblue','fuchsia']
 
 '''************************************************************************'''
@@ -47,7 +47,7 @@ T=300.0
 '''************************************************************************'''
 
 
-fin=open(filename+Ts[-1]+'K.txt','r')
+fin=open(filename+Ts[-1]+'K.dat','r')
 l, Ip_y=[],[]
 for line in fin:
     line=line.rstrip()
