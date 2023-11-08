@@ -4,8 +4,11 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-max_size = 10000 # maximum for n_branches, n_subunits, n_pigments
-n_individuals = 100
+n_b_max = 10
+n_s_max = n_b_max
+n_p_max = 1000
+n_individuals = 10
+fitness_cutoff = 0.2 # fraction of individuals kept
 
 '''
 some rates that I think are going to be fixed

@@ -1159,7 +1159,7 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
     gamma_b=[]
     lineshape_b=[] #now collect the lineshapes for later use in the overlap calculation
     for i in range(N_s):
-        print(i,N_s)
+        # print(i,N_s)
         lineshape=gauss_abs(l,subunits[i][2],subunits[i][3])
         lineshape_b.append(lineshape)
         gamma_i=subunits[i][0]*subunits[i][1]*Olap_Int(l,fp_y,lineshape)
