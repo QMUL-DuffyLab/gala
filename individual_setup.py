@@ -66,11 +66,18 @@ def initialise_individual(init_type):
         return branch_params
 
 def selection(population, results):
-    n_parents = int(constants.fitness_cutoff * constants.n_individuals)
     '''
-    pull out the nu_e values and their indices in the results,
-    then sort them in descending order (reverse=True) by nu_e.
-    then the first n_parents of nu_es_sorted are the highest nu_e values
+    given a population and the calculated results (nu_e, quantum efficiency,
+    etc.), pick out the top fraction based on a cutoff given in constants.py.
+    Return these along with the very best individual and its score.
+    Note - I feel like normally they're picked probabilistically based on
+    a fitness criterion, rather than just deterministically taking the best?
+    '''
+    n_survivors = int(constants.fitness_cutoff * constants.n_individuals)
+    '''
+    pull out nu_e and efficiency values and their indices in the results,
+    then sort them in descending order (reverse=True) by the product of these.
+    then the first n_survivors of nu_es_sorted are the highest values,
     and we can pull them from the population using the corresponding indices.
     '''
     nu_es_sorted = sorted([(i, r['nu_e'] * r['phi_F'])
@@ -79,10 +86,52 @@ def selection(population, results):
     best_ind = nu_es_sorted[0][0]
     best = (population[best_ind],
            (results[best_ind]['nu_e'], results[best_ind]['phi_F']))
-    parents = []
-    for i in range(n_parents):
-       parents.append(population[nu_es_sorted[i][0]])
-    return parents, best
+    survivors = []
+    for i in range(n_survivors):
+       survivors.append(population[nu_es_sorted[i][0]])
+    return survivors, best
+
+def reproduction(survivors, population):
+    '''
+    Given the survivors of a previous iteration, generate the necessary
+    number of children and return the new population.
+    Characteristics are taken randomly from each parent as much as possible.
+    '''
+    n_children = constants.n_individuals - len(survivors)
+    for i in range(len(survivors)):
+        population[i] = survivors[i]
+
+    for i in range(n_children):
+        child   = []
+        # print("CHILD ", i)
+        # pick two different parents from the survivors
+        p_i = rng.choice(len(survivors), 2, replace=False)
+        # print("parent indices = ", p_i)
+        parents = [survivors[p_i[0]], survivors[p_i[1]]]
+        # NB: this doesn't work very well since everything's a weird
+        # mixed list of scalars and tuples etc. can probably be tidied later
+        # parents = np.array(survivors)[rng.integers(0, len(survivors), size=2)]
+        nb_c = parents[rng.integers(2)][0] # individual[0] = nb
+        ns_p = [len(p) - 1 for p in parents]
+        ns_c = ns_p[rng.integers(2)] # = ns of random parent
+        # print(ns_p, ns_c, np.min(ns_p), np.argmin(ns_p))
+        child.append(nb_c)
+        for j in range(1, ns_c + 1):
+            if j > np.min(ns_p):
+                choice = np.argmax(ns_p)
+                sub = parents[choice][j]
+                # print(j, choice, sub)
+                child.append(sub)
+            else:
+                choice = rng.integers(2)
+                sub = parents[choice][j]
+                # print(j, choice, sub)
+                child.append(sub)
+        # print("child ", i, ": ", child)
+        population[i + len(survivors)] = child
+    return population
+
+    
 
 population = []
 results = []
@@ -100,5 +149,7 @@ for i in range(constants.n_individuals):
 NB: in antenna branched i think we want
 N_eq = torch.linalg.solve(K_mat, gamma_vec)
 '''
-parents, best = selection(population, results)
+survivors, best = selection(population, results)
+print(survivors)
 running_best.append(best)
+new_pop = reproduction(survivors, population)

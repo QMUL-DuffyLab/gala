@@ -4,10 +4,10 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-n_b_max = 10
+n_b_max = 15
 n_s_max = n_b_max
 n_p_max = 1000
-n_individuals = 10
+n_individuals = 50
 fitness_cutoff = 0.2 # fraction of individuals kept
 
 '''
