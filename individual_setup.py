@@ -5,36 +5,64 @@ Created on Tue Apr 18 10:49:39 2023
 @author: callum
 """
 
+from scipy.constants import h as h, c as c, Boltzmann as kb
 import numpy as np
 import scipy as sp
-from scipy.constants import h as h, c as c, Boltzmann as kb
 import Lattice_antenna as lattice
 import constants
 
-ts = 2600
+rng = np.random.default_rng()
 
-spectrum_file = constants.spectrum_prefix + \
-                '{:4d}K'.format(ts) + \
-                constants.spectrum_suffix
+# these two will be args eventually i guess
+ts = 2600
+init_type = 'radiative' # can be radiative or random
+
+spectrum_file = constants.spectrum_prefix \
+                + '{:4d}K'.format(ts) \
+                + constants.spectrum_suffix
 l, ip_y = np.loadtxt(spectrum_file, unpack=True)
 
-'''
-reaction centre and rates - I think most of this is fixed within the
-genetic algorithm, so load from the constants file.
-NB: rc_params[0] is N_RC, the number of reaction centres, which I think
-we assume is always 1?
-'''
-rc_params = (1, constants.sig, constants.lp_rc, constants.w_rc)
-k_params  = (constants.k_diss,constants.k_trap,constants.k_con,
-             constants.k_hop,constants.k_lhc_rc)
+def generate_random_subunit():
+    '''
+    Generates a completely random subunit, with a random number
+    of pigments, random cross-section, random absorption peak and
+    random width.
+    '''
+    n_pigments  = rng.integers(1, constants.max_size)
+    sigma       = constants.sig_chl
+    lambda_peak = rng.uniform(constants.lambda_min, constants.lambda_max)
+    width       = rng.uniform(constants.width_min, constants.width_max)
+    return (n_pigments, sigma, lambda_peak, width)
 
-'''
-now branch_params setup
-I think the majority of the parameter space we're exploring will be
-within branch_params - changing number of branches, size of block etc
-'''
-branch_params=[] # will be a list of how long each branch is, I think?
+def initialise_individual(init_type):
+    '''
+    Initialise one individual from our population.
+    There are two ways to do this - either assume they all
+    have identical prototypical antennae, or they're all
+    completely random. Option controlled by changing init_type.
+    '''
+    if init_type == 'radiative':
+        '''
+        Assumes every individual at the start is an
+        identical kind of prototypical antenna with
+        one branch, one subunit, one Chl-like pigment.
+        '''
+        return [1, constants.radiative_subunit]
+    else: # random initialisation
+        '''
+        Each branch is (currently) assumed to be identical!
+        First randomise n_branches, then n_subunits.
+        Then generate n_subunits using generate_random_subunit.
+        '''
+        nb = rng.integers(1, constants.max_size)
+        branch_params = [nb]
+        ns = rng.integers(1, constants.max_size)
+        for i in range(ns):
+            branch_params.append(generate_random_subunit())
+        return branch_params
 
-# now we'll set up one individual with something like
-# individual = lattice.Antenna_branched_funnel(l, ip_y, branch_params,
-                                             rc_params, k_params, constants.T)
+for i in range(constants.n_individuals):
+    bp = initialise_individual('random')
+    # now we'll set up one individual with something like
+    # individual = lattice.Antenna_branched_funnel(l, ip_y, branch_params,
+    #              constants.rc_params, constants.k_params, constants.T)
