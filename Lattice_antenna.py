@@ -9,6 +9,7 @@ accoridng to the overlap of their absorption profile and the local spectral flux
 
 @author: C Duffy
 """
+import torch
 import numpy as np
 import PSII_params as PSII
 from scipy.constants import h as h
@@ -1257,7 +1258,11 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
                     TW_Adj_mat[int(j+i)][int(j+i-1)]=K_b[i][i-1]
     
     #(5) Construct the K matrix
-    K_mat=np.zeros(((N_b*N_s)+2,(N_b*N_s)+2))
+    # K_mat=np.zeros(((N_b*N_s)+2,(N_b*N_s)+2))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    K_mat = torch.zeros([(N_b*N_s)+2,(N_b*N_s)+2],
+                        device=device, dtype=torch.float64)
+    # K_mat=np.zeros(((N_b*N_s)+2,(N_b*N_s)+2))
     for i in range(N_b*N_s+2):
         for j in range(N_b*N_s+2):
             if i!=j: #off-diagonal elements first
@@ -1282,11 +1287,13 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
             gamma_vec[int(i+j)]=-gamma_b[i]
         
     #(7) Solve the kinetics
-    K_inv=np.linalg.inv(K_mat)
-    N_eq=np.zeros((N_b*N_s+2))
-    for i in range(N_b*N_s+2):
-        for j in range(N_b*N_s+2):
-            N_eq[i]=N_eq[i]+K_inv[i][j]*gamma_vec[j]
+    # K_inv=np.linalg.inv(K_mat)
+    # N_eq=np.zeros((N_b*N_s+2))
+    # for i in range(N_b*N_s+2):
+    #     for j in range(N_b*N_s+2):
+    #         N_eq[i]=N_eq[i]+K_inv[i][j]*gamma_vec[j]
+    gvt = torch.tensor(gamma_vec, device=device, dtype=torch.float64)
+    N_eq = torch.linalg.solve(K_mat, gvt)
 
     #(8) Outputs
     #(a) A matrix of lifetimes (in ps) is easier to read than the rate constants

@@ -76,7 +76,6 @@ def selection(population, results):
     nu_es_sorted = sorted([(i, r['nu_e'] * r['phi_F'])
                           for i, r in enumerate(results)],
                           key=itemgetter(1), reverse=True)
-    print(nu_es_sorted)
     best_ind = nu_es_sorted[0][0]
     best = (population[best_ind],
            (results[best_ind]['nu_e'], results[best_ind]['phi_F']))
@@ -101,8 +100,5 @@ for i in range(constants.n_individuals):
 NB: in antenna branched i think we want
 N_eq = torch.linalg.solve(K_mat, gamma_vec)
 '''
-print([(r['nu_e'], r['phi_F']) for r in results])
 parents, best = selection(population, results)
 running_best.append(best)
-print(parents)
-print(best)
