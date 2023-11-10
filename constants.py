@@ -4,11 +4,12 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-n_b_max = 15
+n_b_max = 5
 n_s_max = n_b_max
 n_p_max = 1000
-n_individuals = 50
+n_individuals = 10
 fitness_cutoff = 0.2 # fraction of individuals kept
+mutation_width = 0.1 # width of Gaussian/Poisson we draw from for mutation
 
 '''
 some rates that I think are going to be fixed
