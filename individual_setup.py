@@ -36,7 +36,7 @@ def generate_random_subunit():
                               constants.lambda_bounds[1])
     width       = rng.uniform(constants.width_bounds[0],
                               constants.width_bounds[1])
-    return (n_pigments, sigma, lambda_peak, width)
+    return [n_pigments, sigma, lambda_peak, width]
 
 def initialise_individual(init_type):
     '''
