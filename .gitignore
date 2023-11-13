@@ -3,3 +3,4 @@
 *.png
 *.ods
 __pycache__/*
+out/*

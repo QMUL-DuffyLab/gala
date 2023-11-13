@@ -8,7 +8,7 @@ Created on Tue Apr 18 10:49:39 2023
 from scipy.constants import h as h, c as c, Boltzmann as kb
 from operator import itemgetter
 import numpy as np
-import scipy as sp
+import scipy.stats as ss
 import Lattice_antenna as lattice
 import constants
 
@@ -29,10 +29,13 @@ def generate_random_subunit():
     of pigments, random cross-section, random absorption peak and
     random width.
     '''
-    n_pigments  = rng.integers(1, constants.n_p_max)
+    n_pigments  = rng.integers(constants.n_p_bounds[0],
+                               constants.n_p_bounds[1])
     sigma       = constants.sig_chl
-    lambda_peak = rng.uniform(constants.lambda_min, constants.lambda_max)
-    width       = rng.uniform(constants.width_min, constants.width_max)
+    lambda_peak = rng.uniform(constants.lambda_bounds[0],
+                              constants.lambda_bounds[1])
+    width       = rng.uniform(constants.width_bounds[0],
+                              constants.width_bounds[1])
     return (n_pigments, sigma, lambda_peak, width)
 
 def initialise_individual(init_type):
@@ -58,9 +61,11 @@ def initialise_individual(init_type):
         First randomise n_branches, then n_subunits.
         Then generate n_subunits using generate_random_subunit.
         '''
-        nb = rng.integers(1, constants.n_b_max)
+        nb = rng.integers(constants.n_b_bounds[0],
+                          constants.n_b_bounds[1])
         branch_params = [nb]
-        ns = rng.integers(1, constants.n_s_max)
+        ns = rng.integers(constants.n_s_bounds[0],
+                          constants.n_s_bounds[1])
         for i in range(ns):
             branch_params.append(generate_random_subunit())
         return branch_params
@@ -134,68 +139,71 @@ def reproduction(survivors, population):
 def mutation(individual):
     '''
     Perform the mutation step of the genetic algorithm.
-    How is this done? Is there are a random chance to do each?
-    i feel like that's probably the obvious way to do it. in
-    that case, what are the chances of each? weighting them is
-    just introducing more hyperparameters.
-    we do the mutations by centreing a Gaussian/Poisson distribution
-    on the current value for each parameter that can mutate, and then
-    selecting from that distribution. The width of this distribution
-    is set to a fraction of the current value and the fraction is
-    a hyperparameter; I'm gonna set it (preliminary) to 0.1.
-    This should stop the number of branches from varying wildly while
-    also allowing the subunit parameters to change relatively freely
+    We do this by looping over each mutable parameter and selecting from
+    a truncated normal distribution, rounding to int if necessary.
+    The truncation bounds for each parameter are given mostly by chemical
+    argument (e.g. no physical pigment has an absorption peak 1000nm wide),
+    and the width of the distribution is a hyperparameter of our choice
+    derived from the current value of the parameter - currently 0.1 * value.
+    I think it's acceptable to just loop over all parameters since they
+    are all independent quantities?
     '''
     # NB: if I set up a class for an individual, this is easier to do;
-    # then i can just check dtype of the relevent class member to figure
-    # out which kind of distribution to use
-    possible_mutations = ['branch', 'subunit', 'n_pigments',
-                          'lambda_peak', 'width']
-    # we need a way to get the current value of whatever trait we're mutating
-    # - this is kind of annoying to do with the code structured as it is
-    choice = rng.integers(len(possible_mutations))
-    if possible_mutations[choice] == 'branch':
-        current = individual[0]
-        # NB: need to figure out what distribution we're going for here!
-        # Poisson doesn't work - need decoupled mean and width
-        new = rng.poisson(current, int(current * constants.mutation_width))
-        individual[0] = new
-        print("Branch mutation - ", current, new)
-    elif possible_mutations[choice] == 'subunit':
-        current = len(individual) - 1
-        new = rng.poisson(current, int(current * constants.mutation_width))
-        print("Subunit mutation - ", current, new)
-        if current > new:
-            # add subunits as necessary
-            # assume new subunits are also random? this is a meaningful choice
-            for i in range(current - new):
-                individual.append(generate_random_subunit())
-        elif current < new:
-            # delete the last (new - current) elements
-            # this would fail if current = new, hence the inequality
-            del individual[-(new - current):]
+    # then i can just use the name of each parameter and then get the type
+    # to decide whether or not we need to round the result
+    current = individual[0]
+    scale = current * constants.mutation_width
+    b = (constants.n_b_bounds - current) / (scale)
+    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    new = new.round().astype(int)
+    individual[0] = new
+    print("Branch mutation - ", current, b, new)
+    # n_s
+    current = len(individual) - 1
+    scale = current * constants.mutation_width
+    b = (constants.n_s_bounds - current) / (scale)
+    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    new = new.round().astype(int)
+    print("Subunit mutation - ", current, b, new)
+    if current > new:
+        # add subunits as necessary
+        # assume new subunits are also random? this is a meaningful choice
+        for i in range(current - new):
+            individual.append(generate_random_subunit())
+    elif current < new:
+        # delete the last (new - current) elements
+        # this would fail if current = new, hence the inequality
+        del individual[-(new - current):]
     # now it gets more involved - we have to pick a random subunit
     # to apply these last three mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
-    elif possible_mutations[choice] == 'n_pigments':
-        s = rng.integers(1, len(individual))
-        current = individual[s][0]
-        new = rng.poisson(current, int(current * constants.mutation_width))
-        print("n_p mutation - ", individual[s], current, new)
-        individual[s][0] = new
-    elif possible_mutations[choice] == 'lambda_peak':
-        s = rng.integers(1, len(individual))
-        current = individual[s][2]
-        new = rng.normal(current, current * constants.mutation_width)
-        print("l_p mutation - ", individual[s], current, new)
-        individual[s][2] = new
-    elif possible_mutations[choice] == 'width':
-        s = rng.integers(1, len(individual))
-        current = individual[s][3]
-        new = rng.normal(current, current * constants.mutation_width)
-        print("width mutation - ", individual[s], current, new)
-        individual[s][2] = new
+    # n_pigments
+    s = rng.integers(1, len(individual))
+    current = individual[s][0]
+    scale = current * constants.mutation_width
+    b = (constants.n_p_bounds - current) / (scale)
+    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    new = new.round().astype(int)
+    print("n_p mutation - ", individual[s], current, b, new)
+    individual[s][0] = new
+    # lambda_peak
+    s = rng.integers(1, len(individual))
+    current = individual[s][2]
+    scale = current * constants.mutation_width
+    b = (constants.lambda_bounds - current) / (scale)
+    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    print("l_p mutation - ", individual[s], current, b, new)
+    individual[s][2] = new
+    # width
+    s = rng.integers(1, len(individual))
+    current = individual[s][3]
+    scale = current * constants.mutation_width
+    b = (constants.width_bounds - current) / (scale)
+    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    print("width mutation - ", individual[s], current, b, new)
+    individual[s][2] = new
+
     return individual
 
 population = []
