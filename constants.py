@@ -4,10 +4,10 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-n_b_max = 5
-n_s_max = n_b_max
-n_p_max = 1000
-n_individuals = 10
+n_b_bounds = [1, 12] # max neighbours for identical spheres
+n_s_bounds = [1, 1000] # 1000 will be very inefficient but we need some bound
+n_p_bounds = [1, 1000]
+n_individuals = 100
 fitness_cutoff = 0.2 # fraction of individuals kept
 mutation_width = 0.1 # width of Gaussian/Poisson we draw from for mutation
 
@@ -40,10 +40,7 @@ w_rc=w2 #width is the same as Chla
 # check these parameters with chris!
 rc_params = (1, sig, lp_rc, w_rc)
 
-lambda_min = 200.0
-lambda_max = 1400.00
-
-width_min = 1.0
-width_max = 500.0
+lambda_bounds = [200.0, 1400.00]
+width_bounds = [1.0, 500.0]
 
 radiative_subunit = (1, sig_chl, 680.0, 10.0)
