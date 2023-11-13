@@ -1,4 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+13/11/2023
+@author: callum
+"""
 import numpy as np
+import numpy.typing as npt
+from dataclasses import dataclass
 '''
 General stuff
 '''
@@ -43,5 +50,27 @@ rc_params = (1, sig, lp_rc, w_rc)
 
 lambda_bounds = np.array([200.0, 1400.00])
 width_bounds  = np.array([1.0, 500.0])
+sigma_bounds  = np.array([sig_chl, sig_chl])
 
-radiative_subunit = (1, sig_chl, 680.0, 10.0)
+radiative_subunit = [1, sig_chl, 680.0, 10.0]
+
+'''
+# dataclass reduces memory requirement, makes code more readable
+# dataclass with slots requires python 3.10 or newer
+@dataclass(slots=True)
+class subunit:
+    n_pigments:  int
+    sigma:       float
+    lambda_peak: float
+    width:       float
+
+# NB: the names here must exactly match subunit above if you add anything
+@dataclass(slots=True)
+class subunit_bounds:
+    n_pigments:  npt.NDArray[np.int]
+    sigma:       npt.NDArray[np.float64]
+    lambda_peak: npt.NDArray[np.float64]
+    width:       npt.NDArray[np.float64]
+
+bounds = subunit_bounds(n_p_bounds, sigma_bounds, lambda_bounds, width_bounds)
+'''
