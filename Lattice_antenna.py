@@ -1187,7 +1187,7 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
         k_LHC_RC, k_RC_LHC=K_LHC_RC*DE_LHC_RC, K_LHC_RC*np.exp(-G_RC_LHC/(kB*T))*DE_LHC_RC
     elif G_LHC_RC>0.0:
         k_LHC_RC, k_RC_LHC=K_LHC_RC*np.exp(-G_LHC_RC/(kB*T))*DE_LHC_RC, K_LHC_RC*DE_LHC_RC        
-        
+
     #transfer between subunits
     if N_s>1:
         K_b=np.zeros((N_s,N_s))

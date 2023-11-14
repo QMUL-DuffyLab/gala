@@ -11,19 +11,30 @@ def absorption(l, lambda_peak, width):
     return torch.div(g, n)
 
 def overlap(l, f1, f2):
-    return torch.trapezoid(torch.mul(f1, f2), l)
+    '''
+    trapezoid rule for the product of f1 and f2 over l.
+    note that you have to return this wrapped in float,
+    otherwise torch returns it as a tensor, and then later
+    on it makes two shallow copies of the tensor for the
+    forward and backward rates. alternatively you can do
+    k_LHC_RC = rate
+    k_RC_LHC = rate.detach().clone()
+    later on, but we don't need this as a tensor anyway.
+    '''
+    return float(torch.trapezoid(torch.mul(f1, f2), l))
 
 def dG(l1, l2, n, T):
     # symmetric - going from 2 -> 1 is just minus this
     h12 = (h * c / 1.0E-9) * (l1 - l2) / (l1 * l2)
     s12 = - kB * np.log(n)
     g12 = h12 - s12 * T
-    return torch.tensor([h12, s12, g12])
+    return g12
 
 def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
 
     # probably need to copy l and ip_y to the GPU for this
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     #(1) Unpack parameters and establish dimensionality of the antenna
     k_diss, k_trap, k_con, K_hop, K_LHC_RC = k_params
     N_RC, sig_RC, lp_RC, w_RC = RC_params
@@ -52,9 +63,6 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     for i in range(n_b):
         start_index[i] = i * n_s + 2
         end_index[i]   = (i + 1) * n_s + 1
-    print("Start indices", start_index)
-    print("End indices", end_index)
-
 
     '''
     2. Absorption rates
@@ -86,10 +94,11 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     # thermodynamic factors
     nRCnLHC = subunits[0][0] / N_RC
     # thermodynamic parameters for G2 -> GRC
-    G_LHC_RC = dG(subunits[0][2], lp_RC, nRCnLHC, T)[2]
+    G_LHC_RC = dG(subunits[0][2], lp_RC, nRCnLHC, T)
 
     rate = K_LHC_RC * DE_LHC_RC
-    k_LHC_RC, k_RC_LHC = rate, rate
+    k_LHC_RC = rate
+    k_RC_LHC = rate
     if G_LHC_RC < 0.0:
         k_RC_LHC *= np.exp(G_LHC_RC/(kB*T))
     elif G_LHC_RC > 0.0:
@@ -109,7 +118,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
 
             # thermodynamic factors
             n_ratio = subunits[i][0] / subunits[i + 1][0]
-            G_out_in = dG(subunits[i][2], subunits[i + 1][2], n_ratio, T)[2]
+            G_out_in = dG(subunits[i][2], subunits[i + 1][2], n_ratio, T)
 
             rate = K_hop * DE
             K_b[i][i + 1], K_b[i + 1][i] = rate, rate #forward rate
@@ -124,14 +133,18 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     for j in start_index:
         TW_Adj_mat[1][j] = k_RC_LHC # RC -> LHC (root)
         TW_Adj_mat[j][1] = k_LHC_RC # LHC (root) -> RC
+        print(1, j, TW_Adj_mat[int(1)][j])
+        print(j, 1, TW_Adj_mat[int(j)][1])
         if n_s > 1:
             TW_Adj_mat[j][j + 1] = K_b[0][1]
+            print(j, i + j, j + 1, TW_Adj_mat[int(j)][int(j+1)])
             # nn adjacencies along the branches
-            for i in range(1, n_s - 1):
+            for i in range(1, n_s):
                 # first subunit is accounted for above
                 for j in start_index:
-                    TW_Adj_mat[i + j][i + j + 1] = K_b[i][i + 1]
                     TW_Adj_mat[i + j][i + j - 1] = K_b[i][i - 1]
+                    if (i + j) not in end_index:
+                        TW_Adj_mat[i + j][i + j + 1] = K_b[i][i + 1]
         
     # construct the K matrix
     K_mat = torch.zeros([side,side], device=device, dtype=torch.float32)
@@ -144,6 +157,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
             if i != j:
                 K_mat[i][j]  = TW_Adj_mat[j][i]
                 K_mat[i][i] -= TW_Adj_mat[j][i]
+
 
     # solve the kinetics
     # gvt = gamma_vec.clone().detach()
