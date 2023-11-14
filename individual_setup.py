@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 06/11/2023
-
 @author: callum
 """
 
 from scipy.constants import h as h, c as c, Boltzmann as kb
 from operator import itemgetter
 import numpy as np
+import matplotlib.pyplot as plt
 import scipy.stats as ss
 import Lattice_antenna as lattice
 import constants
+import antenna_torch as at
+import timeit
 
 rng = np.random.default_rng()
 
@@ -207,18 +209,46 @@ def mutation(individual):
     return individual
 
 population = []
-results = []
+c_results = []
+t_results = []
 running_best = []
+c_time = 0.0
+t_time = 0.0
 for i in range(constants.n_individuals):
     bp = initialise_individual('random')
     population.append(bp)
     print(i, bp[0], len(bp) - 1, pow(bp[0] * len(bp) - 1, 2))
-    results.append(lattice.Antenna_branched_overlap(l, ip_y, bp,
-                                                   constants.rc_params,
-                                                   constants.k_params,
-                                                   constants.T))
+    c_start = timeit.default_timer()
+    c_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
+                                                constants.rc_params,
+                                                constants.k_params,
+                                                constants.T)
+    c_time += timeit.default_timer() - c_start
+    t_start = timeit.default_timer()
+    t_result = at.antenna(l, ip_y, bp, constants.rc_params,
+                                constants.k_params, constants.T)
+    t_time += timeit.default_timer() - t_start
+    # check the matrices and steady state solution are the same!
+    print("c_result n_eq:", c_result['N_eq'])
+    print("t_result n_eq:", t_result['N_eq'])
+    f = open("out/c_result.dat", "w")
+    f.write(str(c_result))
+    f.close()
+    f = open("out/t_result.dat", "w")
+    f.write(str(t_result))
+    f.close()
+    fig, ax = plt.subplots()
+    ax.plot(c_result['TW_Adj_mat'] - t_result['TW_Adj_mat'])
+    plt.savefig("out/tw_diff.pdf")
+    plt.close()
+    assert np.allclose(c_result['TW_Adj_mat'], t_result['TW_Adj_mat'])
+    assert np.allclose(c_result['N_eq'], t_result['n_eq'])
+    c_results.append(c_result)
+    t_results.append(t_result)
 
-survivors, best = selection(population, results)
+print("Chris's code time: ", c_time)
+print("Torch code time: ", t_time)
+survivors, best = selection(population, t_results)
 print("---------\nSURVIVORS\n---------")
 print(survivors)
 running_best.append(best)

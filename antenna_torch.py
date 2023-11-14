@@ -8,7 +8,7 @@ from scipy.constants import Boltzmann as kB
 def absorption(l, lambda_peak, width):
     g = torch.exp(-(l - lambda_peak)**2/(2.0 * width**2))
     n = torch.trapezoid(g, l)
-    return torch.div(g/n)
+    return torch.div(g, n)
 
 def overlap(l, f1, f2):
     return torch.trapezoid(torch.mul(f1, f2), l)
@@ -20,13 +20,15 @@ def dG(l1, l2, n, T):
     g12 = h12 - s12 * T
     return torch.tensor([h12, s12, g12])
 
-def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
+def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
 
     # probably need to copy l and ip_y to the GPU for this
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #(1) Unpack parameters and establish dimensionality of the antenna
     k_diss, k_trap, k_con, K_hop, K_LHC_RC = k_params
     N_RC, sig_RC, lp_RC, w_RC = RC_params
+    lt = torch.tensor(l)
+    ipyt = torch.tensor(ip_y)
 
     n_b = Branch_params[0] #number of branches
     subunits = Branch_params[1:]
@@ -37,7 +39,7 @@ def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
     side = n_b * n_s + 2
     TW_Adj_mat = torch.zeros((side, side))
     # likewise with the vector of photon inputs
-    gamma_vec = torch.zeros(side)
+    gamma_vec = torch.zeros(side, dtype=torch.float32)
 
     # Site 0 is the trap, 1 is the RC.
     # 2, ..., n_s + 1 is the first branch
@@ -45,25 +47,27 @@ def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
     # 2n_s + 2, ..., 3n_s + 1 is the third branch
     # is there a way of striding this to avoid having to do all the indexing?
     # can't think of it yet. so get root and tip indices of each branch
-    start_index = torch.zeros((n_b))
-    end_index=np.zeros((n_b))
+    start_index = torch.zeros(n_b, dtype=torch.int)
+    end_index   = torch.zeros(n_b, dtype=torch.int)
     for i in range(n_b):
         start_index[i] = i * n_s + 2
         end_index[i]   = (i + 1) * n_s + 1
+    print("Start indices", start_index)
+    print("End indices", end_index)
 
 
     '''
     2. Absorption rates
     '''
-    fp_y = torch.mul(ip_y, l * (1.0E-9/(h*c)))
+    fp_y = torch.mul(ipyt, lt * (1.0E-9/(h*c)))
 
     gammas = torch.zeros(n_s)
-    lineshapes = torch.zeros(n_s)
+    lineshapes = torch.zeros((n_s, lt.size()[0]))
     for i in range(n_s):
-        lineshapes[i] = absorption(l, subunits[i][2], subunits[i][3])
+        lineshapes[i] = absorption(lt, subunits[i][2], subunits[i][3])
         gammas[i]     = (subunits[i][0]
                          * constants.sig_chl
-                         * overlap(l, fp_y, lineshapes[i]))
+                         * overlap(lt, fp_y, lineshapes[i]))
         for j in start_index:
             gamma_vec[i + j] = -gammas[i]
 
@@ -72,8 +76,8 @@ def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
     a. Transfer between RC and a branch
     '''
     # First calculate the spectral overlap
-    gauss_RC  = absorption(l, lp_RC, w_RC)
-    DE_LHC_RC = overlap(l, gauss_RC, lineshapes[0])
+    gauss_RC  = absorption(lt, lp_RC, w_RC)
+    DE_LHC_RC = overlap(lt, gauss_RC, lineshapes[0])
 
     # rescale this overlap
     mean_w    = (w_RC + subunits[0][3]) / 2.0
@@ -97,7 +101,7 @@ def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
         for i in range(n_s - 1): # working from inner to outer
 
             # spectral overlap
-            DE = overlap(l, lineshapes[i], lineshapes[i+1])
+            DE = overlap(lt, lineshapes[i], lineshapes[i+1])
 
             # rescale this overlap
             mean_w = (subunits[i][3] + subunits[i + 1][3]) / 2.0
@@ -130,7 +134,7 @@ def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
                     TW_Adj_mat[i + j][i + j - 1] = K_b[i][i - 1]
         
     # construct the K matrix
-    K_mat = torch.zeros([side,side], device=device, dtype=torch.float64)
+    K_mat = torch.zeros([side,side], device=device, dtype=torch.float32)
     # conversion rate of trap
     K_mat[0][0] = K_mat[0][0] - k_con
     for i in range(side):
@@ -142,8 +146,8 @@ def antenna_torch(l,ip_y,Branch_params,RC_params,k_params,T):
                 K_mat[i][i] -= TW_Adj_mat[j][i]
 
     # solve the kinetics
-    gvt = torch.tensor(gamma_vec, device=device, dtype=torch.float64)
-    n_eq = torch.linalg.solve(K_mat, gvt)
+    # gvt = gamma_vec.clone().detach()
+    n_eq = torch.linalg.solve(K_mat, gamma_vec)
 
     #(8) Outputs
     #(a) A matrix of lifetimes (in ps) is easier to read than the rate constants
