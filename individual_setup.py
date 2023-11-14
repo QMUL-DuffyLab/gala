@@ -17,15 +17,6 @@ import timeit
 
 rng = np.random.default_rng()
 
-# these two will be args eventually i guess
-ts = 2600
-init_type = 'radiative' # can be radiative or random
-
-spectrum_file = constants.spectrum_prefix \
-                + '{:4d}K'.format(ts) \
-                + constants.spectrum_suffix
-l, ip_y = np.loadtxt(spectrum_file, unpack=True)
-
 def generate_random_subunit():
     '''
     Generates a completely random subunit, with a random number
@@ -209,42 +200,54 @@ def mutation(individual):
 
     return individual
 
-population = []
-c_results = []
-t_results = []
-running_best = []
-c_time = 0.0
-t_time = 0.0
-for i in range(constants.n_individuals):
-    bp = initialise_individual('random')
-    population.append(bp)
-    print(i, bp[0], len(bp) - 1, pow(bp[0] * len(bp) - 1, 2))
-    c_start = timeit.default_timer()
-    c_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
-                                                constants.rc_params,
-                                                constants.k_params,
-                                                constants.T)
-    c_time += timeit.default_timer() - c_start
-    t_start = timeit.default_timer()
-    t_result = at.antenna(torch.from_numpy(l), torch.from_numpy(ip_y), bp)
-    t_time += timeit.default_timer() - t_start
-    # check the matrices and steady state solution are the same!
-    assert np.allclose(c_result['TW_Adj_mat'], t_result['TW_Adj_mat'].numpy())
-    assert np.allclose(c_result['K_mat'], t_result['K_mat'].numpy())
-    assert np.allclose(c_result['N_eq'], t_result['N_eq'])
-    c_results.append(c_result)
-    t_results.append(t_result)
+if __name__ == "__main__":
+    # these two will be args eventually i guess
+    ts = 2600
+    init_type = 'radiative' # can be radiative or random
 
-print("Chris's code time: ", c_time)
-print("Torch code time: ", t_time)
-survivors, best = selection(population, t_results)
-# print("---------\nSURVIVORS\n---------")
-# print(survivors)
-# running_best.append(best)
-# new_pop = reproduction(survivors, population)
-# print("---------\n NEW POP \n---------")
-# print(population)
-# for i in range(constants.n_individuals):
-#     population[i] = mutation(population[i])
-# print("---------\nMUTATIONS\n---------")
-# print(population)
+    spectrum_file = constants.spectrum_prefix \
+                    + '{:4d}K'.format(ts) \
+                    + constants.spectrum_suffix
+    l, ip_y = np.loadtxt(spectrum_file, unpack=True)
+    l_t = torch.from_numpy(l)
+    ip_y_t = torch.from_numpy(ip_y)
+
+    population = []
+    c_results = []
+    t_results = []
+    running_best = []
+    c_time = 0.0
+    t_time = 0.0
+    for i in range(constants.n_individuals):
+        bp = initialise_individual('random')
+        population.append(bp)
+        print(i, bp[0], len(bp) - 1, pow(bp[0] * len(bp) - 1, 2))
+        c_start = timeit.default_timer()
+        c_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
+                                                    constants.rc_params,
+                                                    constants.k_params,
+                                                    constants.T)
+        c_time += timeit.default_timer() - c_start
+        t_start = timeit.default_timer()
+        t_result = at.antenna(l_t, ip_y_t, bp)
+        t_time += timeit.default_timer() - t_start
+        # check the matrices and steady state solution are the same!
+        assert np.allclose(c_result['TW_Adj_mat'], t_result['TW_Adj_mat'].numpy())
+        assert np.allclose(c_result['K_mat'], t_result['K_mat'].numpy())
+        assert np.allclose(c_result['N_eq'], t_result['N_eq'])
+        c_results.append(c_result)
+        t_results.append(t_result)
+
+    print("Chris's code time: ", c_time)
+    print("Torch code time: ", t_time)
+    survivors, best = selection(population, t_results)
+    # print("---------\nSURVIVORS\n---------")
+    # print(survivors)
+    # running_best.append(best)
+    # new_pop = reproduction(survivors, population)
+    # print("---------\n NEW POP \n---------")
+    # print(population)
+    # for i in range(constants.n_individuals):
+    #     population[i] = mutation(population[i])
+    # print("---------\nMUTATIONS\n---------")
+    # print(population)

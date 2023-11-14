@@ -1,11 +1,12 @@
 import torch
 import numpy as np
 import constants as constants
+from torch.func import vmap
 from scipy.constants import h as h
 from scipy.constants import c as c
 from scipy.constants import Boltzmann as kB
 
-def absorption(l, lambda_peak, width):
+def absorption(lambda_peak, width, l):
     g = torch.exp(-(l - lambda_peak)**2/(2.0 * width**2))
     n = torch.trapezoid(g, l)
     return torch.div(g, n)
@@ -41,7 +42,18 @@ def antenna(l, ip_y, branch_params):
     T = constants.T
 
     n_b = branch_params[0] #number of branches
-    subunits = branch_params[1:]
+    subunits  = torch.tensor(branch_params[1:])
+    '''
+    stuff for vmapping, maybe
+    sub_vec   = torch.empty((subunits.size()[0] + 1, 3))
+    sub_vec[0, 0]  = N_RC
+    sub_vec[0, 1]  = lp_RC
+    sub_vec[0, 2]  = w_RC
+    sub_vec[1:, 0] = subunits[:, 0]
+    sub_vec[1:, 1] = subunits[:, 2]
+    sub_vec[1:, 2] = subunits[:, 3]
+    print(sub_vec)
+    '''
     n_s = len(subunits)
     K_b = torch.zeros((n_s, n_s))
 
@@ -69,10 +81,23 @@ def antenna(l, ip_y, branch_params):
     '''
     fp_y = torch.mul(ip_y, l * (1.0E-9/(h*c)))
 
+    '''
+    vmapping stuff
+    i feel like this should be possible but i haven't figured out how yet
+    # try vmapping
+    # l2 = torch.zeros((n_s + 1, l.size()[0]))
+    # g2 = torch.zeros(n_s + 1)
+    # batched_absorption = torch.vmap(absorption, in_dims=(0))
+    # batched_overlap = torch.vmap(overlap)
+    # l2 = batched_absorption(sub_vec, l)
+    # g2 = torch.mul(sub_vec[:, 0] * constants.sig_chl, batched_overlap(l, fp_y, l2))
+    '''
+
+
     gammas = torch.zeros(n_s)
     lineshapes = torch.zeros((n_s, l.size()[0]))
     for i in range(n_s):
-        lineshapes[i] = absorption(l, subunits[i][2], subunits[i][3])
+        lineshapes[i] = absorption(subunits[i][2], subunits[i][3], l)
         gammas[i]     = (subunits[i][0]
                          * constants.sig_chl
                          * overlap(l, fp_y, lineshapes[i]))
@@ -84,7 +109,7 @@ def antenna(l, ip_y, branch_params):
     a. Transfer between RC and a branch
     '''
     # First calculate the spectral overlap
-    gauss_RC  = absorption(l, lp_RC, w_RC)
+    gauss_RC  = absorption(lp_RC, w_RC, l)
     DE_LHC_RC = overlap(l, gauss_RC, lineshapes[0])
 
     # rescale this overlap
@@ -156,10 +181,10 @@ def antenna(l, ip_y, branch_params):
     # solve the kinetics
     n_eq = torch.linalg.solve(K_mat, gamma_vec)
 
-    #(b) Electron output rate
+    # electron output rate
     nu_e = k_con * n_eq[0]
 
-    #(c) electron conversion quantum yield
+    # electron conversion quantum yield
     sum_rate = 0.0
     for i in range(2, side):
         sum_rate = sum_rate + (k_diss * n_eq[i])

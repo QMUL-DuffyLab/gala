@@ -12,7 +12,7 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-n_b_bounds = np.array([1, 15]) # max neighbours for identical spheres
+n_b_bounds = np.array([1, 12]) # max neighbours for identical spheres
 n_s_bounds = np.array([1, 100])
 n_p_bounds = np.array([1, 100])
 n_individuals = 50
@@ -49,7 +49,7 @@ w_rc=w2 #width is the same as Chla
 rc_params = (1, sig, lp_rc, w_rc)
 
 lambda_bounds = np.array([200.0, 1400.00])
-width_bounds  = np.array([1.0, 500.0])
+width_bounds  = np.array([1.0, 50.0])
 sigma_bounds  = np.array([sig_chl, sig_chl])
 
 radiative_subunit = [1, sig_chl, 680.0, 10.0]
