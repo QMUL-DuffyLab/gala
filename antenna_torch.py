@@ -13,15 +13,14 @@ def absorption(l, lambda_peak, width):
 def overlap(l, f1, f2):
     '''
     trapezoid rule for the product of f1 and f2 over l.
-    note that you have to return this wrapped in float,
-    otherwise torch returns it as a tensor, and then later
-    on it makes two shallow copies of the tensor for the
-    forward and backward rates. alternatively you can do
+    note that you later on I have to do
     k_LHC_RC = rate
     k_RC_LHC = rate.detach().clone()
-    later on, but we don't need this as a tensor anyway.
+    otherwise torch makes two shallow copies of the tensor for the
+    forward and backward rates and you can't change them separately.
+    alternatively we could return a float but then it's not vmappable
     '''
-    return float(torch.trapezoid(torch.mul(f1, f2), l))
+    return torch.trapezoid(torch.mul(f1, f2), l)
 
 def dG(l1, l2, n, T):
     # symmetric - going from 2 -> 1 is just minus this
@@ -30,19 +29,19 @@ def dG(l1, l2, n, T):
     g12 = h12 - s12 * T
     return g12
 
-def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
+def antenna(l, ip_y, branch_params):
 
     # probably need to copy l and ip_y to the GPU for this
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device("cpu")
-    #(1) Unpack parameters and establish dimensionality of the antenna
-    k_diss, k_trap, k_con, K_hop, K_LHC_RC = k_params
-    N_RC, sig_RC, lp_RC, w_RC = RC_params
-    lt = torch.tensor(l)
-    ipyt = torch.tensor(ip_y)
 
-    n_b = Branch_params[0] #number of branches
-    subunits = Branch_params[1:]
+    #(1) Unpack parameters and establish dimensionality of the antenna
+    k_diss, k_trap, k_con, K_hop, K_LHC_RC = constants.k_params
+    N_RC, sig_RC, lp_RC, w_RC = constants.rc_params
+    T = constants.T
+
+    n_b = branch_params[0] #number of branches
+    subunits = branch_params[1:]
     n_s = len(subunits)
     K_b = torch.zeros((n_s, n_s))
 
@@ -68,15 +67,15 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     '''
     2. Absorption rates
     '''
-    fp_y = torch.mul(ipyt, lt * (1.0E-9/(h*c)))
+    fp_y = torch.mul(ip_y, l * (1.0E-9/(h*c)))
 
     gammas = torch.zeros(n_s)
-    lineshapes = torch.zeros((n_s, lt.size()[0]))
+    lineshapes = torch.zeros((n_s, l.size()[0]))
     for i in range(n_s):
-        lineshapes[i] = absorption(lt, subunits[i][2], subunits[i][3])
+        lineshapes[i] = absorption(l, subunits[i][2], subunits[i][3])
         gammas[i]     = (subunits[i][0]
                          * constants.sig_chl
-                         * overlap(lt, fp_y, lineshapes[i]))
+                         * overlap(l, fp_y, lineshapes[i]))
         for j in start_index:
             gamma_vec[i + j] = -gammas[i]
 
@@ -85,8 +84,8 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     a. Transfer between RC and a branch
     '''
     # First calculate the spectral overlap
-    gauss_RC  = absorption(lt, lp_RC, w_RC)
-    DE_LHC_RC = overlap(lt, gauss_RC, lineshapes[0])
+    gauss_RC  = absorption(l, lp_RC, w_RC)
+    DE_LHC_RC = overlap(l, gauss_RC, lineshapes[0])
 
     # rescale this overlap
     mean_w    = (w_RC + subunits[0][3]) / 2.0
@@ -99,7 +98,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
 
     rate = K_LHC_RC * DE_LHC_RC
     k_LHC_RC = rate
-    k_RC_LHC = rate
+    k_RC_LHC = rate.detach().clone()
     if G_LHC_RC < 0.0:
         k_RC_LHC *= np.exp(G_LHC_RC/(kB*T))
     elif G_LHC_RC > 0.0:
@@ -109,7 +108,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     if n_s > 1:
         for i in range(n_s - 1): # working from inner to outer
             # spectral overlap
-            DE = overlap(lt, lineshapes[i], lineshapes[i+1])
+            DE = overlap(l, lineshapes[i], lineshapes[i+1])
 
             # rescale this overlap
             mean_w = (subunits[i][3] + subunits[i + 1][3]) / 2.0
@@ -155,18 +154,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
                 K_mat[i][i] -= TW_Adj_mat[i][j]
 
     # solve the kinetics
-    # gvt = gamma_vec.clone().detach()
     n_eq = torch.linalg.solve(K_mat, gamma_vec)
-
-    #(8) Outputs
-    #(a) A matrix of lifetimes (in ps) is easier to read than the rate constants
-    tau_mat=np.zeros((side, side))
-    for i in range(side):
-        for j in range(side):
-            if K_mat[i][j] >= 1.0E-12:
-                tau_mat[i][j] = (1.0 / K_mat[i][j]) / 1.0E-12
-            else:
-                tau_mat[i][j] = np.inf
 
     #(b) Electron output rate
     nu_e = k_con * n_eq[0]
@@ -181,7 +169,6 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     out_dict={'TW_Adj_mat': TW_Adj_mat,
              'K_b': K_b,
              'K_mat': K_mat,
-             'tau_mat': tau_mat,
              'gammas': gammas,
              'gamma_vec': gamma_vec,
              'N_eq': n_eq,

@@ -6,6 +6,7 @@
 
 from scipy.constants import h as h, c as c, Boltzmann as kb
 from operator import itemgetter
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as ss
@@ -225,23 +226,11 @@ for i in range(constants.n_individuals):
                                                 constants.T)
     c_time += timeit.default_timer() - c_start
     t_start = timeit.default_timer()
-    t_result = at.antenna(l, ip_y, bp, constants.rc_params,
-                                constants.k_params, constants.T)
+    t_result = at.antenna(torch.from_numpy(l), torch.from_numpy(ip_y), bp)
     t_time += timeit.default_timer() - t_start
     # check the matrices and steady state solution are the same!
-    print("c_result n_eq:", c_result['N_eq'])
-    print("t_result n_eq:", t_result['N_eq'])
-    f = open("out/c_result.dat", "w")
-    f.write(str(c_result))
-    f.close()
-    f = open("out/t_result.dat", "w")
-    f.write(str(t_result))
-    f.close()
-    fig, ax = plt.subplots()
-    plt.matshow(c_result['TW_Adj_mat'] - t_result['TW_Adj_mat'].numpy())
-    plt.savefig("out/tw_diff.pdf")
-    plt.close()
     assert np.allclose(c_result['TW_Adj_mat'], t_result['TW_Adj_mat'].numpy())
+    assert np.allclose(c_result['K_mat'], t_result['K_mat'].numpy())
     assert np.allclose(c_result['N_eq'], t_result['N_eq'])
     c_results.append(c_result)
     t_results.append(t_result)
@@ -249,13 +238,13 @@ for i in range(constants.n_individuals):
 print("Chris's code time: ", c_time)
 print("Torch code time: ", t_time)
 survivors, best = selection(population, t_results)
-print("---------\nSURVIVORS\n---------")
-print(survivors)
-running_best.append(best)
-new_pop = reproduction(survivors, population)
-print("---------\n NEW POP \n---------")
-print(population)
-for i in range(constants.n_individuals):
-    population[i] = mutation(population[i])
-print("---------\nMUTATIONS\n---------")
-print(population)
+# print("---------\nSURVIVORS\n---------")
+# print(survivors)
+# running_best.append(best)
+# new_pop = reproduction(survivors, population)
+# print("---------\n NEW POP \n---------")
+# print(population)
+# for i in range(constants.n_individuals):
+#     population[i] = mutation(population[i])
+# print("---------\nMUTATIONS\n---------")
+# print(population)
