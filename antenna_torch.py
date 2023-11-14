@@ -44,6 +44,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     n_b = Branch_params[0] #number of branches
     subunits = Branch_params[1:]
     n_s = len(subunits)
+    K_b = torch.zeros((n_s, n_s))
 
     # transfer-weighted adjacency matrix.
     # fill in as we go to cut down on the number of loops
@@ -106,9 +107,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
 
     # transfer between subunits
     if n_s > 1:
-        K_b = torch.zeros((n_s, n_s))
         for i in range(n_s - 1): # working from inner to outer
-
             # spectral overlap
             DE = overlap(lt, lineshapes[i], lineshapes[i+1])
 
@@ -133,11 +132,8 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
     for j in start_index:
         TW_Adj_mat[1][j] = k_RC_LHC # RC -> LHC (root)
         TW_Adj_mat[j][1] = k_LHC_RC # LHC (root) -> RC
-        print(1, j, TW_Adj_mat[int(1)][j])
-        print(j, 1, TW_Adj_mat[int(j)][1])
         if n_s > 1:
             TW_Adj_mat[j][j + 1] = K_b[0][1]
-            print(j, i + j, j + 1, TW_Adj_mat[int(j)][int(j+1)])
             # nn adjacencies along the branches
             for i in range(1, n_s):
                 # first subunit is accounted for above
@@ -156,8 +152,7 @@ def antenna(l,ip_y,Branch_params,RC_params,k_params,T):
         for j in range(side):
             if i != j:
                 K_mat[i][j]  = TW_Adj_mat[j][i]
-                K_mat[i][i] -= TW_Adj_mat[j][i]
-
+                K_mat[i][i] -= TW_Adj_mat[i][j]
 
     # solve the kinetics
     # gvt = gamma_vec.clone().detach()

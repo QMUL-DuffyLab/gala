@@ -1279,7 +1279,6 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
     for i in range(2,N_b*N_s+2):
         K_mat[i][i]=K_mat[i][i]-k_diss
                    
-        
     #(6) The vector of photon inputs
     gamma_vec=np.zeros(N_b*N_s+2)
     for i in range(N_s): #exclude the first subunit which has bee accounted for above
