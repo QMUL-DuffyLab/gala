@@ -213,34 +213,51 @@ if __name__ == "__main__":
     ip_y_t = torch.from_numpy(ip_y)
 
     population = []
+    chris_results = []
+    torch_results = []
     c_results = []
-    t_results = []
     running_best = []
+    chris_time = 0.0
+    torch_time = 0.0
     c_time = 0.0
-    t_time = 0.0
     for i in range(constants.n_individuals):
         bp = initialise_individual('random')
         population.append(bp)
         print(i, bp[0], len(bp) - 1, pow(bp[0] * len(bp) - 1, 2))
-        c_start = timeit.default_timer()
-        c_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
+        chris_start = timeit.default_timer()
+        chris_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
                                                     constants.rc_params,
                                                     constants.k_params,
                                                     constants.T)
-        c_time += timeit.default_timer() - c_start
-        t_start = timeit.default_timer()
-        t_result = at.antenna(l_t, ip_y_t, bp)
-        t_time += timeit.default_timer() - t_start
-        # check the matrices and steady state solution are the same!
-        assert np.allclose(c_result['TW_Adj_mat'], t_result['TW_Adj_mat'].numpy())
-        assert np.allclose(c_result['K_mat'], t_result['K_mat'].numpy())
-        assert np.allclose(c_result['N_eq'], t_result['N_eq'])
-        c_results.append(c_result)
-        t_results.append(t_result)
+        chris_time += timeit.default_timer() - chris_start
+        torch_start = timeit.default_timer()
+        torch_result = at.antenna(l_t, ip_y_t, bp)
+        torch_time += timeit.default_timer() - torch_start
 
-    print("Chris's code time: ", c_time)
-    print("Torch code time: ", t_time)
-    survivors, best = selection(population, t_results)
+        c_start = timeit.default_timer()
+        '''
+        list of params to C function:
+            antenna(double *l, double *ip_y, double sigma, double k_params[5],
+            double t, unsigned *n_p, double *lp, double *width,
+            unsigned n_b, unsigned n_s, unsigned l_len,
+            double **twa, double* n_eq, double* nu_phi)
+
+        try something like np.ctypeslib.as_ctypes[l] for double* l
+        and so on
+        c_args = [l.]
+        c_result = ac.antenna(l.byref())
+        '''
+        c_time += timeit.default_timer() - c_start
+        # check the matrices and steady state solution are the same!
+        assert np.allclose(chris_result['TW_Adj_mat'], torch_result['TW_Adj_mat'].numpy())
+        assert np.allclose(chris_result['K_mat'], torch_result['K_mat'].numpy())
+        assert np.allclose(chris_result['N_eq'], torch_result['N_eq'])
+        chris_results.append(chris_result)
+        torch_results.append(torch_result)
+
+    print("Chris's code time: ", chris_time)
+    print("Torch code time: ", torch_time)
+    survivors, best = selection(population, torch_results)
     # print("---------\nSURVIVORS\n---------")
     # print(survivors)
     # running_best.append(best)
