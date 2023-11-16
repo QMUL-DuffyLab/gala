@@ -96,7 +96,7 @@ int LUPDecompose(double **A, int N, double Tol, int *P) {
 /* INPUT: A,P filled in LUPDecompose; b - rhs vector; N - dimension
  * OUTPUT: x - solution vector of A*x=b
  */
-void LUPSolve(double **A, int *P, double *b, int N, double *x) {
+void LUPSolve(double **A, int *P, double *b, unsigned N, double *x) {
 
     for (int i = 0; i < N; i++) {
         x[i] = b[P[i]];
@@ -219,7 +219,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   int*     perm  = calloc(side + 1, sizeof(int));
   double*  k_b   = calloc(2 * n_s, sizeof(double));
   double*  gamma = calloc(side, sizeof(double));
-  /* double*  n_eq  = calloc(side, sizeof(*n_eq)); */
   double*  g     = calloc(n_s, sizeof(double));
   double** lines = calloc(n_s + 1, sizeof(double*));
   double** twa   = calloc(side, sizeof(double*));
@@ -231,21 +230,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       lines[i] = calloc(l_len, sizeof(double));
     }
   }
-
-  /*
-  printf("n_p\n");
-  for (unsigned i = 0; i < n_s + 1; i++) {
-    printf("%4d\n", n_p[i]);
-  }
-  printf("lp\n");
-  for (unsigned i = 0; i < n_s + 1; i++) {
-    printf("%10.6e\n", lp[i]);
-  }
-  printf("width\n");
-  for (unsigned i = 0; i < n_s + 1; i++) {
-    printf("%10.6e\n", width[i]);
-  }
-  */
 
   /* absorption rates */
   double *fp_y = calloc(l_len, sizeof(double));
@@ -272,19 +256,13 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   printf("Done lineshapes\n");
 
   /* rate constants */
-  /* THIS ALL NEEDS CHECKING - INDEXING, THE ORDERING OF DELTA_G */
   for (unsigned i = 0; i < n_s; i++) {
-    /* printf("Rate constants: i = %4d\n", i); */
     double de = overlap(l, lines[i], lines[i + 1], l_len);
-    /* printf("de = %10.6e\n", de); */
-    double mean_w = (width[i] + width[i + 1]) / 2.0;
-    de *= sqrt(4.0 * M_PI * mean_w);
-    /* printf("de scaled = %10.6e\n", de); */
+    /* double mean_w = (width[i] + width[i + 1]) / 2.0; */
+    /* de *= sqrt(4.0 * M_PI * mean_w); */
     double n_ratio = (double)(n_p[i]) / (double)(n_p[i + 1]);
-    /* printf("n_ratio = %10.6e\n", n_ratio); */
-    /* next line calculates free energy change moving *outward* */
+    /* free energy change moving *outward* */
     double delta_g = dG(lp[i], lp[i + 1], n_ratio, t);
-    /* printf("dG = %10.6e\n", delta_g); */
     double rate = 0.0;
     if (i == 0) {
       rate = k_params[4]; /* k_LHC_RC */
@@ -366,11 +344,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   LUPSolve(k, perm, gamma, side, n_eq);
   printf("Done solution\n");
 
-  /* printf("n_eq in C\n"); */
-  /* for (unsigned i = 0; i < side; i++) { */
-  /*   printf("%10.6e\n", n_eq[i]); */
-  /* } */
-
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
   for (unsigned i = 2; i < side; i++) {
@@ -407,6 +380,7 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
 }
 
 int main() {
+  /* test values */
   unsigned l_len = 4000;
   unsigned n_b = 5;
   unsigned n_s = 30;

@@ -309,7 +309,10 @@ if __name__ == "__main__":
                 ctypes.c_uint(len(l)), n_eq, nu_phi)
         print("Done")
         print(chris_result['N_eq'])
+        print("n_eq from C")
         print(np.ctypeslib.as_array(n_eq))
+        print("nu_e, phi_f")
+        print(np.ctypeslib.as_array(nu_phi))
         c_time += timeit.default_timer() - c_start
         # assert np.allclose(chris_result['N_eq'], n_eq)
         chris_results.append(chris_result)
