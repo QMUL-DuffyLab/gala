@@ -60,9 +60,9 @@ def antenna(l, ip_y, branch_params):
     # transfer-weighted adjacency matrix.
     # fill in as we go to cut down on the number of loops
     side = n_b * n_s + 2
-    TW_Adj_mat = torch.zeros((side, side))
+    TW_Adj_mat = torch.zeros((side, side), dtype=torch.float64)
     # likewise with the vector of photon inputs
-    gamma_vec = torch.zeros(side, dtype=torch.float32)
+    gamma_vec = torch.zeros(side, dtype=torch.float64)
 
     # Site 0 is the trap, 1 is the RC.
     # 2, ..., n_s + 1 is the first branch
@@ -167,7 +167,7 @@ def antenna(l, ip_y, branch_params):
                         TW_Adj_mat[i + j][i + j + 1] = K_b[i][i + 1]
         
     # construct the K matrix
-    K_mat = torch.zeros([side,side], device=device, dtype=torch.float32)
+    K_mat = torch.zeros([side,side], device=device, dtype=torch.float64)
     # conversion rate of trap
     K_mat[0][0] = K_mat[0][0] - k_con
     for i in range(side):

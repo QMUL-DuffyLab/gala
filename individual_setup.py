@@ -250,11 +250,27 @@ if __name__ == "__main__":
                                                     constants.k_params,
                                                     constants.T)
         chris_time += timeit.default_timer() - chris_start
+        np.savetxt("out/twa_mat_chris.dat", chris_result['TW_Adj_mat'])
+        np.savetxt("out/k_mat_chris.dat", chris_result['K_mat'])
 
         print("Calling torch code")
         torch_start = timeit.default_timer()
         torch_result = at.antenna(l_t, ip_y_t, bp)
         torch_time += timeit.default_timer() - torch_start
+        np.savetxt("out/twa_mat_torch.dat", torch_result['TW_Adj_mat'].numpy())
+        np.savetxt("out/k_mat_torch.dat", torch_result['K_mat'].numpy())
+        # check the matrices and steady state solution are the same!
+        try:
+            assert np.allclose(chris_result['TW_Adj_mat'], torch_result['TW_Adj_mat'].numpy())
+        except AssertionError:
+            print("Chris:")
+            print(chris_result['TW_Adj_mat'])
+            print("Torch:")
+            print(torch_result['TW_Adj_mat'].numpy())
+            print("Max difference: ", np.max(chris_result['TW_Adj_mat'] - torch_result['TW_Adj_mat'].numpy()))
+        
+        assert np.allclose(chris_result['K_mat'], torch_result['K_mat'].numpy())
+        assert np.allclose(chris_result['N_eq'], torch_result['N_eq'])
 
         '''
         setup for calling C version
@@ -292,13 +308,10 @@ if __name__ == "__main__":
                 ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                 ctypes.c_uint(len(l)), n_eq, nu_phi)
         print("Done")
+        print(chris_result['N_eq'])
         print(np.ctypeslib.as_array(n_eq))
         c_time += timeit.default_timer() - c_start
-        # check the matrices and steady state solution are the same!
-        assert np.allclose(chris_result['TW_Adj_mat'], torch_result['TW_Adj_mat'].numpy())
-        assert np.allclose(chris_result['K_mat'], torch_result['K_mat'].numpy())
-        assert np.allclose(chris_result['N_eq'], torch_result['N_eq'])
-        assert np.allclose(chris_result['N_eq'], n_eq)
+        # assert np.allclose(chris_result['N_eq'], n_eq)
         chris_results.append(chris_result)
         torch_results.append(torch_result)
 

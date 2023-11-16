@@ -101,8 +101,9 @@ void LUPSolve(double **A, int *P, double *b, int N, double *x) {
     for (int i = 0; i < N; i++) {
         x[i] = b[P[i]];
 
-        for (int k = 0; k < i; k++)
+        for (int k = 0; k < i; k++){
             x[i] -= A[i][k] * x[k];
+        }
     }
 
     for (int i = N - 1; i >= 0; i--) {
@@ -318,28 +319,57 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
   printf("Built transfer matrix\n");
 
+  printf("Writing twa file\n");
+  char* filename = "out/twa_mat_c.dat";
+  FILE *fp = fopen(filename, "w");
+  if (fp) {
+    for (unsigned i = 0; i < side; i++) {
+      for (unsigned j = 0; j < side; j++) {
+        fprintf(fp, "%10.6e ", twa[i][j]);
+      }
+      fprintf(fp, "\n");
+    }
+  }
+  fclose(fp);
+
   /* now construct k */
   k[0][0] -= k_params[2]; /* k_con */
   for (unsigned i = 0; i < side; i++) {
     if (i >= 2) {
-      k[i][i] -= k[i][i] - k_params[0]; /* k_diss */
+      k[i][i] -= k_params[0]; /* k_diss */
     }
     for (unsigned j = 0; j < side; j++) {
-      k[i][j]  = twa[j][i];
-      k[i][i] -= twa[i][j];
+      if (i != j) {
+        k[i][j]  = twa[j][i];
+        printf("%4d %4d %10.6e\n", i, j, twa[i][j]);
+        k[i][i] -= twa[i][j];
+      }
     }
   }
   printf("Built k\n");
+
+  printf("Writing k file\n");
+  filename = "out/k_mat_c.dat";
+  fp = fopen(filename, "w");
+  if (fp) {
+    for (unsigned i = 0; i < side; i++) {
+      for (unsigned j = 0; j < side; j++) {
+        fprintf(fp, "%10.6e ", k[i][j]);
+      }
+      fprintf(fp, "\n");
+    }
+  }
+  fclose(fp);
 
   LUPDecompose(k, side, tol, perm);
   printf("Done decomposition\n");
   LUPSolve(k, perm, gamma, side, n_eq);
   printf("Done solution\n");
 
-  printf("n_eq in C\n");
-  for (unsigned i = 0; i < side; i++) {
-    printf("%10.6e\n", n_eq[i]);
-  }
+  /* printf("n_eq in C\n"); */
+  /* for (unsigned i = 0; i < side; i++) { */
+  /*   printf("%10.6e\n", n_eq[i]); */
+  /* } */
 
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
