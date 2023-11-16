@@ -2,5 +2,7 @@
 *.pdf
 *.png
 *.ods
+*.o
+*.so
 __pycache__/*
 out/*

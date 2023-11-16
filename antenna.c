@@ -193,15 +193,17 @@ dG(double l1, double l2, double n, double t)
   /* change in Gibbs free energy on moving from domain 1 -> 2.
    * enthalpy h, entropy s. note that g_21 = - g_12 so only do it once */
   double h = ((M_H * M_C) / 1.0E-9) * ((l1 - l2) / (l1 * l2));
+  /* printf("h = %10.6e\n", h); */
   double s = -1.0 * M_KB * log(n);
+  /* printf("s = %10.6e\n", s); */
   return (h - (t * s)); 
 }
 
 void
-antenna(double *l, double *ip_y, double sigma, double k_params[5],
-            double t, unsigned *n_p, double *lp, double *width,
-            unsigned n_b, unsigned n_s, unsigned l_len,
-            double **twa, double* n_eq, double* nu_phi)
+antenna(double *l, double *ip_y, double sigma, double sigma_rc, 
+            double k_params[5], double t, unsigned *n_p, double *lp,
+            double *width, unsigned n_b, unsigned n_s, unsigned l_len,
+            double* n_eq, double* nu_phi)
 {
   /* 
    * length of n_p, lp and width should be n_s + 1; RC params are in [0].
@@ -221,15 +223,30 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   /* double*  n_eq  = calloc(side, sizeof(*n_eq)); */
   double*  g     = calloc(n_s, sizeof(*g));
   double** lines = calloc(n_s + 1, sizeof(*lines));
-  /* double** twa   = calloc(side, sizeof(*twa)); */
+  double** twa   = calloc(side, sizeof(*twa));
   double** k     = calloc(side, sizeof(*k));
   for (unsigned i = 0; i < side; i++) {
-    /* twa[i]   = calloc(side,  sizeof(*(twa[i]))); */
+    twa[i]   = calloc(side,  sizeof(*(twa[i])));
     k[i] = calloc(side,  sizeof(*(k[i])));
     if (i < n_s + 1) {
       lines[i] = calloc(l_len, sizeof(*(lines[i])));
     }
   }
+
+  /*
+  printf("n_p\n");
+  for (unsigned i = 0; i < n_s + 1; i++) {
+    printf("%4d\n", n_p[i]);
+  }
+  printf("lp\n");
+  for (unsigned i = 0; i < n_s + 1; i++) {
+    printf("%10.6e\n", lp[i]);
+  }
+  printf("width\n");
+  for (unsigned i = 0; i < n_s + 1; i++) {
+    printf("%10.6e\n", width[i]);
+  }
+  */
 
   /* absorption rates */
   double *fp_y = calloc(l_len, sizeof(double));
@@ -253,16 +270,22 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
       }
     }
   }
+  printf("Done lineshapes\n");
 
   /* rate constants */
   /* THIS ALL NEEDS CHECKING - INDEXING, THE ORDERING OF DELTA_G */
   for (unsigned i = 0; i < n_s; i++) {
+    /* printf("Rate constants: i = %4d\n", i); */
     double de = overlap(l, lines[i], lines[i + 1], l_len);
+    /* printf("de = %10.6e\n", de); */
     double mean_w = (width[i] + width[i + 1]) / 2.0;
     de *= sqrt(4.0 * M_PI * mean_w);
-    double n_ratio = n_p[i] / n_p[i + 1];
+    /* printf("de scaled = %10.6e\n", de); */
+    double n_ratio = (double)(n_p[i]) / (double)(n_p[i + 1]);
+    /* printf("n_ratio = %10.6e\n", n_ratio); */
     /* next line calculates free energy change moving *outward* */
     double delta_g = dG(lp[i], lp[i + 1], n_ratio, t);
+    /* printf("dG = %10.6e\n", delta_g); */
     double rate = 0.0;
     if (i == 0) {
       rate = k_params[4]; /* k_LHC_RC */
@@ -280,6 +303,7 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
       k_b[(2 * i)]     *= exp(-1.0 * delta_g / (t * M_KB));
     }
   }
+  printf("Done rate constants\n");
 
   twa[1][0] = k_params[1]; /* k_trap */
   for (unsigned j = 2; j < side; j = j + n_s) {
@@ -294,6 +318,7 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
       }
     }
   }
+  printf("Built transfer matrix\n");
 
   /* now construct k */
   k[0][0] -= k_params[2]; /* k_con */
@@ -306,9 +331,12 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
       k[i][i] -= twa[i][j];
     }
   }
+  printf("Built k\n");
 
   LUPDecompose(k, side, tol, perm);
+  printf("Done decomposition\n");
   LUPSolve(k, perm, gamma, side, n_eq);
+  printf("Done solution\n");
 
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
@@ -317,12 +345,30 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   }
   nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
 
+  printf("Freeing k, twa, lines\n");
   for (unsigned i = 0; i < side; i++) {
     free(k[i]);
+    free(twa[i]);
     if (i < n_s + 1) {
       free(lines[i]);
     }
   }
-  free(k_b); free(gamma); free(g); free(lines);
-  free(fp_y); free(k); free(perm);
+
+  printf("Freeing kb\n");
+  free(k_b);
+  printf("Freeing twa\n");
+  free(twa);
+  printf("Freeing gamma\n");
+  free(gamma);
+  printf("Freeing g\n");
+  free(g);
+  printf("Freeing lines\n");
+  free(lines);
+  printf("Freeing fp_y\n");
+  free(fp_y);
+  printf("Freeing k\n");
+  free(k);
+  printf("Freeing perm\n");
+  free(perm);
+  printf("Done. exiting\n");
 }

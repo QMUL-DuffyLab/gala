@@ -4,8 +4,9 @@
 @author: callum
 """
 
-from scipy.constants import h as h, c as c, Boltzmann as kb
 from operator import itemgetter
+from scipy.constants import h as h, c as c, Boltzmann as kb
+import ctypes
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -201,6 +202,17 @@ def mutation(individual):
     return individual
 
 if __name__ == "__main__":
+    c_antenna = ctypes.cdll.LoadLibrary("./libantenna.so")
+    c_antenna.antenna.argtypes = [ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double), ctypes.c_double,
+            ctypes.c_double, ctypes.POINTER(ctypes.c_double),
+            ctypes.c_double, ctypes.POINTER(ctypes.c_uint),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_uint, ctypes.c_uint, ctypes.c_uint,
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double)]
+
     # these two will be args eventually i guess
     ts = 2600
     init_type = 'radiative' # can be radiative or random
@@ -208,7 +220,14 @@ if __name__ == "__main__":
     spectrum_file = constants.spectrum_prefix \
                     + '{:4d}K'.format(ts) \
                     + constants.spectrum_suffix
-    l, ip_y = np.loadtxt(spectrum_file, unpack=True)
+    # instead of unpacking and pulling both arrays, pull once
+    # and split by column. this stops the arrays being strided,
+    # so we can use them in the C code below without messing around
+    phoenix_data = np.loadtxt(spectrum_file)
+    l    = phoenix_data[:, 0]
+    ip_y = phoenix_data[:, 1]
+    l_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(l))
+    ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
     l_t = torch.from_numpy(l)
     ip_y_t = torch.from_numpy(ip_y)
 
@@ -224,34 +243,61 @@ if __name__ == "__main__":
         bp = initialise_individual('random')
         population.append(bp)
         print(i, bp[0], len(bp) - 1, pow(bp[0] * len(bp) - 1, 2))
+        print("Calling Chris's code")
         chris_start = timeit.default_timer()
         chris_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
                                                     constants.rc_params,
                                                     constants.k_params,
                                                     constants.T)
         chris_time += timeit.default_timer() - chris_start
+
+        print("Calling torch code")
         torch_start = timeit.default_timer()
         torch_result = at.antenna(l_t, ip_y_t, bp)
         torch_time += timeit.default_timer() - torch_start
 
-        c_start = timeit.default_timer()
         '''
-        list of params to C function:
-            antenna(double *l, double *ip_y, double sigma, double k_params[5],
-            double t, unsigned *n_p, double *lp, double *width,
-            unsigned n_b, unsigned n_s, unsigned l_len,
-            double **twa, double* n_eq, double* nu_phi)
+        setup for calling C version
+        '''
+        n_b = bp[0]
+        subunits = bp[1:]
+        n_s = len(subunits)
+        side = (n_b * n_s) + 2
+        n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
+        lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+        width = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+        n_p[0]   = constants.rc_params[0]
+        lp[0]    = constants.rc_params[2]
+        width[0] = constants.rc_params[3]
+        for i in range(n_s):
+            n_p[i + 1]   = subunits[i][0]
+            lp[i + 1]    = subunits[i][2]
+            width[i + 1] = subunits[i][3]
+        # twa    = np.ctypeslib.as_ctypes(np.zeros((side, side), dtype=np.float64))
+        # twa = ((ctypes.c_double * side) * side)()
+        # n_eq   = np.ctypeslib.as_ctypes(np.zeros(side, dtype=np.float64))
+        n_eq   = (ctypes.c_double * side)()
+        nu_phi = np.ctypeslib.as_ctypes(np.zeros(2, dtype=np.float64))
+        kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
 
-        try something like np.ctypeslib.as_ctypes[l] for double* l
-        and so on
-        c_args = [l.]
-        c_result = ac.antenna(l.byref())
-        '''
+        # start timer here to time the actual function only lol
+        print("Calling C code")
+        c_start = timeit.default_timer()
+
+        c_antenna.antenna(l_c, ip_y_c,
+                ctypes.c_double(constants.sig_chl),
+                ctypes.c_double(constants.rc_params[1]), kp,
+                ctypes.c_double(constants.T),
+                n_p, lp, width,
+                ctypes.c_uint(n_b), ctypes.c_uint(n_s),
+                ctypes.c_uint(len(l)), n_eq, nu_phi)
+        print("Done")
         c_time += timeit.default_timer() - c_start
         # check the matrices and steady state solution are the same!
         assert np.allclose(chris_result['TW_Adj_mat'], torch_result['TW_Adj_mat'].numpy())
         assert np.allclose(chris_result['K_mat'], torch_result['K_mat'].numpy())
         assert np.allclose(chris_result['N_eq'], torch_result['N_eq'])
+        assert np.allclose(chris_result['N_eq'], n_eq)
         chris_results.append(chris_result)
         torch_results.append(torch_result)
 
