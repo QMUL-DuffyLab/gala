@@ -172,19 +172,17 @@ overlap(double *l, double *f1, double *f2, unsigned n)
   return result;
 }
 
-double*
-absorption(double *l, double lambda_peak, double width, unsigned n)
+void
+absorption(double *out, double *l, double lambda_peak, double width, unsigned n)
 {
   /* normalised gaussian absorption lineshape */
-  double *work = calloc(n, sizeof(double));
   for (unsigned i = 0; i < n; i++) {
-    work[i] = exp(-1.0 * pow(l[i] - lambda_peak, 2)/(2.0 * pow(width, 2)));
+    out[i] = exp(-1.0 * pow(l[i] - lambda_peak, 2)/(2.0 * pow(width, 2)));
   }
-  double norm = trapezoid(work, l, n);
+  double norm = trapezoid(out, l, n);
   for (unsigned i = 0; i < n; i++) {
-    work[i] /= norm;
+    out[i] /= norm;
   }
-  return work;
 }
 
 double
@@ -217,19 +215,19 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   unsigned side = (n_b * n_s) + 2;
   double tol = 1e-6; /* LU decomposition tolerance for singularity */
 
-  int*     perm  = calloc(side, sizeof(*perm));
-  double*  k_b   = calloc(2 * n_s, sizeof(*k_b));
-  double*  gamma = calloc(side, sizeof(*gamma));
+  int*     perm  = calloc(side + 1, sizeof(int));
+  double*  k_b   = calloc(2 * n_s, sizeof(double));
+  double*  gamma = calloc(side, sizeof(double));
   /* double*  n_eq  = calloc(side, sizeof(*n_eq)); */
-  double*  g     = calloc(n_s, sizeof(*g));
-  double** lines = calloc(n_s + 1, sizeof(*lines));
-  double** twa   = calloc(side, sizeof(*twa));
-  double** k     = calloc(side, sizeof(*k));
+  double*  g     = calloc(n_s, sizeof(double));
+  double** lines = calloc(n_s + 1, sizeof(double*));
+  double** twa   = calloc(side, sizeof(double*));
+  double** k     = calloc(side, sizeof(double*));
   for (unsigned i = 0; i < side; i++) {
-    twa[i]   = calloc(side,  sizeof(*(twa[i])));
-    k[i] = calloc(side,  sizeof(*(k[i])));
+    twa[i]   = calloc(side,  sizeof(double));
+    k[i] = calloc(side,  sizeof(double));
     if (i < n_s + 1) {
-      lines[i] = calloc(l_len, sizeof(*(lines[i])));
+      lines[i] = calloc(l_len, sizeof(double));
     }
   }
 
@@ -256,7 +254,7 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   
   /* calculate lineshapes */
   for (unsigned i = 0; i < n_s + 1; i++) {
-    lines[i] = absorption(l, lp[i], width[i], l_len);
+    absorption(lines[i], l, lp[i], width[i], l_len);
     if (i > 0) { 
       /* 
        * add to the vector of photon inputs for later.
@@ -338,6 +336,11 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   LUPSolve(k, perm, gamma, side, n_eq);
   printf("Done solution\n");
 
+  printf("n_eq in C\n");
+  for (unsigned i = 0; i < side; i++) {
+    printf("%10.6e\n", n_eq[i]);
+  }
+
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
   for (unsigned i = 2; i < side; i++) {
@@ -371,4 +374,36 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   printf("Freeing perm\n");
   free(perm);
   printf("Done. exiting\n");
+}
+
+int main() {
+  unsigned l_len = 4000;
+  unsigned n_b = 5;
+  unsigned n_s = 30;
+  unsigned side = (n_b * n_s) + 2;
+  double sigma = 9E-18;
+  double k_params[5] = {1E-10, 1E-10, 1E-10, 1E-10, 1E-10};
+  double t = 300.0;
+  double *l = calloc(l_len, sizeof(double));
+  double *ip_y = calloc(l_len, sizeof(double));
+  unsigned *n_p = calloc(n_s + 1, sizeof(unsigned));
+  double *lp = calloc(n_s + 1, sizeof(double));
+  double *width = calloc(n_s + 1, sizeof(double));
+  double *n_eq = calloc(side, sizeof(double));
+  double *nu_phi = calloc(2, sizeof(double));
+
+  antenna(l, ip_y, sigma, sigma, 
+              k_params, t, n_p, lp,
+              width, n_b, n_s, l_len,
+              n_eq, nu_phi);
+
+  free(l);
+  free(ip_y);
+  free(n_p);
+  free(lp);
+  free(width);
+  free(n_eq);
+  free(nu_phi);
+  return 0;
+  
 }

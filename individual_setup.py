@@ -292,6 +292,7 @@ if __name__ == "__main__":
                 ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                 ctypes.c_uint(len(l)), n_eq, nu_phi)
         print("Done")
+        print(np.ctypeslib.as_array(n_eq))
         c_time += timeit.default_timer() - c_start
         # check the matrices and steady state solution are the same!
         assert np.allclose(chris_result['TW_Adj_mat'], torch_result['TW_Adj_mat'].numpy())
