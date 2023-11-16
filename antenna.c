@@ -2,6 +2,7 @@
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
+#include <gsl/gsl_linalg.h>
 
 /* various constants */
 
@@ -214,18 +215,19 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
    * nu_phi is double[2].
    */
   unsigned side = (n_b * n_s) + 2;
-  double tol = 1e-6; /* LU decomposition tolerance for singularity */
 
-  int*     perm  = calloc(side + 1, sizeof(int));
+  gsl_vector *gamma = gsl_vector_calloc(side);
+  gsl_matrix *k = gsl_matrix_calloc(side, side);
+  gsl_permutation *perm = gsl_permutation_calloc(side);
+  gsl_vector *n_eq_gsl = gsl_vector_calloc(side);
+  int *signum = 0;
+
   double*  k_b   = calloc(2 * n_s, sizeof(double));
-  double*  gamma = calloc(side, sizeof(double));
   double*  g     = calloc(n_s, sizeof(double));
   double** lines = calloc(n_s + 1, sizeof(double*));
   double** twa   = calloc(side, sizeof(double*));
-  double** k     = calloc(side, sizeof(double*));
   for (unsigned i = 0; i < side; i++) {
     twa[i]   = calloc(side,  sizeof(double));
-    k[i] = calloc(side,  sizeof(double));
     if (i < n_s + 1) {
       lines[i] = calloc(l_len, sizeof(double));
     }
@@ -249,7 +251,7 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       g[i - 1] = n_p[i - 1] * sigma * overlap(l, fp_y, lines[i - 1], l_len);
       for (unsigned j = 2; j < side; j = j + n_s) {
         /* j is the set of start indices for each branch */
-        gamma[i - 1 + j] = -1.0 * g[i - 1];
+        gsl_vector_set(gamma, i - 1 + j, -1.0 * g[i - 1]);
       }
     }
   }
@@ -258,8 +260,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   /* rate constants */
   for (unsigned i = 0; i < n_s; i++) {
     double de = overlap(l, lines[i], lines[i + 1], l_len);
-    /* double mean_w = (width[i] + width[i + 1]) / 2.0; */
-    /* de *= sqrt(4.0 * M_PI * mean_w); */
     double n_ratio = (double)(n_p[i]) / (double)(n_p[i + 1]);
     /* free energy change moving *outward* */
     double delta_g = dG(lp[i], lp[i + 1], n_ratio, t);
@@ -311,38 +311,50 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   fclose(fp);
 
   /* now construct k */
-  k[0][0] -= k_params[2]; /* k_con */
+  double** kd = calloc(side, sizeof(double*));
   for (unsigned i = 0; i < side; i++) {
+    kd[i] = calloc(side, sizeof(double));
+  }
+  kd[0][0] -= k_params[2]; /* k_con */
+  for (unsigned i = 0; i < side; i++) {
+    /* double *elem = gsl_matrix_ptr(k, i, i); */
+    /* if (i == 0) *elem -= k_params[2]; */
     if (i >= 2) {
-      k[i][i] -= k_params[0]; /* k_diss */
+      /* *elem -= k_params[0]; */
+      kd[i][i] -= k_params[0]; /* k_diss */
     }
     for (unsigned j = 0; j < side; j++) {
       if (i != j) {
-        k[i][j]  = twa[j][i];
-        printf("%4d %4d %10.6e\n", i, j, twa[i][j]);
-        k[i][i] -= twa[i][j];
+        /* gsl_matrix_set(k, i, j, twa[j][i]); */
+        kd[i][j]  = twa[j][i];
+        /* *elem -= twa[i][j]; */
+        kd[i][i] -= twa[i][j];
       }
+      /* if (gsl_matrix_get(k, i, j) != kd[i][j]) { */
+      /*   printf("GSL MATRIX DOESN'T MATCH KD FOR %4d, %4d\n", i, j); */
+      /* } */
     }
   }
   printf("Built k\n");
+  for (unsigned i = 0; i < side; i++) {
+    for (unsigned j = 0; j < side; j++) {
+      gsl_matrix_set(k, i, j, kd[i][j]);
+    }
+  }
 
   printf("Writing k file\n");
   filename = "out/k_mat_c.dat";
   fp = fopen(filename, "w");
   if (fp) {
-    for (unsigned i = 0; i < side; i++) {
-      for (unsigned j = 0; j < side; j++) {
-        fprintf(fp, "%10.6e ", k[i][j]);
-      }
-      fprintf(fp, "\n");
-    }
+    gsl_matrix_fprintf(fp, k, "%e");
   }
   fclose(fp);
 
-  LUPDecompose(k, side, tol, perm);
-  printf("Done decomposition\n");
-  LUPSolve(k, perm, gamma, side, n_eq);
-  printf("Done solution\n");
+  gsl_linalg_LU_decomp(k, perm, signum);
+  gsl_linalg_LU_solve(k, perm, gamma, n_eq_gsl);
+  for (unsigned i = 0; i < side; i++) {
+    n_eq[i] = gsl_vector_get(n_eq_gsl, i);
+  }
 
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
@@ -353,13 +365,18 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
 
   printf("Freeing k, twa, lines\n");
   for (unsigned i = 0; i < side; i++) {
-    free(k[i]);
+    free(kd[i]);
     free(twa[i]);
     if (i < n_s + 1) {
       free(lines[i]);
     }
   }
 
+  printf("GSL frees\n");
+  gsl_vector_free(gamma);
+  gsl_vector_free(n_eq_gsl);
+  gsl_permutation_free(perm);
+  gsl_matrix_free(k);
   printf("Freeing kb\n");
   free(k_b);
   printf("Freeing twa\n");
@@ -373,7 +390,7 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   printf("Freeing fp_y\n");
   free(fp_y);
   printf("Freeing k\n");
-  free(k);
+  free(kd);
   printf("Freeing perm\n");
   free(perm);
   printf("Done. exiting\n");

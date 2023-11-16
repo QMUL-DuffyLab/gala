@@ -112,10 +112,6 @@ def antenna(l, ip_y, branch_params):
     gauss_RC  = absorption(lp_RC, w_RC, l)
     DE_LHC_RC = overlap(l, gauss_RC, lineshapes[0])
 
-    # rescale this overlap
-    # mean_w    = (w_RC + subunits[0][3]) / 2.0
-    # DE_LHC_RC = DE_LHC_RC * np.sqrt(4 * np.pi * mean_w)
-
     # thermodynamic factors
     nRCnLHC = subunits[0][0] / N_RC
     # thermodynamic parameters for G2 -> GRC
@@ -134,10 +130,6 @@ def antenna(l, ip_y, branch_params):
         for i in range(n_s - 1): # working from inner to outer
             # spectral overlap
             DE = overlap(l, lineshapes[i], lineshapes[i+1])
-
-            # rescale this overlap
-            # mean_w = (subunits[i][3] + subunits[i + 1][3]) / 2.0
-            # DE = DE * np.sqrt(4 * np.pi * mean_w)
 
             # thermodynamic factors
             n_ratio = subunits[i][0] / subunits[i + 1][0]

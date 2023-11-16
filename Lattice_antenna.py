@@ -1172,10 +1172,6 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
     gauss_RC=gauss_abs(l,lp_RC,w_RC)
     DE_LHC_RC=Olap_Int(l,gauss_RC,lineshape_b[0])
     
-    #rescale this overlap
-    # mean_w=(w_RC+subunits[0][3])/2.0
-    # DE_LHC_RC=DE_LHC_RC*np.sqrt(4*np.pi*mean_w)
-    
     #thermodynamic factors
     nRCnLHC=subunits[0][0]/N_RC
     thermoRC=deltaG(subunits[0][2],lp_RC,nRCnLHC,T) #thermodynamic parameters for G2 -> GRC
@@ -1195,10 +1191,6 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
 
             #spectral overlap
             DE=Olap_Int(l,lineshape_b[i],lineshape_b[i+1])
-
-            #rescale this overlap
-            # mean_w=(subunits[i][3]+subunits[i+1][3])/2.0
-            # DE=DE*np.sqrt(4*np.pi*mean_w)
 
             #thermodynamic factors
             n_ratio=subunits[i][0]/subunits[i+1][0]
