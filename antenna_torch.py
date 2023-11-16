@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import constants as constants
-from torch.func import vmap
+# from torch.func import vmap
 from scipy.constants import h as h
 from scipy.constants import c as c
 from scipy.constants import Boltzmann as kB

@@ -220,10 +220,11 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   gsl_matrix *k = gsl_matrix_calloc(side, side);
   gsl_permutation *perm = gsl_permutation_calloc(side);
   gsl_vector *n_eq_gsl = gsl_vector_calloc(side);
-  int *signum = 0;
+  int signum;
 
   double*  k_b   = calloc(2 * n_s, sizeof(double));
   double*  g     = calloc(n_s, sizeof(double));
+  double*  fp_y  = calloc(l_len, sizeof(double));
   double** lines = calloc(n_s + 1, sizeof(double*));
   double** twa   = calloc(side, sizeof(double*));
   for (unsigned i = 0; i < side; i++) {
@@ -234,7 +235,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
 
   /* absorption rates */
-  double *fp_y = calloc(l_len, sizeof(double));
   for (unsigned i = 0; i < l_len; i++) {
     fp_y[i] = ip_y[i] * l[i] * ((1.0E-9)/(M_H * M_C));
   }
@@ -350,11 +350,14 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
   fclose(fp);
 
-  gsl_linalg_LU_decomp(k, perm, signum);
+  printf("Decomposition\n");
+  gsl_linalg_LU_decomp(k, perm, &signum);
+  printf("Solver\n");
   gsl_linalg_LU_solve(k, perm, gamma, n_eq_gsl);
   for (unsigned i = 0; i < side; i++) {
     n_eq[i] = gsl_vector_get(n_eq_gsl, i);
   }
+  printf("done\n");
 
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
@@ -381,8 +384,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   free(k_b);
   printf("Freeing twa\n");
   free(twa);
-  printf("Freeing gamma\n");
-  free(gamma);
   printf("Freeing g\n");
   free(g);
   printf("Freeing lines\n");
@@ -391,40 +392,5 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   free(fp_y);
   printf("Freeing k\n");
   free(kd);
-  printf("Freeing perm\n");
-  free(perm);
   printf("Done. exiting\n");
-}
-
-int main() {
-  /* test values */
-  unsigned l_len = 4000;
-  unsigned n_b = 5;
-  unsigned n_s = 30;
-  unsigned side = (n_b * n_s) + 2;
-  double sigma = 9E-18;
-  double k_params[5] = {1E-10, 1E-10, 1E-10, 1E-10, 1E-10};
-  double t = 300.0;
-  double *l = calloc(l_len, sizeof(double));
-  double *ip_y = calloc(l_len, sizeof(double));
-  unsigned *n_p = calloc(n_s + 1, sizeof(unsigned));
-  double *lp = calloc(n_s + 1, sizeof(double));
-  double *width = calloc(n_s + 1, sizeof(double));
-  double *n_eq = calloc(side, sizeof(double));
-  double *nu_phi = calloc(2, sizeof(double));
-
-  antenna(l, ip_y, sigma, sigma, 
-              k_params, t, n_p, lp,
-              width, n_b, n_s, l_len,
-              n_eq, nu_phi);
-
-  free(l);
-  free(ip_y);
-  free(n_p);
-  free(lp);
-  free(width);
-  free(n_eq);
-  free(nu_phi);
-  return 0;
-  
 }
