@@ -239,6 +239,7 @@ if __name__ == "__main__":
     chris_time = 0.0
     torch_time = 0.0
     c_time = 0.0
+    total_start = timeit.default_timer()
     for i in range(constants.n_individuals):
         bp = initialise_individual('random')
         population.append(bp)
@@ -254,6 +255,7 @@ if __name__ == "__main__":
                 chris_result['phi_F'])
         np.savetxt("out/twa_mat_chris.dat", chris_result['TW_Adj_mat'])
         np.savetxt("out/k_mat_chris.dat", chris_result['K_mat'])
+        np.savetxt("out/gamma_chris.dat", chris_result['gamma_vec'])
 
         '''
         setup for calling C version
@@ -292,21 +294,20 @@ if __name__ == "__main__":
         # print(np.ctypeslib.as_array(n_eq))
         print("nu_e, phi_f from C", np.ctypeslib.as_array(nu_phi))
         c_time += timeit.default_timer() - c_start
-        n_eq_diff = np.abs(chris_result['N_eq'] - np.ctypeslib.as_array(n_eq))
-        maxloc = np.argmax(n_eq_diff)
-        print("maximum n_eq difference: ", n_eq_diff[maxloc])
-        print("values at this element ", chris_result['N_eq'][maxloc],
-                np.ctypeslib.as_array(n_eq)[maxloc])
+
+        chris_results.append(chris_result)
+        c_results.append({'N_eq': n_eq,
+            'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
+        k_c = np.loadtxt("out/k_mat_c.dat").reshape((side, side))
+        gamma_c = np.loadtxt("out/gamma_c.dat")
+
         try:
             assert (np.abs(chris_result['nu_e'] - nu_phi[0]) < 1e-8)
             assert (np.abs(chris_result['phi_F'] - nu_phi[1]) < 1e-8)
         except AssertionError:
             print(chris_result['nu_e'], nu_phi[0])
             print(chris_result['phi_F'], nu_phi[1])
-        chris_results.append(chris_result)
-        c_results.append({'N_eq': n_eq,
-            'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
-        k_c = np.loadtxt("out/k_mat_c.dat").reshape((side, side))
+
         try:
             assert np.allclose(k_c, chris_result['K_mat'])
         except AssertionError:
@@ -316,8 +317,27 @@ if __name__ == "__main__":
                     diff[maxloc],
                     " Chris val = ", chris_result['K_mat'][maxloc])
 
+        try:
+            assert np.allclose(gamma_c, chris_result['gamma_vec'])
+        except AssertionError:
+            diff = chris_result['gamma_vec'] - gamma_c
+            maxloc = np.argmax(np.abs(diff))
+            print("gammas not the same: max diff = ",
+                    diff[maxloc],
+                    " Chris val = ", chris_result['gamma_vec'][maxloc])
+
+        try:
+            assert np.allclose(np.ctypeslib.as_array(n_eq), chris_result['N_eq'])
+        except AssertionError:
+            n_eq_diff = np.abs(chris_result['N_eq'] - np.ctypeslib.as_array(n_eq))
+            maxloc = np.argmax(n_eq_diff)
+            print("maximum n_eq difference: ", n_eq_diff[maxloc])
+            print("values at this element ", chris_result['N_eq'][maxloc],
+                    np.ctypeslib.as_array(n_eq)[maxloc])
+
     print("Chris's code time: ", chris_time)
     print("C code time: ", c_time)
+    print("Total time: ", timeit.default_timer() - total_start)
     survivors, best = selection(population, c_results)
     # print("---------\nSURVIVORS\n---------")
     # print(survivors)

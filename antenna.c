@@ -245,10 +245,10 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
     if (i > 0) { 
       /* 
        * add to the vector of photon inputs for later.
-       * note that lines[0] is for the RC, so we skip that,
-       * then subtract 1 to get back to correct indexing
+       * note that n_p[0] and lines[0] are for the RC, so we skip that,
+       * then subtract 1 to get back to correct indexing on g.
        */
-      g[i - 1] = n_p[i - 1] * sigma * overlap(l, fp_y, lines[i - 1], l_len);
+      g[i - 1] = n_p[i] * sigma * overlap(l, fp_y, lines[i], l_len);
       for (unsigned j = 2; j < side; j = j + n_s) {
         /* j is the set of start indices for each branch */
         gsl_vector_set(gamma, i - 1 + j, -1.0 * g[i - 1]);
@@ -303,6 +303,13 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       }
       fprintf(fp, "\n");
     }
+  }
+  fclose(fp);
+
+  filename = "out/gamma_c.dat";
+  fp = fopen(filename, "w");
+  if (fp) {
+    gsl_vector_fprintf(fp, gamma, "%e");
   }
   fclose(fp);
 
