@@ -306,15 +306,15 @@ if __name__ == "__main__":
         chris_results.append(chris_result)
         c_results.append({'N_eq': n_eq,
             'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
-    k_c = np.loadtxt("out/k_mat_c.dat")
-    np.reshape(k_c, (side, side))
-    try:
-        assert np.allclose(k_c, chris_result['K_mat'])
-    except AssertionError:
-        diff = chris_result['K_mat'] - k_c
-        maxloc = np.argmax(np.abs(diff))
-        print("k matrices not the same: max diff = ",
-                diff[maxloc], " Chris val = ", chris_result['K_mat'][maxloc])
+        k_c = np.loadtxt("out/k_mat_c.dat").reshape((side, side))
+        try:
+            assert np.allclose(k_c, chris_result['K_mat'])
+        except AssertionError:
+            diff = chris_result['K_mat'] - k_c
+            maxloc = np.argmax(np.abs(diff))
+            print("k matrices not the same: max diff = ",
+                    diff[maxloc],
+                    " Chris val = ", chris_result['K_mat'][maxloc])
 
     print("Chris's code time: ", chris_time)
     print("C code time: ", c_time)
