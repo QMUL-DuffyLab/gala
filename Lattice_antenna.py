@@ -1307,25 +1307,25 @@ def Antenna_branched_overlap(l,Ip_y,Branch_params,RC_params,k_params,T):
     phi_F=nu_e/(nu_e+sum_rate)
     
     if N_s>1:    
-        out_dict={'TW_Adj_mat': TW_Adj_mat,
-                 'K_b': K_b,
-                 'K_mat': K_mat,
+        out_dict={'tw_adj_mat': TW_Adj_mat,
+                 'k_b': K_b,
+                 'k_mat': K_mat,
                  'tau_mat': tau_mat,
                  'gamma_b': gamma_b,
                  'gamma_vec': gamma_vec,
-                 'N_eq': N_eq,
+                 'n_eq': N_eq,
                  'nu_e': nu_e,
-                 'phi_F': phi_F             
+                 'phi_f': phi_F             
             }
     else:
-        out_dict={'TW_Adj_mat': TW_Adj_mat,
-                 'K_mat': K_mat,
+        out_dict={'tw_adj_mat': TW_Adj_mat,
+                 'k_mat': K_mat,
                  'tau_mat': tau_mat,
                  'gamma_b': gamma_b,
                  'gamma_vec': gamma_vec,
-                 'N_eq': N_eq,
+                 'n_eq': N_eq,
                  'nu_e': nu_e,
-                 'phi_F': phi_F             
+                 'phi_f': phi_F             
             }
         
     return(out_dict)

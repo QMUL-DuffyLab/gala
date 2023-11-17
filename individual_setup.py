@@ -80,12 +80,12 @@ def selection(population, results):
     then the first n_survivors of nu_es_sorted are the highest values,
     and we can pull them from the population using the corresponding indices.
     '''
-    nu_es_sorted = sorted([(i, r['nu_e'] * r['phi_F'])
+    nu_es_sorted = sorted([(i, r['nu_e'] * r['phi_f'])
                           for i, r in enumerate(results)],
                           key=itemgetter(1), reverse=True)
     best_ind = nu_es_sorted[0][0]
     best = (population[best_ind],
-           (results[best_ind]['nu_e'], results[best_ind]['phi_F']))
+           (results[best_ind]['nu_e'], results[best_ind]['phi_f']))
     survivors = []
     for i in range(n_survivors):
        survivors.append(population[nu_es_sorted[i][0]])
@@ -252,9 +252,9 @@ if __name__ == "__main__":
                                                     constants.T)
         chris_time += timeit.default_timer() - chris_start
         print("nu_e, phi_f from Chris:", chris_result['nu_e'],
-                chris_result['phi_F'])
-        np.savetxt("out/twa_mat_chris.dat", chris_result['TW_Adj_mat'])
-        np.savetxt("out/k_mat_chris.dat", chris_result['K_mat'])
+                chris_result['phi_f'])
+        np.savetxt("out/twa_mat_chris.dat", chris_result['tw_adj_mat'])
+        np.savetxt("out/k_mat_chris.dat", chris_result['k_mat'])
         np.savetxt("out/gamma_chris.dat", chris_result['gamma_vec'])
 
         '''
@@ -296,26 +296,26 @@ if __name__ == "__main__":
         c_time += timeit.default_timer() - c_start
 
         chris_results.append(chris_result)
-        c_results.append({'N_eq': n_eq,
+        c_results.append({'n_eq': n_eq,
             'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
         k_c = np.loadtxt("out/k_mat_c.dat").reshape((side, side))
         gamma_c = np.loadtxt("out/gamma_c.dat")
 
         try:
             assert (np.abs(chris_result['nu_e'] - nu_phi[0]) < 1e-8)
-            assert (np.abs(chris_result['phi_F'] - nu_phi[1]) < 1e-8)
+            assert (np.abs(chris_result['phi_f'] - nu_phi[1]) < 1e-8)
         except AssertionError:
             print(chris_result['nu_e'], nu_phi[0])
-            print(chris_result['phi_F'], nu_phi[1])
+            print(chris_result['phi_f'], nu_phi[1])
 
         try:
-            assert np.allclose(k_c, chris_result['K_mat'])
+            assert np.allclose(k_c, chris_result['k_mat'])
         except AssertionError:
-            diff = chris_result['K_mat'] - k_c
+            diff = chris_result['k_mat'] - k_c
             maxloc = np.argmax(np.abs(diff))
             print("k matrices not the same: max diff = ",
                     diff[maxloc],
-                    " Chris val = ", chris_result['K_mat'][maxloc])
+                    " Chris val = ", chris_result['k_mat'][maxloc])
 
         try:
             assert np.allclose(gamma_c, chris_result['gamma_vec'])
@@ -327,25 +327,27 @@ if __name__ == "__main__":
                     " Chris val = ", chris_result['gamma_vec'][maxloc])
 
         try:
-            assert np.allclose(np.ctypeslib.as_array(n_eq), chris_result['N_eq'])
+            assert np.allclose(np.ctypeslib.as_array(n_eq), chris_result['n_eq'])
         except AssertionError:
-            n_eq_diff = np.abs(chris_result['N_eq'] - np.ctypeslib.as_array(n_eq))
+            n_eq_diff = np.abs(chris_result['n_eq'] - np.ctypeslib.as_array(n_eq))
             maxloc = np.argmax(n_eq_diff)
             print("maximum n_eq difference: ", n_eq_diff[maxloc])
-            print("values at this element ", chris_result['N_eq'][maxloc],
+            print("values at this element ", chris_result['n_eq'][maxloc],
                     np.ctypeslib.as_array(n_eq)[maxloc])
 
     print("Chris's code time: ", chris_time)
     print("C code time: ", c_time)
-    print("Total time: ", timeit.default_timer() - total_start)
+    generation_time = timeit.default_timer() - total_start
+    print("One generation time: ", generation_time)
     survivors, best = selection(population, c_results)
-    # print("---------\nSURVIVORS\n---------")
-    # print(survivors)
-    # running_best.append(best)
-    # new_pop = reproduction(survivors, population)
-    # print("---------\n NEW POP \n---------")
-    # print(population)
-    # for i in range(constants.n_individuals):
-    #     population[i] = mutation(population[i])
-    # print("---------\nMUTATIONS\n---------")
-    # print(population)
+    print("---------\nSURVIVORS\n---------")
+    print(survivors)
+    running_best.append(best)
+    new_pop = reproduction(survivors, population)
+    print("---------\n NEW POP \n---------")
+    print(population)
+    for i in range(constants.n_individuals):
+        population[i] = mutation(population[i])
+    print("---------\nMUTATIONS\n---------")
+    print(population)
+    # print("Algorithm time: ", timeit.default_timer() - generation_time)
