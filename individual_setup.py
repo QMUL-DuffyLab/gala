@@ -250,27 +250,10 @@ if __name__ == "__main__":
                                                     constants.k_params,
                                                     constants.T)
         chris_time += timeit.default_timer() - chris_start
+        print("nu_e, phi_f from Chris:", chris_result['nu_e'],
+                chris_result['phi_F'])
         np.savetxt("out/twa_mat_chris.dat", chris_result['TW_Adj_mat'])
         np.savetxt("out/k_mat_chris.dat", chris_result['K_mat'])
-
-        print("Calling torch code")
-        torch_start = timeit.default_timer()
-        torch_result = at.antenna(l_t, ip_y_t, bp)
-        torch_time += timeit.default_timer() - torch_start
-        np.savetxt("out/twa_mat_torch.dat", torch_result['TW_Adj_mat'].numpy())
-        np.savetxt("out/k_mat_torch.dat", torch_result['K_mat'].numpy())
-        # check the matrices and steady state solution are the same!
-        try:
-            assert np.allclose(chris_result['TW_Adj_mat'], torch_result['TW_Adj_mat'].numpy())
-        except AssertionError:
-            print("Chris:")
-            print(chris_result['TW_Adj_mat'])
-            print("Torch:")
-            print(torch_result['TW_Adj_mat'].numpy())
-            print("Max difference: ", np.max(chris_result['TW_Adj_mat'] - torch_result['TW_Adj_mat'].numpy()))
-        
-        assert np.allclose(chris_result['K_mat'], torch_result['K_mat'].numpy())
-        assert np.allclose(chris_result['N_eq'], torch_result['N_eq'])
 
         '''
         setup for calling C version
@@ -289,15 +272,11 @@ if __name__ == "__main__":
             n_p[i + 1]   = subunits[i][0]
             lp[i + 1]    = subunits[i][2]
             width[i + 1] = subunits[i][3]
-        # twa    = np.ctypeslib.as_ctypes(np.zeros((side, side), dtype=np.float64))
-        # twa = ((ctypes.c_double * side) * side)()
-        # n_eq   = np.ctypeslib.as_ctypes(np.zeros(side, dtype=np.float64))
         n_eq   = (ctypes.c_double * side)()
         nu_phi = np.ctypeslib.as_ctypes(np.zeros(2, dtype=np.float64))
         kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
 
         # start timer here to time the actual function only lol
-        print("Calling C code")
         c_start = timeit.default_timer()
 
         c_antenna.antenna(l_c, ip_y_c,
@@ -307,20 +286,39 @@ if __name__ == "__main__":
                 n_p, lp, width,
                 ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                 ctypes.c_uint(len(l)), n_eq, nu_phi)
-        print("Done")
-        print(chris_result['N_eq'])
-        print("n_eq from C")
-        print(np.ctypeslib.as_array(n_eq))
-        print("nu_e, phi_f")
-        print(np.ctypeslib.as_array(nu_phi))
+        # print("Done")
+        # print(chris_result['N_eq'])
+        # print("n_eq from C")
+        # print(np.ctypeslib.as_array(n_eq))
+        print("nu_e, phi_f from C", np.ctypeslib.as_array(nu_phi))
         c_time += timeit.default_timer() - c_start
-        # assert np.allclose(chris_result['N_eq'], n_eq)
+        n_eq_diff = np.abs(chris_result['N_eq'] - np.ctypeslib.as_array(n_eq))
+        maxloc = np.argmax(n_eq_diff)
+        print("maximum n_eq difference: ", n_eq_diff[maxloc])
+        print("values at this element ", chris_result['N_eq'][maxloc],
+                np.ctypeslib.as_array(n_eq)[maxloc])
+        try:
+            assert (np.abs(chris_result['nu_e'] - nu_phi[0]) < 1e-8)
+            assert (np.abs(chris_result['phi_F'] - nu_phi[1]) < 1e-8)
+        except AssertionError:
+            print(chris_result['nu_e'], nu_phi[0])
+            print(chris_result['phi_F'], nu_phi[1])
         chris_results.append(chris_result)
-        torch_results.append(torch_result)
+        c_results.append({'N_eq': n_eq,
+            'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
+    k_c = np.loadtxt("out/k_mat_c.dat")
+    np.reshape(k_c, (side, side))
+    try:
+        assert np.allclose(k_c, chris_result['K_mat'])
+    except AssertionError:
+        diff = chris_result['K_mat'] - k_c
+        maxloc = np.argmax(np.abs(diff))
+        print("k matrices not the same: max diff = ",
+                diff[maxloc], " Chris val = ", chris_result['K_mat'][maxloc])
 
     print("Chris's code time: ", chris_time)
-    print("Torch code time: ", torch_time)
-    survivors, best = selection(population, torch_results)
+    print("C code time: ", c_time)
+    survivors, best = selection(population, c_results)
     # print("---------\nSURVIVORS\n---------")
     # print(survivors)
     # running_best.append(best)

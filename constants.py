@@ -12,10 +12,10 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-n_b_bounds = np.array([1, 5]) # max neighbours for identical spheres
-n_s_bounds = np.array([1, 8])
+n_b_bounds = np.array([1, 12]) # max neighbours for identical spheres
+n_s_bounds = np.array([1, 100])
 n_p_bounds = np.array([1, 100])
-n_individuals = 50
+n_individuals = 1000
 fitness_cutoff = 0.2 # fraction of individuals kept
 mutation_width = 0.1 # width of Gaussian/Poisson we draw from for mutation
 

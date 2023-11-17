@@ -255,7 +255,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       }
     }
   }
-  printf("Done lineshapes\n");
 
   /* rate constants */
   for (unsigned i = 0; i < n_s; i++) {
@@ -280,7 +279,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       k_b[(2 * i)]     *= exp(-1.0 * delta_g / (t * M_KB));
     }
   }
-  printf("Done rate constants\n");
 
   twa[1][0] = k_params[1]; /* k_trap */
   for (unsigned j = 2; j < side; j = j + n_s) {
@@ -295,9 +293,7 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       }
     }
   }
-  printf("Built transfer matrix\n");
 
-  printf("Writing twa file\n");
   char* filename = "out/twa_mat_c.dat";
   FILE *fp = fopen(filename, "w");
   if (fp) {
@@ -335,14 +331,12 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       /* } */
     }
   }
-  printf("Built k\n");
   for (unsigned i = 0; i < side; i++) {
     for (unsigned j = 0; j < side; j++) {
       gsl_matrix_set(k, i, j, kd[i][j]);
     }
   }
 
-  printf("Writing k file\n");
   filename = "out/k_mat_c.dat";
   fp = fopen(filename, "w");
   if (fp) {
@@ -350,14 +344,11 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
   fclose(fp);
 
-  printf("Decomposition\n");
   gsl_linalg_LU_decomp(k, perm, &signum);
-  printf("Solver\n");
   gsl_linalg_LU_solve(k, perm, gamma, n_eq_gsl);
   for (unsigned i = 0; i < side; i++) {
     n_eq[i] = gsl_vector_get(n_eq_gsl, i);
   }
-  printf("done\n");
 
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
@@ -366,7 +357,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
   nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
 
-  printf("Freeing k, twa, lines\n");
   for (unsigned i = 0; i < side; i++) {
     free(kd[i]);
     free(twa[i]);
@@ -375,22 +365,14 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
     }
   }
 
-  printf("GSL frees\n");
   gsl_vector_free(gamma);
   gsl_vector_free(n_eq_gsl);
   gsl_permutation_free(perm);
   gsl_matrix_free(k);
-  printf("Freeing kb\n");
   free(k_b);
-  printf("Freeing twa\n");
   free(twa);
-  printf("Freeing g\n");
   free(g);
-  printf("Freeing lines\n");
   free(lines);
-  printf("Freeing fp_y\n");
   free(fp_y);
-  printf("Freeing k\n");
   free(kd);
-  printf("Done. exiting\n");
 }
