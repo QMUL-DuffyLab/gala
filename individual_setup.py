@@ -253,9 +253,6 @@ if __name__ == "__main__":
         chris_time += timeit.default_timer() - chris_start
         print("nu_e, phi_f from Chris:", chris_result['nu_e'],
                 chris_result['phi_f'])
-        np.savetxt("out/twa_mat_chris.dat", chris_result['tw_adj_mat'])
-        np.savetxt("out/k_mat_chris.dat", chris_result['k_mat'])
-        np.savetxt("out/gamma_chris.dat", chris_result['gamma_vec'])
 
         '''
         setup for calling C version
@@ -280,7 +277,6 @@ if __name__ == "__main__":
 
         # start timer here to time the actual function only lol
         c_start = timeit.default_timer()
-
         c_antenna.antenna(l_c, ip_y_c,
                 ctypes.c_double(constants.sig_chl),
                 ctypes.c_double(constants.rc_params[1]), kp,
@@ -288,18 +284,12 @@ if __name__ == "__main__":
                 n_p, lp, width,
                 ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                 ctypes.c_uint(len(l)), n_eq, nu_phi)
-        # print("Done")
-        # print(chris_result['N_eq'])
-        # print("n_eq from C")
-        # print(np.ctypeslib.as_array(n_eq))
         print("nu_e, phi_f from C", np.ctypeslib.as_array(nu_phi))
         c_time += timeit.default_timer() - c_start
 
         chris_results.append(chris_result)
         c_results.append({'n_eq': n_eq,
             'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
-        k_c = np.loadtxt("out/k_mat_c.dat").reshape((side, side))
-        gamma_c = np.loadtxt("out/gamma_c.dat")
 
         try:
             assert (np.abs(chris_result['nu_e'] - nu_phi[0]) < 1e-8)
@@ -307,24 +297,6 @@ if __name__ == "__main__":
         except AssertionError:
             print(chris_result['nu_e'], nu_phi[0])
             print(chris_result['phi_f'], nu_phi[1])
-
-        try:
-            assert np.allclose(k_c, chris_result['k_mat'])
-        except AssertionError:
-            diff = chris_result['k_mat'] - k_c
-            maxloc = np.argmax(np.abs(diff))
-            print("k matrices not the same: max diff = ",
-                    diff[maxloc],
-                    " Chris val = ", chris_result['k_mat'][maxloc])
-
-        try:
-            assert np.allclose(gamma_c, chris_result['gamma_vec'])
-        except AssertionError:
-            diff = chris_result['gamma_vec'] - gamma_c
-            maxloc = np.argmax(np.abs(diff))
-            print("gammas not the same: max diff = ",
-                    diff[maxloc],
-                    " Chris val = ", chris_result['gamma_vec'][maxloc])
 
         try:
             assert np.allclose(np.ctypeslib.as_array(n_eq), chris_result['n_eq'])

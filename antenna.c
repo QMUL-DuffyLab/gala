@@ -1,7 +1,6 @@
 #include <stdlib.h>
-#include <complex.h>
-#include <math.h>
 #include <stdio.h>
+#include <math.h>
 #include <gsl/gsl_linalg.h>
 
 /* various constants */
@@ -18,137 +17,9 @@
 	#define M_H 6.62607015E-34L
 #endif
 
-#if ! defined(M_HBAR)
-	#define M_HBAR 1.054571817E-34L
-#endif
-
 #if ! defined(M_KB)
 	#define M_KB 1.380649E-23L
 #endif
-
-/**********************************************************************
- 
-   Start of LU decomposition code
-
-   i stole this from https://en.wikipedia.org/wiki/LU_decomposition
-   because LAPACKE is annoying to install, GSL adds a load of complexity
-   that we don't need, and doing it in fortran would make it a nightmare
-   to interface with the Python (even more than it already is).
-
-**********************************************************************/
-
-/* 
- * INPUT: A - array of pointers to rows of a square matrix having dimension N
- * Tol - tolerance - detect failure when the matrix is near degenerate
- * OUTPUT: A contains a copy of both matrices L-E and U as A=(L-E)+U
- * such that P*A=L*U.
- * The permutation matrix is not stored as a matrix, but in an
- * integer vector P of size N+1 containing column indexes
- * where the permutation matrix has "1". The last element P[N]=S+N, where
- * S is the number of row exchanges needed for determinant computation,
- * det(P)=(-1)^S
- */
-int LUPDecompose(double **A, int N, double Tol, int *P) {
-
-    int i, j, k, imax;
-    double maxA, *ptr, absA;
-
-    for (i = 0; i <= N; i++)
-        P[i] = i; //Unit permutation matrix, P[N] initialized with N
-
-    for (i = 0; i < N; i++) {
-        maxA = 0.0;
-        imax = i;
-
-        for (k = i; k < N; k++)
-            if ((absA = fabs(A[k][i])) > maxA) {
-                maxA = absA;
-                imax = k;
-            }
-
-        if (maxA < Tol) return 0; //failure, matrix is degenerate
-
-        if (imax != i) {
-            //pivoting P
-            j = P[i];
-            P[i] = P[imax];
-            P[imax] = j;
-
-            //pivoting rows of A
-            ptr = A[i];
-            A[i] = A[imax];
-            A[imax] = ptr;
-
-            //counting pivots starting from N (for determinant)
-            P[N]++;
-        }
-
-        for (j = i + 1; j < N; j++) {
-            A[j][i] /= A[i][i];
-
-            for (k = i + 1; k < N; k++)
-                A[j][k] -= A[j][i] * A[i][k];
-        }
-    }
-
-    return 1;  //decomposition done
-}
-
-/* INPUT: A,P filled in LUPDecompose; b - rhs vector; N - dimension
- * OUTPUT: x - solution vector of A*x=b
- */
-void LUPSolve(double **A, int *P, double *b, unsigned N, double *x) {
-
-    for (int i = 0; i < N; i++) {
-        x[i] = b[P[i]];
-
-        for (int k = 0; k < i; k++){
-            x[i] -= A[i][k] * x[k];
-        }
-    }
-
-    for (int i = N - 1; i >= 0; i--) {
-        for (int k = i + 1; k < N; k++)
-            x[i] -= A[i][k] * x[k];
-
-        x[i] /= A[i][i];
-    }
-}
-
-/* INPUT: A,P filled in LUPDecompose; N - dimension
- * OUTPUT: IA is the inverse of the initial matrix
- */
-void LUPInvert(double **A, int *P, int N, double **IA) {
-
-    for (int j = 0; j < N; j++) {
-        for (int i = 0; i < N; i++) {
-            IA[i][j] = P[i] == j ? 1.0 : 0.0;
-
-            for (int k = 0; k < i; k++)
-                IA[i][j] -= A[i][k] * IA[k][j];
-        }
-
-        for (int i = N - 1; i >= 0; i--) {
-            for (int k = i + 1; k < N; k++)
-                IA[i][j] -= A[i][k] * IA[k][j];
-
-            IA[i][j] /= A[i][i];
-        }
-    }
-}
-
-/* INPUT: A,P filled in LUPDecompose; N - dimension.
- * OUTPUT: Function returns the determinant of the initial matrix
- */
-double LUPDeterminant(double **A, int *P, int N) {
-
-    double det = A[0][0];
-
-    for (int i = 1; i < N; i++)
-        det *= A[i][i];
-
-    return (P[N] - N) % 2 == 0 ? det : -det;
-}
 
 double
 trapezoid(double *f, double *x, unsigned n)
@@ -209,10 +80,8 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
    * length of n_p, lp and width should be n_s + 1; RC params are in [0].
    * k_params should be given as [k_diss, k_trap,  k_con, k_hop, k_lhc_rc].
    * l_len is the length of the l and ip_y arrays
-   * twa should be a matrix with dims = (side, side)
-   * and n_eq a vector with dim = (side).
-   * twa should be initialised to zero.
-   * nu_phi is double[2].
+   * n_eq should be a vector with dim = (side).
+   * nu_phi should be double[2].
    */
   unsigned side = (n_b * n_s) + 2;
 
@@ -294,25 +163,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
     }
   }
 
-  char* filename = "out/twa_mat_c.dat";
-  FILE *fp = fopen(filename, "w");
-  if (fp) {
-    for (unsigned i = 0; i < side; i++) {
-      for (unsigned j = 0; j < side; j++) {
-        fprintf(fp, "%10.6e ", twa[i][j]);
-      }
-      fprintf(fp, "\n");
-    }
-  }
-  fclose(fp);
-
-  filename = "out/gamma_c.dat";
-  fp = fopen(filename, "w");
-  if (fp) {
-    gsl_vector_fprintf(fp, gamma, "%e");
-  }
-  fclose(fp);
-
   /* now construct k */
   double** kd = calloc(side, sizeof(double*));
   for (unsigned i = 0; i < side; i++) {
@@ -320,22 +170,14 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
   kd[0][0] -= k_params[2]; /* k_con */
   for (unsigned i = 0; i < side; i++) {
-    /* double *elem = gsl_matrix_ptr(k, i, i); */
-    /* if (i == 0) *elem -= k_params[2]; */
     if (i >= 2) {
-      /* *elem -= k_params[0]; */
       kd[i][i] -= k_params[0]; /* k_diss */
     }
     for (unsigned j = 0; j < side; j++) {
       if (i != j) {
-        /* gsl_matrix_set(k, i, j, twa[j][i]); */
         kd[i][j]  = twa[j][i];
-        /* *elem -= twa[i][j]; */
         kd[i][i] -= twa[i][j];
       }
-      /* if (gsl_matrix_get(k, i, j) != kd[i][j]) { */
-      /*   printf("GSL MATRIX DOESN'T MATCH KD FOR %4d, %4d\n", i, j); */
-      /* } */
     }
   }
   for (unsigned i = 0; i < side; i++) {
@@ -343,13 +185,6 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
       gsl_matrix_set(k, i, j, kd[i][j]);
     }
   }
-
-  filename = "out/k_mat_c.dat";
-  fp = fopen(filename, "w");
-  if (fp) {
-    gsl_matrix_fprintf(fp, k, "%e");
-  }
-  fclose(fp);
 
   gsl_linalg_LU_decomp(k, perm, &signum);
   gsl_linalg_LU_solve(k, perm, gamma, n_eq_gsl);
