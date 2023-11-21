@@ -126,7 +126,7 @@ def reproduction(survivors, population):
                                           'phi_f': np.nan}
     return population
 
-def mutation(individual):
+def mutation(individual, n_s_changes):
     '''
     Perform the mutation step of the genetic algorithm.
     We do this by looping over each mutable parameter and selecting from
@@ -157,15 +157,19 @@ def mutation(individual):
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
     # print("Subunit mutation - ", current, new)
-    if current > new:
+    if current < new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
-        for i in range(current - new):
+        n_s_changes[0] += new - current
+        for i in range(new - current):
             p.append(generate_random_subunit())
-    elif current < new:
+        # print("add: old = ", oldlen, " new = ", len(p) - 1, "c, n = ", current, new)
+    elif current > new:
         # delete the last (new - current) elements
+        n_s_changes[1] += current - new
         # this would fail if current = new, hence the inequality
-        del p[-(new - current):]
+        del p[-(current - new):]
+        # print("del: old = ", oldlen, " new = ", len(p) - 1, "c, n = ", current, new)
     # now it gets more involved - we have to pick a random subunit
     # to apply these last three mutations to.
     # note that this is also a choice about how the algorithm works,
@@ -235,6 +239,7 @@ if __name__ == "__main__":
     avgsq = np.zeros(7)
     running_avgs  = []
     running_avgsq = []
+    n_s_changes = np.zeros(2)
     c_time = 0.0
     gen = 0
     total_start = timeit.default_timer()
@@ -312,9 +317,19 @@ if __name__ == "__main__":
         with open(best_file, "w") as f:
             f.write(str(best))
         f.close()
-        new_pop = reproduction(survivors, population)
+        # old_pop = population.copy()
+        # old_avg_ns = np.sum(np.array([len(p['params']) - 1
+        #                         for p in population]) / len(population))
+        population = reproduction(survivors, population)
+        # new_avg_ns = np.sum(np.array([len(p['params']) - 1
+        #                         for p in new_pop]) / len(new_pop))
+        # print("old <n_s> = ", old_avg_ns, " new <n_s> = ", new_avg_ns)
         for i in range(constants.n_individuals):
-            population[i] = mutation(new_pop[i])
+            p = rng.random()
+            if p < constants.mutation_rate:
+                population[i] = mutation(population[i], n_s_changes)
+        # print(old_pop == population)
+        # print("n_s mutation changes: ", n_s_changes)
         gen += 1
 
 
