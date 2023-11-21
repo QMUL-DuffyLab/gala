@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 #include <math.h>
 #include <gsl/gsl_linalg.h>
 
@@ -192,6 +193,15 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
     n_eq[i] = gsl_vector_get(n_eq_gsl, i);
   }
 
+  if (isnan(n_eq[0])) {
+    /* 
+     * this shouldn't happen - if it does, something's gone wrong
+     * earlier on somewhere, and it'll ruin the running averages in
+     * the Python code. raise the SIGABRT to make it easier to debug
+     */
+    printf("NAN DETECTED\n");
+    raise(SIGABRT);
+  }
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
   for (unsigned i = 2; i < side; i++) {

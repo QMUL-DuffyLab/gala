@@ -65,7 +65,7 @@ def initialise_individual(init_type):
             branch_params.append(generate_random_subunit())
         return branch_params
 
-def selection(population, results):
+def selection(population):
     '''
     given a population and the calculated results (nu_e, quantum efficiency,
     etc.), pick out the top fraction based on a cutoff given in constants.py.
@@ -81,11 +81,10 @@ def selection(population, results):
     and we can pull them from the population using the corresponding indices.
     '''
     nu_es_sorted = sorted([(i, r['nu_e'] * r['phi_f'])
-                          for i, r in enumerate(results)],
+                          for i, r in enumerate(population)],
                           key=itemgetter(1), reverse=True)
     best_ind = nu_es_sorted[0][0]
-    best = (population[best_ind],
-           (results[best_ind]['nu_e'], results[best_ind]['phi_f']))
+    best = (population[best_ind])
     survivors = []
     for i in range(n_survivors):
        survivors.append(population[nu_es_sorted[i][0]])
@@ -103,32 +102,27 @@ def reproduction(survivors, population):
 
     for i in range(n_children):
         child   = []
-        # print("CHILD ", i)
         # pick two different parents from the survivors
         p_i = rng.choice(len(survivors), 2, replace=False)
-        # print("parent indices = ", p_i)
         parents = [survivors[p_i[0]], survivors[p_i[1]]]
         # NB: this doesn't work very well since everything's a weird
         # mixed list of scalars and tuples etc. can probably be tidied later
-        # parents = np.array(survivors)[rng.integers(0, len(survivors), size=2)]
-        nb_c = parents[rng.integers(2)][0] # individual[0] = nb
-        ns_p = [len(p) - 1 for p in parents]
+        nb_c = parents[rng.integers(2)]['params'][0] # individual[0] = nb
+        ns_p = [len(p['params']) - 1 for p in parents]
         ns_c = ns_p[rng.integers(2)] # = ns of random parent
-        # print(ns_p, ns_c, np.min(ns_p), np.argmin(ns_p))
         child.append(nb_c)
         for j in range(1, ns_c + 1):
             if j > np.min(ns_p):
                 choice = np.argmax(ns_p)
-                sub = parents[choice][j]
-                # print(j, choice, sub)
+                sub = parents[choice]['params'][j]
                 child.append(sub)
             else:
                 choice = rng.integers(2)
-                sub = parents[choice][j]
-                # print(j, choice, sub)
+                sub = parents[choice]['params'][j]
                 child.append(sub)
-        # print("child ", i, ": ", child)
-        population[i + len(survivors)] = child
+        population[i + len(survivors)] = {'params': child,
+                                          'nu_e': np.nan,
+                                          'phi_f': np.nan}
     return population
 
 def mutation(individual):
@@ -146,64 +140,67 @@ def mutation(individual):
     # NB: if I set up a class for an individual, this is easier to do;
     # then i can just use the name of each parameter and then get the type
     # to decide whether or not we need to round the result
-    current = individual[0]
+    c = individual['params']
+    p = individual['params'].copy()
+    current = p[0]
     scale = current * constants.mutation_width
     b = (constants.n_b_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
-    individual[0] = new
-    print("Branch mutation - ", current, b, new)
+    p[0] = new
+    # print("Branch mutation - ", current, b, new)
     # n_s
-    current = len(individual) - 1
+    current = len(p) - 1
     scale = current * constants.mutation_width
     b = (constants.n_s_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
-    print("Subunit mutation - ", current, b, new)
+    # print("Subunit mutation - ", current, b, new)
     if current > new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
         for i in range(current - new):
-            individual.append(generate_random_subunit())
+            p.append(generate_random_subunit())
     elif current < new:
         # delete the last (new - current) elements
         # this would fail if current = new, hence the inequality
-        del individual[-(new - current):]
+        del p[-(new - current):]
     # now it gets more involved - we have to pick a random subunit
     # to apply these last three mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
     # n_pigments
-    s = rng.integers(1, len(individual))
-    current = individual[s][0]
+    s = rng.integers(1, len(p))
+    current = p[s][0]
     scale = current * constants.mutation_width
     b = (constants.n_p_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
-    print("n_p mutation - ", individual[s], current, b, new)
-    individual[s][0] = new
+    # print("n_p mutation - ", p[s], current, b, new)
+    p[s][0] = new
     # lambda_peak
-    s = rng.integers(1, len(individual))
-    current = individual[s][2]
+    s = rng.integers(1, len(p))
+    current = p[s][2]
     scale = current * constants.mutation_width
     b = (constants.lambda_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    print("l_p mutation - ", individual[s], current, b, new)
-    individual[s][2] = new
+    # print("l_p mutation - ", p[s], current, b, new)
+    p[s][2] = new
     # width
-    s = rng.integers(1, len(individual))
-    current = individual[s][3]
+    s = rng.integers(1, len(p))
+    current = p[s][3]
     scale = current * constants.mutation_width
     b = (constants.width_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    print("width mutation - ", individual[s], current, b, new)
-    individual[s][2] = new
+    # print("width mutation - ", p[s], current, b, new)
+    p[s][3] = new
 
+    individual['params'] = p
     return individual
 
 if __name__ == "__main__":
-    c_antenna = ctypes.cdll.LoadLibrary("./libantenna.so")
-    c_antenna.antenna.argtypes = [ctypes.POINTER(ctypes.c_double),
+    la = ctypes.cdll.LoadLibrary("./libantenna.so")
+    la.antenna.argtypes = [ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double), ctypes.c_double,
             ctypes.c_double, ctypes.POINTER(ctypes.c_double),
             ctypes.c_double, ctypes.POINTER(ctypes.c_uint),
@@ -213,9 +210,11 @@ if __name__ == "__main__":
             ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double)]
 
-    # these two will be args eventually i guess
+    # these will be args eventually i guess
     ts = 2600
-    init_type = 'radiative' # can be radiative or random
+    init_type = 'random' # can be radiative or random
+    avgs_file = "out/avgs_{:4d}K.dat".format(ts)
+    avgsq_file = "out/avgsq_{:4d}K.dat".format(ts)
 
     spectrum_file = constants.spectrum_prefix \
                     + '{:4d}K'.format(ts) \
@@ -228,98 +227,84 @@ if __name__ == "__main__":
     ip_y = phoenix_data[:, 1]
     l_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(l))
     ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
-    l_t = torch.from_numpy(l)
-    ip_y_t = torch.from_numpy(ip_y)
 
-    population = []
-    chris_results = []
-    torch_results = []
-    c_results = []
-    running_best = []
-    chris_time = 0.0
-    torch_time = 0.0
+    population = [None for _ in range(constants.n_individuals)]
+    avgs  = np.zeros(6)
+    avgsq = np.zeros(6)
+    running_best  = []
+    running_avgs  = []
+    running_avgsq = []
     c_time = 0.0
+    gen = 0
     total_start = timeit.default_timer()
+    # initialise population
     for i in range(constants.n_individuals):
-        bp = initialise_individual('random')
-        population.append(bp)
-        print(i, bp[0], len(bp) - 1, pow(bp[0] * len(bp) - 1, 2))
-        print("Calling Chris's code")
-        chris_start = timeit.default_timer()
-        chris_result = lattice.Antenna_branched_overlap(l, ip_y, bp,
-                                                    constants.rc_params,
-                                                    constants.k_params,
-                                                    constants.T)
-        chris_time += timeit.default_timer() - chris_start
-        print("nu_e, phi_f from Chris:", chris_result['nu_e'],
-                chris_result['phi_f'])
+        bp = initialise_individual(init_type)
+        population[i] = {'params': bp, 'nu_e': np.nan, 'phi_f': np.nan}
 
-        '''
-        setup for calling C version
-        '''
-        n_b = bp[0]
-        subunits = bp[1:]
-        n_s = len(subunits)
-        side = (n_b * n_s) + 2
-        n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
-        lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
-        width = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
-        n_p[0]   = constants.rc_params[0]
-        lp[0]    = constants.rc_params[2]
-        width[0] = constants.rc_params[3]
-        for i in range(n_s):
-            n_p[i + 1]   = subunits[i][0]
-            lp[i + 1]    = subunits[i][2]
-            width[i + 1] = subunits[i][3]
-        n_eq   = (ctypes.c_double * side)()
-        nu_phi = np.ctypeslib.as_ctypes(np.zeros(2, dtype=np.float64))
-        kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
+    while gen < constants.max_generations:
+        avgs.fill(0.0)
+        avgsq.fill(0.0)
+        for i in range(constants.n_individuals):
+            '''
+            setup for calling C version
+            '''
+            n_b = population[i]['params'][0]
+            subunits = population[i]['params'][1:]
+            n_s = len(subunits)
+            side = (n_b * n_s) + 2
+            n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
+            lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+            width = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+            n_p[0]   = constants.rc_params[0]
+            lp[0]    = constants.rc_params[2]
+            width[0] = constants.rc_params[3]
+            for j in range(n_s):
+                n_p[j + 1]   = subunits[j][0]
+                lp[j + 1]    = subunits[j][2]
+                width[j + 1] = subunits[j][3]
+            n_eq   = (ctypes.c_double * side)()
+            nu_phi = np.ctypeslib.as_ctypes(np.zeros(2, dtype=np.float64))
+            kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
 
-        # start timer here to time the actual function only lol
-        c_start = timeit.default_timer()
-        c_antenna.antenna(l_c, ip_y_c,
-                ctypes.c_double(constants.sig_chl),
-                ctypes.c_double(constants.rc_params[1]), kp,
-                ctypes.c_double(constants.T),
-                n_p, lp, width,
-                ctypes.c_uint(n_b), ctypes.c_uint(n_s),
-                ctypes.c_uint(len(l)), n_eq, nu_phi)
-        print("nu_e, phi_f from C", np.ctypeslib.as_array(nu_phi))
-        c_time += timeit.default_timer() - c_start
+            # start timer here to time the actual function only lol
+            c_start = timeit.default_timer()
+            la.antenna(l_c, ip_y_c,
+                    ctypes.c_double(constants.sig_chl),
+                    ctypes.c_double(constants.rc_params[1]), kp,
+                    ctypes.c_double(constants.T),
+                    n_p, lp, width,
+                    ctypes.c_uint(n_b), ctypes.c_uint(n_s),
+                    ctypes.c_uint(len(l)), n_eq, nu_phi)
+            population[i]['nu_e']  = nu_phi[0]
+            population[i]['phi_f'] = nu_phi[1]
+            c_time += timeit.default_timer() - c_start
+            avgs[0]  += nu_phi[0]
+            avgsq[0] += nu_phi[0]**2
+            avgs[1]  += nu_phi[1]
+            avgsq[1] += nu_phi[1]**2
+            avgs[2]  += np.sum(lp[1:]) / (len(lp) - 1) # don't count the RC
+            avgsq[2] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
+            avgs[3]  += np.sum(width[1:]) / (len(lp) - 1)
+            avgsq[3] += np.sum(np.square(width[1:])) / (len(lp) - 1)
+            avgs[4]  += n_b
+            avgsq[4] += n_b**2
+            avgs[5]  += n_s
+            avgsq[5] += n_s**2
 
-        chris_results.append(chris_result)
-        c_results.append({'n_eq': n_eq,
-            'nu_e': nu_phi[0], 'phi_f': nu_phi[1]})
+        running_avgs.append(avgs / constants.n_individuals)
+        running_avgsq.append(avgsq / constants.n_individuals)
+        print("Generation {:4d}: ".format(gen))
+        print("Running avgs: ", running_avgs[-1])
+        print("Running avgsq: ", running_avgsq[-1])
 
-        try:
-            assert (np.abs(chris_result['nu_e'] - nu_phi[0]) < 1e-8)
-            assert (np.abs(chris_result['phi_f'] - nu_phi[1]) < 1e-8)
-        except AssertionError:
-            print(chris_result['nu_e'], nu_phi[0])
-            print(chris_result['phi_f'], nu_phi[1])
+        survivors, best = selection(population)
+        avg_survivor_fitness = 0.0 # calculate this here
+        running_best.append(best)
+        new_pop = reproduction(survivors, population)
+        for i in range(constants.n_individuals):
+            population[i] = mutation(new_pop[i])
+        gen += 1
 
-        try:
-            assert np.allclose(np.ctypeslib.as_array(n_eq), chris_result['n_eq'])
-        except AssertionError:
-            n_eq_diff = np.abs(chris_result['n_eq'] - np.ctypeslib.as_array(n_eq))
-            maxloc = np.argmax(n_eq_diff)
-            print("maximum n_eq difference: ", n_eq_diff[maxloc])
-            print("values at this element ", chris_result['n_eq'][maxloc],
-                    np.ctypeslib.as_array(n_eq)[maxloc])
-
-    print("Chris's code time: ", chris_time)
-    print("C code time: ", c_time)
-    generation_time = timeit.default_timer() - total_start
-    print("One generation time: ", generation_time)
-    survivors, best = selection(population, c_results)
-    print("---------\nSURVIVORS\n---------")
-    print(survivors)
-    running_best.append(best)
-    new_pop = reproduction(survivors, population)
-    print("---------\n NEW POP \n---------")
-    print(population)
-    for i in range(constants.n_individuals):
-        population[i] = mutation(population[i])
-    print("---------\nMUTATIONS\n---------")
-    print(population)
-    # print("Algorithm time: ", timeit.default_timer() - generation_time)
+np.savetxt(avgs_file, np.array(running_avgs))
+np.savetxt(avgsq_file, np.array(running_avgsq))

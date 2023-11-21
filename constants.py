@@ -18,13 +18,14 @@ n_p_bounds = np.array([1, 100])
 n_individuals = 1000
 fitness_cutoff = 0.2 # fraction of individuals kept
 mutation_width = 0.1 # width of Gaussian/Poisson we draw from for mutation
+max_generations = 1000
 
 '''
 some rates that I think are going to be fixed
 all given in s^{-1}
 '''
 
-k_diss=1.0/4.0E-9 #Chl excited state decay rate 
+k_diss=1.0/4.0E-9 #Chl excited state decay rate
 k_trap=1.0/5.0E-12 #PSII trapping rate
 k_con=1.0/10.0E-3 #PSII RC turnover rate
 k_hop=1.0/10.0E-12 # assume all inter-subunit transfer is around the same
@@ -37,7 +38,7 @@ Spectral parameters - I think these will change
 '''
 sig_chl = 1E-20 # (approximate!) cross-section of one chlorophyll
 sig=1.9E-18 #optical cross-section of the antenna (m^2)
-b12=0.56 #ratio of Chlb/Chb peak amplitude 
+b12=0.56 #ratio of Chlb/Chb peak amplitude
 lp1=650.0#Chlb 650 nm absorption peak (nm)
 w1=8.5 #Chlb peak width (nm)
 lp2=675.0#Chlb 675 nm absorption peak
