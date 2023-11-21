@@ -18,7 +18,7 @@ n_p_bounds = np.array([1, 100])
 n_individuals = 1000
 fitness_cutoff = 0.2 # fraction of individuals kept
 mutation_width = 0.1 # width of Gaussian/Poisson we draw from for mutation
-max_generations = 1000
+max_generations = 50
 
 '''
 some rates that I think are going to be fixed

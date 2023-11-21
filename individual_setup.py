@@ -110,6 +110,7 @@ def reproduction(survivors, population):
         nb_c = parents[rng.integers(2)]['params'][0] # individual[0] = nb
         ns_p = [len(p['params']) - 1 for p in parents]
         ns_c = ns_p[rng.integers(2)] # = ns of random parent
+        # print("repro - n_sp = ", ns_p, "n_sc = ", ns_c)
         child.append(nb_c)
         for j in range(1, ns_c + 1):
             if j > np.min(ns_p):
@@ -155,7 +156,7 @@ def mutation(individual):
     b = (constants.n_s_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
-    # print("Subunit mutation - ", current, b, new)
+    # print("Subunit mutation - ", current, new)
     if current > new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
@@ -215,6 +216,7 @@ if __name__ == "__main__":
     init_type = 'random' # can be radiative or random
     avgs_file = "out/avgs_{:4d}K.dat".format(ts)
     avgsq_file = "out/avgsq_{:4d}K.dat".format(ts)
+    best_file = "out/best_{:4d}K.dat".format(ts)
 
     spectrum_file = constants.spectrum_prefix \
                     + '{:4d}K'.format(ts) \
@@ -229,9 +231,8 @@ if __name__ == "__main__":
     ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
 
     population = [None for _ in range(constants.n_individuals)]
-    avgs  = np.zeros(6)
-    avgsq = np.zeros(6)
-    running_best  = []
+    avgs  = np.zeros(7)
+    avgsq = np.zeros(7)
     running_avgs  = []
     running_avgsq = []
     c_time = 0.0
@@ -283,14 +284,16 @@ if __name__ == "__main__":
             avgsq[0] += nu_phi[0]**2
             avgs[1]  += nu_phi[1]
             avgsq[1] += nu_phi[1]**2
-            avgs[2]  += np.sum(lp[1:]) / (len(lp) - 1) # don't count the RC
-            avgsq[2] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
-            avgs[3]  += np.sum(width[1:]) / (len(lp) - 1)
-            avgsq[3] += np.sum(np.square(width[1:])) / (len(lp) - 1)
-            avgs[4]  += n_b
-            avgsq[4] += n_b**2
-            avgs[5]  += n_s
-            avgsq[5] += n_s**2
+            avgs[2]  += nu_phi[0] * nu_phi[1]
+            avgsq[2] += (nu_phi[0] * nu_phi[1])**2
+            avgs[3]  += np.sum(lp[1:]) / (len(lp) - 1) # don't count the RC
+            avgsq[3] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
+            avgs[4]  += np.sum(width[1:]) / (len(lp) - 1)
+            avgsq[4] += np.sum(np.square(width[1:])) / (len(lp) - 1)
+            avgs[5]  += n_b
+            avgsq[5] += n_b**2
+            avgs[6]  += n_s
+            avgsq[6] += n_s**2
 
         running_avgs.append(avgs / constants.n_individuals)
         running_avgsq.append(avgsq / constants.n_individuals)
@@ -299,12 +302,21 @@ if __name__ == "__main__":
         print("Running avgsq: ", running_avgsq[-1])
 
         survivors, best = selection(population)
+        avg_nb_surv = np.sum(np.array([s['params'][0]
+                                for s in survivors]) / len(survivors))
+        avg_ns_surv = np.sum(np.array([len(s['params']) - 1
+                                for s in survivors]) / len(survivors))
+
+        print("Average survivor n_b, n_s: ", avg_nb_surv, avg_ns_surv)
         avg_survivor_fitness = 0.0 # calculate this here
-        running_best.append(best)
+        with open(best_file, "w") as f:
+            f.write(str(best))
+        f.close()
         new_pop = reproduction(survivors, population)
         for i in range(constants.n_individuals):
             population[i] = mutation(new_pop[i])
         gen += 1
+
 
 np.savetxt(avgs_file, np.array(running_avgs))
 np.savetxt(avgsq_file, np.array(running_avgsq))
