@@ -5,7 +5,7 @@
 """
 import numpy as np
 import numpy.typing as npt
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 '''
 General stuff
 '''
@@ -20,6 +20,7 @@ fitness_cutoff = 0.2 # fraction of individuals kept
 mutation_width = 0.1 # width of Gaussian/Poisson we draw from for mutation
 mutation_rate = 0.05
 max_generations = 50
+d_re = 0.25 # random perturbation of values during crossover
 
 '''
 some rates that I think are going to be fixed
@@ -54,25 +55,42 @@ lambda_bounds = np.array([200.0, 1400.00])
 width_bounds  = np.array([1.0, 50.0])
 sigma_bounds  = np.array([sig_chl, sig_chl])
 
-radiative_subunit = [1, sig_chl, 680.0, 10.0]
 
-'''
 # dataclass reduces memory requirement, makes code more readable
 # dataclass with slots requires python 3.10 or newer
-@dataclass(slots=True)
+@dataclass()
 class subunit:
     n_pigments:  int
     sigma:       float
     lambda_peak: float
     width:       float
 
-# NB: the names here must exactly match subunit above if you add anything
-@dataclass(slots=True)
-class subunit_bounds:
-    n_pigments:  npt.NDArray[np.int]
-    sigma:       npt.NDArray[np.float64]
-    lambda_peak: npt.NDArray[np.float64]
-    width:       npt.NDArray[np.float64]
+radiative = subunit(1, sig_chl, 680.0, 10.0)
 
-bounds = subunit_bounds(n_p_bounds, sigma_bounds, lambda_bounds, width_bounds)
+@dataclass()
+class genome:
+    n_b: int = 0
+    n_s: int = 0
+    n_p: npt.NDArray[np.int] = np.empty([], dtype=np.int)
+    lp: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
+    w: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
+    nu_e: float = np.nan
+    phi_f: float = np.nan
+
+# radiative genome
+rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array([10.0]))
+
+# NB: the names here must exactly match genome above if you add anything
+bounds = {'n_b': n_b_bounds,
+          'n_s': n_s_bounds,
+          'n_p': n_p_bounds,
+          'lp': lambda_bounds,
+          'w': width_bounds}
+
+# idea: have a parameter class too. something like
+'''
+class evolution_parameter:
+    name: str
+    t: type
+    bounds: list
 '''

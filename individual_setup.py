@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     ts = 2600
-    init_type = 'radiative' # can be radiative or random
+    init_type = 'random' # can be radiative or random
     avgs_file = "out/avgs_{:4d}K.dat".format(ts)
     avgsq_file = "out/avgsq_{:4d}K.dat".format(ts)
     best_file = "out/best_{:4d}K.dat".format(ts)
@@ -54,8 +54,7 @@ if __name__ == "__main__":
     total_start = timeit.default_timer()
     # initialise population
     for i in range(constants.n_individuals):
-        bp = ga.initialise_individual(rng, init_type)
-        population[i] = {'params': bp, 'nu_e': np.nan, 'phi_f': np.nan}
+        population[i] = ga.initialise_individual(rng, init_type)
 
     while gen < constants.max_generations:
         avgs.fill(0.0)
@@ -64,9 +63,8 @@ if __name__ == "__main__":
             '''
             setup for calling C version
             '''
-            n_b = population[i]['params'][0]
-            subunits = population[i]['params'][1:]
-            n_s = len(subunits)
+            n_b = population[i].n_b
+            n_s = population[i].n_s
             side = (n_b * n_s) + 2
             n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
             lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
@@ -75,9 +73,9 @@ if __name__ == "__main__":
             lp[0]    = constants.rc_params[2]
             width[0] = constants.rc_params[3]
             for j in range(n_s):
-                n_p[j + 1]   = subunits[j][0]
-                lp[j + 1]    = subunits[j][2]
-                width[j + 1] = subunits[j][3]
+                n_p[j + 1]   = population[i].n_p[j]
+                lp[j + 1]    = population[i].lp[j]
+                width[j + 1] = population[i].w[j]
             n_eq   = (ctypes.c_double * side)()
             nu_phi = np.ctypeslib.as_ctypes(np.zeros(2, dtype=np.float64))
             kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
@@ -91,8 +89,8 @@ if __name__ == "__main__":
                     n_p, lp, width,
                     ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                     ctypes.c_uint(len(l)), n_eq, nu_phi)
-            population[i]['nu_e']  = nu_phi[0]
-            population[i]['phi_f'] = nu_phi[1]
+            population[i].nu_e  = nu_phi[0]
+            population[i].phi_f = nu_phi[1]
             c_time += timeit.default_timer() - c_start
             avgs[0]  += nu_phi[0]
             avgsq[0] += nu_phi[0]**2
@@ -116,9 +114,9 @@ if __name__ == "__main__":
         print("Running avgsq: ", running_avgsq[-1])
 
         survivors, best = ga.selection(rng, population)
-        avg_nb_surv = np.sum(np.array([s['params'][0]
+        avg_nb_surv = np.sum(np.array([s.n_b
                                 for s in survivors]) / len(survivors))
-        avg_ns_surv = np.sum(np.array([len(s['params']) - 1
+        avg_ns_surv = np.sum(np.array([s.n_s
                                 for s in survivors]) / len(survivors))
 
         print("Average survivor n_b, n_s: ", avg_nb_surv, avg_ns_surv)
