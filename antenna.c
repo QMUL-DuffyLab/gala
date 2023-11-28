@@ -82,7 +82,7 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
    * k_params should be given as [k_diss, k_trap,  k_con, k_hop, k_lhc_rc].
    * l_len is the length of the l and ip_y arrays
    * n_eq should be a vector with dim = (side).
-   * nu_phi should be double[2].
+   * nu_phi should be double[3].
    */
   unsigned side = (n_b * n_s) + 2;
 
@@ -204,8 +204,10 @@ antenna(double *l, double *ip_y, double sigma, double sigma_rc,
   }
   nu_phi[0] = k_params[2] * n_eq[0];
   double sum_rate = 0.0;
+  nu_phi[2] = 0.0; /* should already be. but just in case */
   for (unsigned i = 2; i < side; i++) {
     sum_rate += k_params[0] * n_eq[i];
+    nu_phi[2] += n_eq[i];
   }
   nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
 
