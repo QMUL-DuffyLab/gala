@@ -157,7 +157,7 @@ def reproduction(rng, survivors, population):
         # arr = [arr_temp[m][k][j] if j < len(arr_temp[m][k])
         #         else rng.integers(*constants.bounds[keys[m]])
         #         for k in range(2) for m in range(3)]
-        print("n_s = ", n_s, "shape(n_s array) = ", n_ps.shape)
+        # print("n_s = ", n_s, "shape(n_s array) = ", n_ps.shape)
         for j in range(n_s):
             bounds = constants.bounds['n_p']
             vals = np.array([n_ps[k][j] for k in range(2)])
@@ -231,17 +231,15 @@ def mutation(rng, individual, n_s_changes):
     # NB: if I set up a class for an individual, this is easier to do;
     # then i can just use the name of each parameter and then get the type
     # to decide whether or not we need to round the result
-    c = individual['params']
-    p = individual['params'].copy()
-    current = p[0]
+    current = individual.n_b
     scale = current * constants.mutation_width
     b = (constants.n_b_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
-    p[0] = new
+    individual.n_b = new
     # print("Branch mutation - ", current, b, new)
     # n_s
-    current = len(p) - 1
+    current = individual.n_s
     scale = current * constants.mutation_width
     b = (constants.n_s_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
@@ -251,44 +249,61 @@ def mutation(rng, individual, n_s_changes):
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
         n_s_changes[0] += new - current
+        # print("len(n_p) before addition = ", individual.n_p.shape)
+        individual.n_p.resize(new)
+        individual.lp.resize(new)
+        individual.w.resize(new)
         for i in range(new - current):
-            p.append(generate_random_subunit(rng))
-        # print("add: old = ", oldlen, " new = ", len(p) - 1, "c, n = ", current, new)
+            individual.n_s += 1
+            individual.n_p[-(i + 1)] = rng.integers(*constants.bounds['n_p'])
+            individual.lp[-(i + 1)] = rng.uniform(*constants.bounds['lp'])
+            individual.w[-(i + 1)] = rng.uniform(*constants.bounds['w'])
+        # print("add: old = ", current, " new = ", individual.n_s,
+        #       "c, n = ", current, new, "len(n_p) = ", individual.n_p.shape)
     elif current > new:
         # delete the last (new - current) elements
         n_s_changes[1] += current - new
         # this would fail if current = new, hence the inequality
-        del p[-(current - new):]
-        # print("del: old = ", oldlen, " new = ", len(p) - 1, "c, n = ", current, new)
+        # this can probably be replaced by np.delete(arr, new-current)
+        # print("len(n_p) before subtraction = ", individual.n_p.shape)
+        # individual.n_p.resize(new)
+        # individual.lp.resize(new)
+        # individual.w.resize(new)
+        for i in range(current - new):
+            individual.n_s -= 1
+            individual.n_p = np.delete(individual.n_p, -1)
+            individual.lp = np.delete(individual.lp, -1)
+            individual.w = np.delete(individual.w, -1)
+        # print("add: old = ", current, " new = ", individual.n_s,
+        #       "c, n = ", current, new, "len(n_p) = ", individual.n_p.shape)
     # now it gets more involved - we have to pick a random subunit
     # to apply these last three mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
     # n_pigments
-    s = rng.integers(1, len(p))
-    current = p[s][0]
+    s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
+    current = individual.n_p[s]
     scale = current * constants.mutation_width
     b = (constants.n_p_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     new = new.round().astype(int)
     # print("n_p mutation - ", p[s], current, b, new)
-    p[s][0] = new
+    individual.n_p[s] = new
     # lambda_peak
-    s = rng.integers(1, len(p))
-    current = p[s][2]
+    s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
+    current = individual.lp[s]
     scale = current * constants.mutation_width
     b = (constants.lambda_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     # print("l_p mutation - ", p[s], current, b, new)
-    p[s][2] = new
+    individual.lp[s] = new
     # width
-    s = rng.integers(1, len(p))
-    current = p[s][3]
+    s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
+    current = individual.w[s]
     scale = current * constants.mutation_width
     b = (constants.width_bounds - current) / (scale)
     new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
     # print("width mutation - ", p[s], current, b, new)
-    p[s][3] = new
+    individual.w[s] = new
 
-    individual['params'] = p
     return individual
