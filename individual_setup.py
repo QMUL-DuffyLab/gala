@@ -44,8 +44,8 @@ if __name__ == "__main__":
     ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
 
     population = [None for _ in range(constants.n_individuals)]
-    avgs  = np.zeros(7)
-    avgsq = np.zeros(7)
+    avgs  = np.zeros(8)
+    avgsq = np.zeros(8)
     running_avgs  = []
     running_avgsq = []
     n_s_changes = np.zeros(2)
@@ -98,28 +98,40 @@ if __name__ == "__main__":
             avgsq[1] += nu_phi[1]**2
             avgs[2]  += nu_phi[0] * nu_phi[1]
             avgsq[2] += (nu_phi[0] * nu_phi[1])**2
-            avgs[3]  += np.sum(lp[1:]) / (len(lp) - 1) # don't count the RC
-            avgsq[3] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
-            avgs[4]  += np.sum(width[1:]) / (len(lp) - 1)
-            avgsq[4] += np.sum(np.square(width[1:])) / (len(lp) - 1)
-            avgs[5]  += n_b
-            avgsq[5] += n_b**2
-            avgs[6]  += n_s
-            avgsq[6] += n_s**2
+            avgs[3]  += np.sum(n_p[1:]) / (len(n_p) - 1) # don't count the RC
+            avgsq[3] += np.sum(np.square(n_p[1:])) / (len(n_p) - 1)
+            avgs[4]  += np.sum(lp[1:]) / (len(lp) - 1) # don't count the RC
+            avgsq[4] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
+            avgs[5]  += np.sum(width[1:]) / (len(lp) - 1)
+            avgsq[5] += np.sum(np.square(width[1:])) / (len(lp) - 1)
+            avgs[6]  += n_b
+            avgsq[6] += n_b**2
+            avgs[7]  += n_s
+            avgsq[7] += n_s**2
 
-        running_avgs.append(avgs / constants.n_individuals)
-        running_avgsq.append(avgsq / constants.n_individuals)
+        avgs /= constants.n_individuals
+        avgsq /= constants.n_individuals
+        running_avgs.append(avgs)
+        running_avgsq.append(avgsq)
         print("Generation {:4d}: ".format(gen))
-        print("Running avgs: ", running_avgs[-1])
-        print("Running avgsq: ", running_avgsq[-1])
+        print("================")
+        print(f"<ν_e>     = {avgs[0]:10.4n}\t<ν_e^2>       = {avgsq[0]:10.4n}")
+        print(f"<φ_f>     = {avgs[1]:10.4n}\t<φ_f^2>       = {avgsq[1]:10.4n}")
+        print(f"<φ_f ν_e> = {avgs[2]:10.4n}\t<(φ_f ν_e)^2> = {avgsq[2]:10.4n}")
+        print(f"<n_p>     = {avgs[3]:10.4n}\t<n_p^2>       = {avgsq[3]:10.4n}")
+        print(f"<λ_p>     = {avgs[4]:10.4n}\t<λ_p^2>       = {avgsq[4]:10.4n}")
+        print(f"<w>       = {avgs[5]:10.4n}\t<w^2>         = {avgsq[5]:10.4n}")
+        print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}")
+        print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}")
 
         survivors, best = ga.selection(rng, population)
         avg_nb_surv = np.sum(np.array([s.n_b
                                 for s in survivors]) / len(survivors))
         avg_ns_surv = np.sum(np.array([s.n_s
                                 for s in survivors]) / len(survivors))
+        print("Average n_b, n_s of survivors: ", avg_nb_surv, avg_ns_surv)
+        print("\n")
 
-        print("Average survivor n_b, n_s: ", avg_nb_surv, avg_ns_surv)
         avg_survivor_fitness = 0.0 # calculate this here
         with open(best_file, "w") as f:
             f.write(str(best))
