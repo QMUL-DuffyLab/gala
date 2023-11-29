@@ -72,7 +72,7 @@ dG(double l1, double l2, double n, double t)
 }
 
 void
-antenna(double *l, double *ip_y, double sigma, double sigma_rc, 
+antenna(double *l, double *ip_y, double sigma,
             double k_params[5], double t, unsigned *n_p, double *lp,
             double *width, unsigned n_b, unsigned n_s, unsigned l_len,
             double* n_eq, double* nu_phi)

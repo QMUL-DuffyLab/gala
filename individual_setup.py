@@ -15,7 +15,7 @@ if __name__ == "__main__":
     la = ctypes.cdll.LoadLibrary("./libantenna.so")
     la.antenna.argtypes = [ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double), ctypes.c_double,
-            ctypes.c_double, ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
             ctypes.c_double, ctypes.POINTER(ctypes.c_uint),
             ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double),
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     rng = np.random.default_rng()
 
     # these will be args eventually i guess
-    ts = 5800
+    ts = 4400
     n_runs = 3
     init_type = 'random' # can be radiative or random
     avgs_prefix  = "out/avgs_{:4d}K".format(ts)
@@ -86,6 +86,7 @@ if __name__ == "__main__":
         while gen < constants.max_generations:
             avgs.fill(0.0)
             avgsq.fill(0.0)
+            nlw_pop.fill(0.0)
             for j in range(constants.n_individuals):
                 '''
                 setup for calling C version
@@ -97,8 +98,8 @@ if __name__ == "__main__":
                 lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
                 width = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
                 n_p[0]   = constants.rc_params[0]
-                lp[0]    = constants.rc_params[2]
-                width[0] = constants.rc_params[3]
+                lp[0]    = constants.rc_params[1]
+                width[0] = constants.rc_params[2]
                 for k in range(n_s):
                     n_p[k + 1]   = population[j].n_p[k]
                     lp[k + 1]    = population[j].lp[k]
@@ -110,8 +111,7 @@ if __name__ == "__main__":
                 # start timer here to time the actual function only lol
                 c_start = timeit.default_timer()
                 la.antenna(l_c, ip_y_c,
-                        ctypes.c_double(constants.sig_chl),
-                        ctypes.c_double(constants.rc_params[1]), kp,
+                        ctypes.c_double(constants.sig_chl), kp,
                         ctypes.c_double(constants.T),
                         n_p, lp, width,
                         ctypes.c_uint(n_b), ctypes.c_uint(n_s),
@@ -182,10 +182,10 @@ if __name__ == "__main__":
                 f.write("\n")
             f.close()
             population = ga.reproduction(rng, survivors, population)
-            for i in range(constants.n_individuals):
+            for j in range(constants.n_individuals):
                 p = rng.random()
                 if p < constants.mutation_rate:
-                    population[i] = ga.mutation(rng, population[i], n_s_changes)
+                    population[j] = ga.mutation(rng, population[j], n_s_changes)
             gen += 1
 
         np.savetxt(avgs_file, np.array(running_avgs))
@@ -200,5 +200,5 @@ if __name__ == "__main__":
         np.savetxt(avgs_file, np.array(running_avgs))
         plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(i)
         plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(i)
-        plots.antenna_plot_2d(best, l, plot_final_best_2d_file)
-        plots.antenna_plot_3d(best, l, plot_final_best_3d_file)
+        plots.antenna_plot_2d(best, phoenix_data, plot_final_best_2d_file)
+        plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)

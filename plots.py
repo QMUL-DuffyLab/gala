@@ -35,7 +35,7 @@ def antenna_plot_2d(genome, spectrum, filename):
     ax.set_ylabel(r'$ I $')
     plt.plot(spectrum[:, 0], spectrum[:, 1], color='k',
              label=r'$ I_p $')
-    cm = plt.colormaps['jet'](np.linspace(0, 1, genome.n_s))
+    cm = plt.colormaps['jet_r'](np.linspace(0, 1, genome.n_s))
     for i in range(genome.n_s):
         a = gauss(spectrum[:, 0], genome.lp[i], genome.w[i])
         plt.plot(spectrum[:, 0], a * 0.8 * np.max(spectrum[:, 1]),
@@ -57,7 +57,7 @@ def antenna_plot_3d(genome, spectrum, filename):
     xlim = (np.min(spectrum[:, 0]), np.max(spectrum[:, 0]))
     # need to cut off the actual spectrum array to use the next line
     # xlim = (0.5 * np.min(genome.lp), 1.5 * np.max(genome.lp))
-    cm = plt.colormaps['jet'](np.linspace(0, 1, genome.n_s))
+    cm = plt.colormaps['jet_r'](np.linspace(0, 1, genome.n_s))
     verts = []
     for i in range(genome.n_s):
         verts.append(polygon_under_graph(spectrum[:, 0], gauss(spectrum[:, 0],
