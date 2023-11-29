@@ -9,6 +9,7 @@ import timeit
 import numpy as np
 import constants
 import genetic_algorithm as ga
+import plots
 
 if __name__ == "__main__":
     la = ctypes.cdll.LoadLibrary("./libantenna.so")
@@ -197,3 +198,7 @@ if __name__ == "__main__":
         np.savetxt(wsq_file, w_avgsq)
         np.savetxt(nlw_pop_file, nlw_pop)
         np.savetxt(avgs_file, np.array(running_avgs))
+        plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(i)
+        plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(i)
+        plots.antenna_plot_2d(best, l, plot_final_best_2d_file)
+        plots.antenna_plot_3d(best, l, plot_final_best_3d_file)
