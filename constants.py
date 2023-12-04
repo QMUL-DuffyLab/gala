@@ -31,9 +31,9 @@ all given in s^{-1}
 
 k_diss   = 1.0 / 4.0E-9 # Chl excited state decay rate
 k_trap   = 1.0 / 5.0E-12 # PSII trapping rate
-k_con    = 1.0/10.0E-3 # PSII RC turnover rate
-k_hop    = 1.0/10.0E-12 # just one hopping rate between all subunits
-k_lhc_rc = 1.0/10.0E-12
+k_con    = 1.0 / 10.0E-3 # PSII RC turnover rate
+k_hop    = 1.0 / 10.0E-12 # just one hopping rate between all subunits
+k_lhc_rc = 1.0 / 10.0E-12
 k_params  = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
 
 '''
