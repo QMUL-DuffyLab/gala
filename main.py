@@ -20,6 +20,7 @@ if __name__ == "__main__":
             ctypes.c_double, ctypes.POINTER(ctypes.c_uint),
             ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
             ctypes.c_uint, ctypes.c_uint, ctypes.c_uint,
             ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double)]
@@ -104,9 +105,9 @@ if __name__ == "__main__":
                     n_s = population[j].n_s
                     side = (n_b * n_s) + 2
                     n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
-                    lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
-                    width = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
-                    a12   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
+                    lp    = np.ctypeslib.as_ctypes(np.zeros(2 * (n_s + 1), dtype=np.float64))
+                    width = np.ctypeslib.as_ctypes(np.zeros(2 * (n_s + 1), dtype=np.float64))
+                    a12   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
                     n_p[0]   = constants.rc_params[0]
                     lp[0]    = constants.rc_params[1]
                     width[0] = constants.rc_params[2]

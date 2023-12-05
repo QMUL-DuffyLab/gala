@@ -51,8 +51,11 @@ Spectral parameters - I think these will change
 sig_chl = 1E-20 # (approximate!) cross-section of one chlorophyll
 lp_rc = 680.0 # reaction centre
 w_rc  = 9.0 # reaction centre peak width
+lp2_rc = 640.0 # reaction centre
+w2_rc  = 15.0 # reaction centre peak width
+a12_rc = 0.2
 
-rc_params = (1, lp_rc, w_rc)
+rc_params = (1, lp_rc, w_rc, lp2_rc, w2_rc, a12_rc)
 
 @dataclass()
 class genome:

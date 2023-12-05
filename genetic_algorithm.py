@@ -77,10 +77,10 @@ def initialise_individual(rng, init_type):
         a12  = np.zeros(ns, dtype=np.float64)
         for i in range(ns):
             n_p[i] = rng.integers(*constants.bounds['n_p'])
-            lp1[i]  = rng.uniform(*constants.bounds['lp'])
-            w1[i]   = rng.uniform(*constants.bounds['w'])
-            lp2[i]  = rng.uniform(*constants.bounds['lp'])
-            w2[i]   = rng.uniform(*constants.bounds['w'])
+            lp1[i]  = rng.uniform(*constants.bounds['lp1'])
+            w1[i]   = rng.uniform(*constants.bounds['w1'])
+            lp2[i]  = rng.uniform(*constants.bounds['lp2'])
+            w2[i]   = rng.uniform(*constants.bounds['w2'])
             a12[i]  = rng.choice(constants.bounds['a12'])
         return constants.genome(nb, ns, n_p, lp1, w1, lp2, w2, a12)
 

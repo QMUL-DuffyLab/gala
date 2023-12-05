@@ -128,7 +128,7 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
     /* gauss(lines[i], l, lp[i], width[i], l_len); */
     two_gauss(lines[i], l, lp[2 * i], width[2 * i],
         lp[(2 * i) + 1], width[(2 * i) + 1], a12[i], l_len);
-    if (i > 0) { 
+    if ((i > 0) && (i < n_s + 1)) { 
       /* 
        * add to the vector of photon inputs for later.
        * note that n_p[0] and lines[0] are for the RC, so we skip that,
