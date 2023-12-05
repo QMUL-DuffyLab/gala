@@ -17,10 +17,13 @@ def generate_random_subunit(rng):
     random width.
     '''
     n_p = rng.integers(*constants.bounds['n_p'])
-    lp  = rng.uniform(*constants.bounds['lp'])
-    w   = rng.uniform(*constants.bounds['w'])
+    lp1 = rng.uniform(*constants.bounds['lp1'])
+    lp2 = rng.uniform(*constants.bounds['lp2'])
+    w1  = rng.uniform(*constants.bounds['w1'])
+    w2  = rng.uniform(*constants.bounds['w2'])
+    a12  = rng.choice(constants.bounds['a12'])
     # sigma       = constants.sig_chl
-    return [n_p, lp, w]
+    return [n_p, lp1, w1, lp2, w2, a12]
 
 def fill_arrays(rng, l, res_length, name):
     if (isinstance(constants.bounds[name][0], (int, np.integer))):
@@ -35,7 +38,10 @@ def fill_arrays(rng, l, res_length, name):
             if i < len(l[j]):
                 result[j][i] = l[j][i]
             else:
-                result[j][i] = fn(*constants.bounds[name])
+                if name == 'a12':
+                    result[j][i] = rng.choice(constants.bounds[name])
+                else:
+                    result[j][i] = fn(*constants.bounds[name])
     return result
 
 def initialise_individual(rng, init_type):
@@ -64,13 +70,19 @@ def initialise_individual(rng, init_type):
         nb = rng.integers(*constants.bounds['n_b'])
         ns = rng.integers(*constants.bounds['n_s'])
         n_p = np.zeros(ns, dtype=np.int)
-        lp = np.zeros(ns, dtype=np.float64)
-        w  = np.zeros(ns, dtype=np.float64)
+        lp1 = np.zeros(ns, dtype=np.float64)
+        w1  = np.zeros(ns, dtype=np.float64)
+        lp2 = np.zeros(ns, dtype=np.float64)
+        w2  = np.zeros(ns, dtype=np.float64)
+        a12  = np.zeros(ns, dtype=np.float64)
         for i in range(ns):
             n_p[i] = rng.integers(*constants.bounds['n_p'])
-            lp[i]  = rng.uniform(*constants.bounds['lp'])
-            w[i]   = rng.uniform(*constants.bounds['w'])
-        return constants.genome(nb, ns, n_p, lp, w)
+            lp1[i]  = rng.uniform(*constants.bounds['lp'])
+            w1[i]   = rng.uniform(*constants.bounds['w'])
+            lp2[i]  = rng.uniform(*constants.bounds['lp'])
+            w2[i]   = rng.uniform(*constants.bounds['w'])
+            a12[i]  = rng.choice(constants.bounds['a12'])
+        return constants.genome(nb, ns, n_p, lp1, w1, lp2, w2, a12)
 
 def selection(rng, population):
     '''
@@ -142,13 +154,16 @@ def crossover(child, parents, parameter, rng, subunit):
             # every element of new is within bounds, which would
             # significantly reduce the amount of variation we can have
             v = [vals[j][i] for j in range(2)]
-            b = rng.uniform(-d, 1 + d)
-            n = v[0] * b + v[1] * (1 - b)
-            while n < bounds[0] or n > bounds[1]:
+            if parameter == 'a12': # binary choice
+                n = rng.choice(v)
+            else: 
                 b = rng.uniform(-d, 1 + d)
                 n = v[0] * b + v[1] * (1 - b)
-            if isinstance(bounds[0], (int, np.integer)):
-                n = np.round(n).astype(int)
+                while n < bounds[0] or n > bounds[1]:
+                    b = rng.uniform(-d, 1 + d)
+                    n = v[0] * b + v[1] * (1 - b)
+                if isinstance(bounds[0], (int, np.integer)):
+                    n = np.round(n).astype(int)
             new[i] = n
     setattr(child, parameter, new)
 
@@ -170,7 +185,7 @@ def reproduction(rng, survivors, population):
         parents = [survivors[p_i[i]] for i in range(2)]
         crossover(child, parents, 'n_b', rng, False)
         crossover(child, parents, 'n_s', rng, False)
-        for p in ['n_p', 'lp', 'w']:
+        for p in ['n_p', 'lp1', 'w1', 'lp2', 'w2', 'a12']:
             crossover(child, parents, p, rng, True)
     return population
 
@@ -187,12 +202,15 @@ def mutate(genome, parameter, rng, subunit=None):
        current = getattr(genome, parameter)[subunit]
     else:
        current = getattr(genome, parameter)
-    scale = current * constants.mu_width
-    b = (constants.bounds[parameter] - current) / (scale)
-    new = ss.truncnorm.rvs(b[0], b[1], loc=current,
-                           scale=scale, random_state=rng)
-    if isinstance(current, (int, np.integer)):
-        new = new.round().astype(int)
+    if parameter == 'a12':
+        new = rng.choice(constants.bounds[parameter])
+    else:
+        scale = current * constants.mu_width
+        b = (constants.bounds[parameter] - current) / (scale)
+        new = ss.truncnorm.rvs(b[0], b[1], loc=current,
+                               scale=scale, random_state=rng)
+        if isinstance(current, (int, np.integer)):
+            new = new.round().astype(int)
     if subunit is not None:
         getattr(genome, parameter)[subunit] = new
     else:
@@ -216,7 +234,7 @@ def mutation(rng, individual, n_s_changes):
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
-    per_sub_params = ['n_p', 'lp', 'w']
+    per_sub_params = ['n_p', 'lp1', 'w1', 'lp2', 'w2', 'a12']
     if current < new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
@@ -231,30 +249,19 @@ def mutation(rng, individual, n_s_changes):
             else:
                 fn = rng.uniform
             for i in range(new - current):
-                c[-(i + 1)] = fn(*constants.bounds[p])
-        # individual.n_p.resize(new)
-        # individual.lp.resize(new)
-        # individual.w.resize(new)
-        # for i in range(new - current):
-            # individual.n_s += 1
-            # individual.n_p[-(i + 1)] = rng.integers(*constants.bounds['n_p'])
-            # individual.lp[-(i + 1)] = rng.uniform(*constants.bounds['lp'])
-            # individual.w[-(i + 1)] = rng.uniform(*constants.bounds['w'])
+                if p == 'a12':
+                    c[-(i + 1)] = rng.choice(constants.bounds[p])
+                else:
+                    c[-(i + 1)] = fn(*constants.bounds[p])
     elif current > new:
         # delete the last (new - current) elements
         n_s_changes[1] += current - new
         # this can probably be replaced by np.delete(arr, new-current)
         for p in per_sub_params:
             np.delete(getattr(individual, p), new - current)
-        # for i in range(current - new):
-            # individual.n_s -= 1
-            # individual.n_p = np.delete(individual.n_p, -1)
-            # individual.lp = np.delete(individual.lp, -1)
-            # individual.w = np.delete(individual.w, -1)
     # now pick a random subunit to apply these mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
-    # n_pigments, lambda_peak, width
     for p in per_sub_params:
         s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
         mutate(individual, p, rng, s)

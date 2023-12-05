@@ -106,13 +106,20 @@ if __name__ == "__main__":
                     n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
                     lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
                     width = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+                    a12   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
                     n_p[0]   = constants.rc_params[0]
                     lp[0]    = constants.rc_params[1]
                     width[0] = constants.rc_params[2]
+                    lp[1]    = constants.rc_params[3]
+                    width[1] = constants.rc_params[4]
+                    a12[0]   = constants.rc_params[5]
                     for k in range(n_s):
-                        n_p[k + 1]   = population[j].n_p[k]
-                        lp[k + 1]    = population[j].lp[k]
-                        width[k + 1] = population[j].w[k]
+                        n_p[k + 1]         = population[j].n_p[k]
+                        a12[k + 1]         = population[j].a12[k]
+                        lp[(2 * k) + 2]    = population[j].lp1[k]
+                        lp[(2 * k) + 3]    = population[j].lp2[k]
+                        width[(2 * k) + 2] = population[j].w1[k]
+                        width[(2 * k) + 3] = population[j].w2[k]
                     n_eq   = (ctypes.c_double * side)()
                     nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, dtype=np.float64))
                     kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
@@ -120,7 +127,7 @@ if __name__ == "__main__":
                     la.antenna(l_c, ip_y_c,
                             ctypes.c_double(constants.sig_chl), kp,
                             ctypes.c_double(constants.T),
-                            n_p, lp, width,
+                            n_p, lp, width, a12,
                             ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                             ctypes.c_uint(len(l)), n_eq, nu_phi)
                     population[j].nu_e  = nu_phi[0]

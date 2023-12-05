@@ -87,9 +87,9 @@ dG(double l1, double l2, double n, double t)
 }
 
 void
-antenna(double *l, double *ip_y, double sigma,
-            double k_params[5], double t, unsigned *n_p, double *lp,
-            double *width, unsigned n_b, unsigned n_s, unsigned l_len,
+antenna(double *l, double *ip_y, double sigma, double k_params[5],
+            double t, unsigned *n_p, double *lp, double *width,
+            double *a12, unsigned n_b, unsigned n_s, unsigned l_len,
             double* n_eq, double* nu_phi)
 {
   /* 
@@ -124,8 +124,10 @@ antenna(double *l, double *ip_y, double sigma,
   }
   
   /* calculate lineshapes */
-  for (unsigned i = 0; i < n_s + 1; i++) {
-    gauss(lines[i], l, lp[i], width[i], l_len);
+  for (unsigned i = 0; i < 2 * (n_s + 1); i++) {
+    /* gauss(lines[i], l, lp[i], width[i], l_len); */
+    two_gauss(lines[i], l, lp[2 * i], width[2 * i],
+        lp[(2 * i) + 1], width[(2 * i) + 1], a12[i], l_len);
     if (i > 0) { 
       /* 
        * add to the vector of photon inputs for later.

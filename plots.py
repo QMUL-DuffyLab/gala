@@ -24,6 +24,14 @@ def gauss(l, lp, w):
     y = np.exp(-1.0*((l - lp)**2)/(2.0*w**2))
     return y
 
+def two_gauss(l, lp1, w1, lp2, w2, a12):
+    '''
+    return a properly unscaled Gaussian to plot alongside spectral irradiance
+    '''
+    y = np.exp(-1.0*((l - lp1)**2)/(2.0*w1**2))
+    y += a12 * np.exp(-1.0*((l - lp2)**2)/(2.0*w2**2))
+    return y
+
 def antenna_plot_2d(genome, spectrum, filename):
     '''
     take a genome and plot the corresponding set of Gaussians,
@@ -37,10 +45,11 @@ def antenna_plot_2d(genome, spectrum, filename):
              label=r'$ I_p $')
     cm = plt.colormaps['jet_r'](np.linspace(0, 1, genome.n_s))
     for i in range(genome.n_s):
-        a = gauss(spectrum[:, 0], genome.lp[i], genome.w[i])
+        a = two_gauss(spectrum[:, 0], genome.lp1[i], genome.w1[i],
+                genome.lp2[i], genome.w2[i], genome.a12[i])
         plt.plot(spectrum[:, 0], a * 0.8 * np.max(spectrum[:, 1]),
                  color=cm[i])
-    xlim = (0.5 * np.min(genome.lp), 1.5 * np.max(genome.lp))
+    xlim = (0.5 * np.min(genome.lp1), 1.5 * np.max(genome.lp1))
     ax.set_xlim(xlim)
     plt.legend()
     plt.savefig(filename)
@@ -60,8 +69,9 @@ def antenna_plot_3d(genome, spectrum, filename):
     cm = plt.colormaps['jet_r'](np.linspace(0, 1, genome.n_s))
     verts = []
     for i in range(genome.n_s):
-        verts.append(polygon_under_graph(spectrum[:, 0], gauss(spectrum[:, 0],
-                                               genome.lp[i], genome.w[i])))
+        verts.append(polygon_under_graph(spectrum[:, 0],
+            two_gauss(spectrum[:, 0], genome.lp1[i], genome.w1[i],
+                genome.lp2[i], genome.w2[i], genome.a12[i])))
     verts.append(polygon_under_graph(spectrum[:, 0], spectrum[:, 1]))
     cm = np.append(cm, [[0., 0., 0., 1.]], axis=0) # black
     p = PolyCollection(verts, facecolors=cm, alpha=.7)
