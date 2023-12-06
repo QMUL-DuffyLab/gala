@@ -47,11 +47,26 @@ overlap(double *l, double *f1, double *f2, unsigned n)
 }
 
 void
-absorption(double *out, double *l, double lambda_peak, double width, unsigned n)
+gauss(double *out, double *l, double lambda_peak, double width, unsigned n)
 {
   /* normalised gaussian absorption lineshape */
   for (unsigned i = 0; i < n; i++) {
     out[i] = exp(-1.0 * pow(l[i] - lambda_peak, 2)/(2.0 * pow(width, 2)));
+  }
+  double norm = trapezoid(out, l, n);
+  for (unsigned i = 0; i < n; i++) {
+    out[i] /= norm;
+  }
+}
+
+void
+two_gauss(double *out, double *l, double lp1, double w1, 
+    double lp2, double w2, double a12, unsigned n)
+{
+  /* normalised double Gaussian */
+  for (unsigned i = 0; i < n; i++) {
+    out[i] = exp(-1.0 * pow(l[i] - lp1, 2)/(2.0 * pow(w1, 2)))\
+           + a12 * exp(-1.0 * pow(l[i] - lp2, 2)/(2.0 * pow(w2, 2)));
   }
   double norm = trapezoid(out, l, n);
   for (unsigned i = 0; i < n; i++) {
@@ -87,7 +102,6 @@ antenna(double *l, double *ip_y, double sigma,
   unsigned side = (n_b * n_s) + 2;
 
   gsl_vector *gamma = gsl_vector_calloc(side);
-  /* gsl_matrix *k = gsl_matrix_calloc(side, side); */
   gsl_permutation *perm = gsl_permutation_calloc(side);
   gsl_vector *n_eq_gsl = gsl_vector_calloc(side);
   int signum;
@@ -111,7 +125,7 @@ antenna(double *l, double *ip_y, double sigma,
   
   /* calculate lineshapes */
   for (unsigned i = 0; i < n_s + 1; i++) {
-    absorption(lines[i], l, lp[i], width[i], l_len);
+    gauss(lines[i], l, lp[i], width[i], l_len);
     if (i > 0) { 
       /* 
        * add to the vector of photon inputs for later.
@@ -165,11 +179,6 @@ antenna(double *l, double *ip_y, double sigma,
   }
 
   /* now construct k */
-  /* double** kd = calloc(side, sizeof(double*)); */
-  /* for (unsigned i = 0; i < side; i++) { */
-  /*   kd[i] = calloc(side, sizeof(double)); */
-  /* } */
-  /* kd[0][0] -= k_params[2]; /1* k_con *1/ */
   double* kd = calloc(side * side, sizeof(double));
   kd[0] -= k_params[2]; /* k_con */
   for (unsigned i = 0; i < side; i++) {
@@ -183,11 +192,7 @@ antenna(double *l, double *ip_y, double sigma,
       }
     }
   }
-  /* for (unsigned i = 0; i < side; i++) { */
-  /*   for (unsigned j = 0; j < side; j++) { */
-  /*     gsl_matrix_set(k, i, j, kd[i][j]); */
-  /*   } */
-  /* } */
+
   gsl_matrix_view k = gsl_matrix_view_array(kd, side, side);
   gsl_linalg_LU_decomp(&k.matrix, perm, &signum);
   gsl_linalg_LU_solve(&k.matrix, perm, gamma, n_eq_gsl);
