@@ -5,7 +5,8 @@
 """
 
 import ctypes
-import timeit
+from datetime import datetime
+import pandas as pd
 import numpy as np
 import constants
 import genetic_algorithm as ga
@@ -24,6 +25,8 @@ if __name__ == "__main__":
             ctypes.POINTER(ctypes.c_double)]
 
     rng = np.random.default_rng()
+    df = {}
+    df['params'] = constants.c_dict
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
@@ -55,7 +58,9 @@ if __name__ == "__main__":
         ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
 
         for i in range(n_runs):
-            population = [None for _ in range(constants.n_individuals)]
+            # dftr = df["{:4d}".format(ts)]["{:1d}".format(i)]
+            df['input_file'] = spectrum_file
+            population = [None for _ in range(constants.population_size)]
             avgs_file = avgs_prefix + "_r{:1d}.dat".format(i)
             avgsq_file = avgsq_prefix + "_r{:1d}.dat".format(i)
             best_file = best_prefix + "_r{:1d}.dat".format(i)
@@ -79,21 +84,19 @@ if __name__ == "__main__":
             lp_avgsq = np.zeros(constants.bounds['n_s'][1])
             w_avgsq = np.zeros(constants.bounds['n_s'][1])
             nlw_pop   = np.zeros(constants.bounds['n_s'][1])
-            running_avgs  = np.zeros((constants.max_generations, 9))
-            running_avgsq = np.zeros((constants.max_generations, 9))
+            running_avgs  = np.zeros((constants.max_gen, 9))
+            running_avgsq = np.zeros((constants.max_gen, 9))
             n_s_changes = np.zeros(2)
-            c_time = 0.0
             gen = 0
-            total_start = timeit.default_timer()
             # initialise population
-            for j in range(constants.n_individuals):
+            for j in range(constants.population_size):
                 population[j] = ga.initialise_individual(rng, init_type)
 
-            while gen < constants.max_generations:
+            while gen < constants.max_gen:
                 avgs.fill(0.0)
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
-                for j in range(constants.n_individuals):
+                for j in range(constants.population_size):
                     '''
                     setup for calling C version
                     '''
@@ -114,9 +117,6 @@ if __name__ == "__main__":
                     nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, dtype=np.float64))
                     kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
 
-                    # start timer here to time the actual function only lol
-                    
-                    c_start = timeit.default_timer()
                     la.antenna(l_c, ip_y_c,
                             ctypes.c_double(constants.sig_chl), kp,
                             ctypes.c_double(constants.T),
@@ -125,7 +125,6 @@ if __name__ == "__main__":
                             ctypes.c_uint(len(l)), n_eq, nu_phi)
                     population[j].nu_e  = nu_phi[0]
                     population[j].phi_f = nu_phi[1]
-                    c_time += timeit.default_timer() - c_start
                     avgs[0]  += nu_phi[0]
                     avgsq[0] += nu_phi[0]**2
                     avgs[1]  += nu_phi[1]
@@ -153,8 +152,8 @@ if __name__ == "__main__":
                         lp_avgsq[k] += lp[k + 1]**2
                         w_avgsq[k]  += width[k + 1]**2
 
-                avgs /= constants.n_individuals
-                avgsq /= constants.n_individuals
+                avgs /= constants.population_size
+                avgsq /= constants.population_size
                 std_dev = np.sqrt(avgsq - np.square(avgs))
                 running_avgs[gen] = avgs
                 running_avgsq[gen] = avgsq
@@ -189,9 +188,9 @@ if __name__ == "__main__":
                     f.write("\n")
                 f.close()
                 population = ga.reproduction(rng, survivors, population)
-                for j in range(constants.n_individuals):
+                for j in range(constants.population_size):
                     p = rng.random()
-                    if p < constants.mutation_rate:
+                    if p < constants.mu_rate:
                         population[j] = ga.mutation(rng, population[j], n_s_changes)
                 gen += 1
 
@@ -204,7 +203,18 @@ if __name__ == "__main__":
             np.savetxt(w_file, w_avg)
             np.savetxt(wsq_file, w_avgsq)
             np.savetxt(nlw_pop_file, nlw_pop)
-            np.savetxt(avgs_file, np.array(running_avgs))
+            df['avgs'] = running_avgs
+            df['avgsq'] = running_avgsq
+            df['np_avg'] = np_avg
+            df['np_avgsq'] = np_avgsq
+            df['lp_avg'] = lp_avg
+            df['lp_avgsq'] = lp_avgsq
+            df['w_avg'] = w_avg
+            df['w_avgsq'] = w_avgsq
+            df['nlw_pop'] = nlw_pop
+            df['best'] = best
+            
+            
             plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(i)
             plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(i)
             plot_nu_phi_file = avgs_prefix + "_r{:1d}_nu_phi.pdf".format(i)
@@ -212,3 +222,6 @@ if __name__ == "__main__":
             plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
+    df = pd.DataFrame(df)
+    timestamp = datetime.now().isoformat('_', timespec='minutes')
+    df.to_csv("out/" + timestamp + ".csv")

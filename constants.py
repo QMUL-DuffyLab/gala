@@ -14,15 +14,17 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
-n_b_bounds = np.array([1, 12]) # max neighbours for identical spheres
-n_s_bounds = np.array([1, 100])
-n_p_bounds = np.array([1, 100])
-n_individuals = 1000
+population_size = 1000
 fitness_cutoff = 0.2 # fraction of individuals kept
-mutation_width = 0.25 # width of Gaussian/Poisson we draw from for mutation
-mutation_rate = 0.05
-max_generations = 1000
-d_re = 0.25 # random perturbation of values during crossover
+mu_width = 0.25 # width of Gaussian/Poisson we draw from for mutation
+mu_rate = 0.05
+max_gen = 1000
+d_recomb = 0.25 # random perturbation of values during crossover
+bounds = {'n_b': np.array([1, 12], dtype=np.int),
+          'n_s': np.array([1, 100], dtype=np.int),
+          'n_p': np.array([1, 100], dtype=np.int),
+          'lp': np.array([200.0, 1400.0]),
+          'w': np.array([5.0, 30.0])}
 
 '''
 some rates that I think are going to be fixed
@@ -43,10 +45,6 @@ sig_chl = 1E-20 # (approximate!) cross-section of one chlorophyll
 lp_rc = 680.0 # reaction centre
 w_rc  = 9.0 # reaction centre peak width
 
-lambda_bounds = np.array([200.0, 1400.00])
-width_bounds  = np.array([1.0, 50.0])
-sigma_bounds  = np.array([sig_chl, sig_chl])
-
 rc_params = (1, lp_rc, w_rc)
 
 @dataclass()
@@ -62,17 +60,10 @@ class genome:
 # radiative genome
 rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array([10.0]))
 
-# NB: the names here must exactly match genome above if you add anything
-bounds = {'n_b': n_b_bounds,
-          'n_s': n_s_bounds,
-          'n_p': n_p_bounds,
-          'lp': lambda_bounds,
-          'w': width_bounds}
-
-# idea: have a parameter class too. something like
-'''
-class evolution_parameter:
-    name: str
-    t: type
-    bounds: list
-'''
+# dict to put in dataframe
+c_dict = {'T': T, 'population_size': population_size,
+          'fitness_cutoff': fitness_cutoff,
+          'mu_width': mu_width, 'mu_rate': mu_rate,
+          'max_gen': max_gen, 'd_recomb': d_recomb,
+          'bounds': bounds, 'k_params': k_params,
+          'rc_params': rc_params}
