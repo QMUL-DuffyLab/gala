@@ -87,7 +87,7 @@ antenna(double *l, double *ip_y, double sigma,
   unsigned side = (n_b * n_s) + 2;
 
   gsl_vector *gamma = gsl_vector_calloc(side);
-  gsl_matrix *k = gsl_matrix_calloc(side, side);
+  /* gsl_matrix *k = gsl_matrix_calloc(side, side); */
   gsl_permutation *perm = gsl_permutation_calloc(side);
   gsl_vector *n_eq_gsl = gsl_vector_calloc(side);
   int signum;
@@ -165,30 +165,32 @@ antenna(double *l, double *ip_y, double sigma,
   }
 
   /* now construct k */
-  double** kd = calloc(side, sizeof(double*));
-  for (unsigned i = 0; i < side; i++) {
-    kd[i] = calloc(side, sizeof(double));
-  }
-  kd[0][0] -= k_params[2]; /* k_con */
+  /* double** kd = calloc(side, sizeof(double*)); */
+  /* for (unsigned i = 0; i < side; i++) { */
+  /*   kd[i] = calloc(side, sizeof(double)); */
+  /* } */
+  /* kd[0][0] -= k_params[2]; /1* k_con *1/ */
+  double* kd = calloc(side * side, sizeof(double));
+  kd[0] -= k_params[2]; /* k_con */
   for (unsigned i = 0; i < side; i++) {
     if (i >= 2) {
-      kd[i][i] -= k_params[0]; /* k_diss */
+      kd[(i * side) + i] -= k_params[0]; /* k_diss */
     }
     for (unsigned j = 0; j < side; j++) {
       if (i != j) {
-        kd[i][j]  = twa[j][i];
-        kd[i][i] -= twa[i][j];
+        kd[(i * side) + j]  = twa[j][i];
+        kd[(i * side) + i] -= twa[i][j];
       }
     }
   }
-  for (unsigned i = 0; i < side; i++) {
-    for (unsigned j = 0; j < side; j++) {
-      gsl_matrix_set(k, i, j, kd[i][j]);
-    }
-  }
-
-  gsl_linalg_LU_decomp(k, perm, &signum);
-  gsl_linalg_LU_solve(k, perm, gamma, n_eq_gsl);
+  /* for (unsigned i = 0; i < side; i++) { */
+  /*   for (unsigned j = 0; j < side; j++) { */
+  /*     gsl_matrix_set(k, i, j, kd[i][j]); */
+  /*   } */
+  /* } */
+  gsl_matrix_view k = gsl_matrix_view_array(kd, side, side);
+  gsl_linalg_LU_decomp(&k.matrix, perm, &signum);
+  gsl_linalg_LU_solve(&k.matrix, perm, gamma, n_eq_gsl);
   for (unsigned i = 0; i < side; i++) {
     n_eq[i] = gsl_vector_get(n_eq_gsl, i);
   }
@@ -212,7 +214,6 @@ antenna(double *l, double *ip_y, double sigma,
   nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
 
   for (unsigned i = 0; i < side; i++) {
-    free(kd[i]);
     free(twa[i]);
     if (i < n_s + 1) {
       free(lines[i]);
@@ -222,7 +223,6 @@ antenna(double *l, double *ip_y, double sigma,
   gsl_vector_free(gamma);
   gsl_vector_free(n_eq_gsl);
   gsl_permutation_free(perm);
-  gsl_matrix_free(k);
   free(k_b);
   free(twa);
   free(g);
