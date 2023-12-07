@@ -110,8 +110,18 @@ def crossover(child, parents, parameter, rng, subunit):
         var_type = np.float
 
     if subunit:
+        '''
+        the number of subunits the child has might be shorter
+        or longer than one or both of its parents. we make sure
+        we have two arrays of the relevant parameter that are
+        the right length and then perform our recombination
+        elementwise on those. fill_arrays takes the values from
+        the parents where possible, else it generates parameter
+        values randomly. NB: if we relax the assumption that every
+        branch is identical this will stop working. but then so
+        will literally everything else in the code, come to think of it
+        '''
         s = child.n_s
-        # print(parameter, s, [p.n_s for p in parents])
         vals = fill_arrays(rng, parent_vals, s, parameter)
     else:
         s = 1
@@ -154,88 +164,14 @@ def reproduction(rng, survivors, population):
         population[i] = survivors[i]
 
     for i in range(n_children):
-        # old_child = population[i + len(survivors)]
         child = population[i + len(survivors)]
-        # NB: this still needs tidying up, horrible mix of dicts etc
         # pick two different parents from the survivors
         p_i = rng.choice(len(survivors), 2, replace=False)
         parents = [survivors[p_i[i]] for i in range(2)]
-        # n_b
         crossover(child, parents, 'n_b', rng, False)
-        # bounds = constants.bounds['n_b']
-        # vals = [p.n_b for p in parents]
-        # b = rng.uniform(-d, 1 + d)
-        # new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        # while new < bounds[0] or new > bounds[1]:
-        #     b = rng.uniform(-d, 1 + d)
-        #     new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        # n_b = new
-        # n_s
-        # print("before n_s crossover", old_child.n_s, child.n_s)
         crossover(child, parents, 'n_s', rng, False)
-        # print("after n_s crossover", old_child.n_s, child.n_s)
-        # print(old_child.n_s)
-        # bounds = constants.bounds['n_s']
-        # vals = [p.n_s for p in parents]
-        # b = rng.uniform(-d, 1 + d)
-        # new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        # while new < bounds[0] or new > bounds[1]:
-        #     b = rng.uniform(-d, 1 + d)
-        #     new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        # n_s = new
-        '''
-        next we have to pick n_p, lp and w for each subunit on the child
-        we first have to check n_s of the child against its parents
-        then if one or both of the parents is shorter, we extend its
-        arrays (n_p, lp, w) until they match the length of the child,
-        and finally perform the same intermediate recombination on
-        the result to get values for the child.
-        '''
-        # n_p, lp, w
-        # print("before n_p crossover", old_child.n_p, child.n_p)
-        crossover(child, parents, 'n_p', rng, True)
-        # print("after n_p crossover", old_child.n_p, child.n_p)
-        crossover(child, parents, 'lp', rng, True)
-        crossover(child, parents, 'w', rng, True)
-        # lps_temp  = [p.lp for p in parents]
-        # ws_temp   = [p.w for p in parents]
-        # n_ps_temp = [p.n_p for p in parents]
-        # n_ps = fill_arrays(rng, n_ps_temp, n_s, 'n_p', 'int')
-        # lps = fill_arrays(rng, lps_temp, n_s, 'lp', 'float')
-        # ws = fill_arrays(rng, ws_temp, n_s, 'w', 'float')
-        # n_p = np.zeros(n_s, dtype=np.int32)
-        # lp = np.zeros(n_s, dtype=np.float64)
-        # w = np.zeros(n_s, dtype=np.float64)
-        # for j in range(n_s):
-        #     bounds = constants.bounds['n_p']
-        #     vals = np.array([n_ps[k][j] for k in range(2)])
-        #     b = rng.uniform(-d, 1 + d)
-        #     new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        #     while new < bounds[0] or new > bounds[1]:
-        #         b = rng.uniform(-d, 1 + d)
-        #         new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        #     n_p[j] = new
-
-        #     bounds = constants.bounds['lp']
-        #     vals = np.array([lps[k][j] for k in range(2)])
-        #     b = rng.uniform(-d, 1 + d)
-        #     new = vals[0] * b + vals[1] * (1 - b)
-        #     while new < bounds[0] or new > bounds[1]:
-        #         b = rng.uniform(-d, 1 + d)
-        #         new = vals[0] * b + vals[1] * (1 - b)
-        #     lp[j] = new
-
-        #     bounds = constants.bounds['w']
-        #     vals = np.array([ws[k][j] for k in range(2)])
-        #     b = rng.uniform(-d, 1 + d)
-        #     new = vals[0] * b + vals[1] * (1 - b)
-        #     while new < bounds[0] or new > bounds[1]:
-        #         b = rng.uniform(-d, 1 + d)
-        #         new = vals[0] * b + vals[1] * (1 - b)
-        #     w[j] = new
-        # population[i + len(survivors)] = constants.genome(n_b, n_s, n_p, lp, w)
-        assert child == population[i + len(survivors)]
-        population[i + len(survivors)] = child
+        for p in ['n_p', 'lp', 'w']:
+            crossover(child, parents, p, rng, True)
     return population
 
 def mutate(genome, parameter, rng, subunit=None):
@@ -276,6 +212,7 @@ def mutation(rng, individual, n_s_changes):
     '''
     mutate(individual, 'n_b', rng, None)
     # n_s - we also have to update arrays here
+    # bit ugly but i haven't thought of a neater way yet
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
