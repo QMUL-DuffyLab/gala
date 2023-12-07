@@ -22,8 +22,8 @@ def generate_random_subunit(rng):
     # sigma       = constants.sig_chl
     return [n_p, lp, w]
 
-def fill_arrays(rng, l, res_length, name, t):
-    if (t == "int"):
+def fill_arrays(rng, l, res_length, name):
+    if (isinstance(constants.bounds[name][0], (int, np.integer))):
         dt = np.int32
         fn = rng.integers
     else:
@@ -97,6 +97,51 @@ def selection(rng, population):
        survivors.append(population[nu_es_sorted[i][0]])
     return survivors, best
 
+def crossover(child, parents, parameter, rng, subunit):
+    '''
+    '''
+    d = constants.d_recomb
+    bounds = constants.bounds[parameter]
+    parent_vals = [getattr(p, parameter) for p in parents]
+
+    if isinstance(bounds[0], (int, np.integer)):
+        var_type = np.int
+    else:
+        var_type = np.float
+
+    if subunit:
+        s = child.n_s
+        # print(parameter, s, [p.n_s for p in parents])
+        vals = fill_arrays(rng, parent_vals, s, parameter)
+    else:
+        s = 1
+        vals = parent_vals
+    if s == 1:
+        b = rng.uniform(-d, 1 + d)
+        new = vals[0] * b + vals[1] * (1 - b)
+        while new < bounds[0] or new > bounds[1]:
+            b = rng.uniform(-d, 1 + d)
+            new = vals[0] * b + vals[1] * (1 - b)
+        if isinstance(bounds[0], (int, np.integer)):
+            new = np.round(new).astype(int)
+    else:
+        new = np.zeros(s, dtype=var_type)
+        for i in range(s):
+            # we want to loop here since each value of b should be
+            # different; otherwise we have to find a value of b where
+            # every element of new is within bounds, which would
+            # significantly reduce the amount of variation we can have
+            v = [vals[j][i] for j in range(2)]
+            b = rng.uniform(-d, 1 + d)
+            n = v[0] * b + v[1] * (1 - b)
+            while n < bounds[0] or n > bounds[1]:
+                b = rng.uniform(-d, 1 + d)
+                n = v[0] * b + v[1] * (1 - b)
+            if isinstance(bounds[0], (int, np.integer)):
+                n = np.round(n).astype(int)
+            new[i] = n
+    setattr(child, parameter, new)
+
 def reproduction(rng, survivors, population):
     '''
     Given the survivors of a previous iteration, generate the necessary
@@ -109,29 +154,35 @@ def reproduction(rng, survivors, population):
         population[i] = survivors[i]
 
     for i in range(n_children):
-        child   = []
+        # old_child = population[i + len(survivors)]
+        child = population[i + len(survivors)]
         # NB: this still needs tidying up, horrible mix of dicts etc
         # pick two different parents from the survivors
         p_i = rng.choice(len(survivors), 2, replace=False)
         parents = [survivors[p_i[i]] for i in range(2)]
         # n_b
-        bounds = constants.bounds['n_b']
-        vals = [p.n_b for p in parents]
-        b = rng.uniform(-d, 1 + d)
-        new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        while new < bounds[0] or new > bounds[1]:
-            b = rng.uniform(-d, 1 + d)
-            new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        n_b = new
+        crossover(child, parents, 'n_b', rng, False)
+        # bounds = constants.bounds['n_b']
+        # vals = [p.n_b for p in parents]
+        # b = rng.uniform(-d, 1 + d)
+        # new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
+        # while new < bounds[0] or new > bounds[1]:
+        #     b = rng.uniform(-d, 1 + d)
+        #     new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
+        # n_b = new
         # n_s
-        bounds = constants.bounds['n_s']
-        vals = [p.n_s for p in parents]
-        b = rng.uniform(-d, 1 + d)
-        new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        while new < bounds[0] or new > bounds[1]:
-            b = rng.uniform(-d, 1 + d)
-            new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-        n_s = new
+        # print("before n_s crossover", old_child.n_s, child.n_s)
+        crossover(child, parents, 'n_s', rng, False)
+        # print("after n_s crossover", old_child.n_s, child.n_s)
+        # print(old_child.n_s)
+        # bounds = constants.bounds['n_s']
+        # vals = [p.n_s for p in parents]
+        # b = rng.uniform(-d, 1 + d)
+        # new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
+        # while new < bounds[0] or new > bounds[1]:
+        #     b = rng.uniform(-d, 1 + d)
+        #     new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
+        # n_s = new
         '''
         next we have to pick n_p, lp and w for each subunit on the child
         we first have to check n_s of the child against its parents
@@ -141,43 +192,50 @@ def reproduction(rng, survivors, population):
         the result to get values for the child.
         '''
         # n_p, lp, w
-        lps_temp  = [p.lp for p in parents]
-        ws_temp   = [p.w for p in parents]
-        n_ps_temp = [p.n_p for p in parents]
-        n_ps = fill_arrays(rng, n_ps_temp, n_s, 'n_p', 'int')
-        lps = fill_arrays(rng, lps_temp, n_s, 'lp', 'float')
-        ws = fill_arrays(rng, ws_temp, n_s, 'w', 'float')
-        n_p = np.zeros(n_s, dtype=np.int32)
-        lp = np.zeros(n_s, dtype=np.float64)
-        w = np.zeros(n_s, dtype=np.float64)
-        for j in range(n_s):
-            bounds = constants.bounds['n_p']
-            vals = np.array([n_ps[k][j] for k in range(2)])
-            b = rng.uniform(-d, 1 + d)
-            new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-            while new < bounds[0] or new > bounds[1]:
-                b = rng.uniform(-d, 1 + d)
-                new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
-            n_p[j] = new
+        # print("before n_p crossover", old_child.n_p, child.n_p)
+        crossover(child, parents, 'n_p', rng, True)
+        # print("after n_p crossover", old_child.n_p, child.n_p)
+        crossover(child, parents, 'lp', rng, True)
+        crossover(child, parents, 'w', rng, True)
+        # lps_temp  = [p.lp for p in parents]
+        # ws_temp   = [p.w for p in parents]
+        # n_ps_temp = [p.n_p for p in parents]
+        # n_ps = fill_arrays(rng, n_ps_temp, n_s, 'n_p', 'int')
+        # lps = fill_arrays(rng, lps_temp, n_s, 'lp', 'float')
+        # ws = fill_arrays(rng, ws_temp, n_s, 'w', 'float')
+        # n_p = np.zeros(n_s, dtype=np.int32)
+        # lp = np.zeros(n_s, dtype=np.float64)
+        # w = np.zeros(n_s, dtype=np.float64)
+        # for j in range(n_s):
+        #     bounds = constants.bounds['n_p']
+        #     vals = np.array([n_ps[k][j] for k in range(2)])
+        #     b = rng.uniform(-d, 1 + d)
+        #     new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
+        #     while new < bounds[0] or new > bounds[1]:
+        #         b = rng.uniform(-d, 1 + d)
+        #         new = np.round(vals[0] * b + vals[1] * (1 - b)).astype(int)
+        #     n_p[j] = new
 
-            bounds = constants.bounds['lp']
-            vals = np.array([lps[k][j] for k in range(2)])
-            b = rng.uniform(-d, 1 + d)
-            new = vals[0] * b + vals[1] * (1 - b)
-            while new < bounds[0] or new > bounds[1]:
-                b = rng.uniform(-d, 1 + d)
-                new = vals[0] * b + vals[1] * (1 - b)
-            lp[j] = new
+        #     bounds = constants.bounds['lp']
+        #     vals = np.array([lps[k][j] for k in range(2)])
+        #     b = rng.uniform(-d, 1 + d)
+        #     new = vals[0] * b + vals[1] * (1 - b)
+        #     while new < bounds[0] or new > bounds[1]:
+        #         b = rng.uniform(-d, 1 + d)
+        #         new = vals[0] * b + vals[1] * (1 - b)
+        #     lp[j] = new
 
-            bounds = constants.bounds['w']
-            vals = np.array([ws[k][j] for k in range(2)])
-            b = rng.uniform(-d, 1 + d)
-            new = vals[0] * b + vals[1] * (1 - b)
-            while new < bounds[0] or new > bounds[1]:
-                b = rng.uniform(-d, 1 + d)
-                new = vals[0] * b + vals[1] * (1 - b)
-            w[j] = new
-        population[i + len(survivors)] = constants.genome(n_b, n_s, n_p, lp, w)
+        #     bounds = constants.bounds['w']
+        #     vals = np.array([ws[k][j] for k in range(2)])
+        #     b = rng.uniform(-d, 1 + d)
+        #     new = vals[0] * b + vals[1] * (1 - b)
+        #     while new < bounds[0] or new > bounds[1]:
+        #         b = rng.uniform(-d, 1 + d)
+        #         new = vals[0] * b + vals[1] * (1 - b)
+        #     w[j] = new
+        # population[i + len(survivors)] = constants.genome(n_b, n_s, n_p, lp, w)
+        assert child == population[i + len(survivors)]
+        population[i + len(survivors)] = child
     return population
 
 def mutate(genome, parameter, rng, subunit=None):
@@ -216,25 +274,11 @@ def mutation(rng, individual, n_s_changes):
     I think it's acceptable to just loop over all parameters since they
     are all independent quantities?
     '''
-    # NB: if I set up a class for an individual, this is easier to do;
-    # then i can just use the name of each parameter and then get the type
-    # to decide whether or not we need to round the result
     mutate(individual, 'n_b', rng, None)
-    # current = individual.n_b
-    # scale = current * constants.mu_width
-    # b = (constants.bounds['n_b'] - current) / (scale)
-    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    # new = new.round().astype(int)
-    # individual.n_b = new
-    # n_s
+    # n_s - we also have to update arrays here
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
-    # current = individual.n_s
-    # scale = current * constants.mu_width
-    # b = (constants.bounds['n_s'] - current) / (scale)
-    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    # new = new.round().astype(int)
     if current < new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
@@ -256,35 +300,11 @@ def mutation(rng, individual, n_s_changes):
             individual.n_p = np.delete(individual.n_p, -1)
             individual.lp = np.delete(individual.lp, -1)
             individual.w = np.delete(individual.w, -1)
-    # now it gets more involved - we have to pick a random subunit
-    # to apply these last three mutations to.
+    # now pick a random subunit to apply these mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
-    # n_pigments
-    s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-    mutate(individual, 'n_p', rng, s)
-    # current = individual.n_p[s]
-    # scale = current * constants.mu_width
-    # b = (constants.bounds['n_p'] - current) / (scale)
-    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    # new = new.round().astype(int)
-    # individual.n_p[s] = new
-    # lambda_peak
-    s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-    mutate(individual, 'lp', rng, s)
-    # current = individual.lp[s]
-    # scale = current * constants.mu_width
-    # b = (constants.bounds['lp'] - current) / (scale)
-    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    # individual.lp[s] = new
-    # width
-    s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-    mutate(individual, 'w', rng, s)
-    # current = individual.w[s]
-    # scale = current * constants.mu_width
-    # b = (constants.bounds['w'] - current) / (scale)
-    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    # individual.w[s] = new
-
+    # n_pigments, lambda_peak, width
+    for p in ['n_p', 'lp', 'w']:
+        s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
+        mutate(individual, p, rng, s)
     return individual
-
