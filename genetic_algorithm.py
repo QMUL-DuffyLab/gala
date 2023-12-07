@@ -180,6 +180,30 @@ def reproduction(rng, survivors, population):
         population[i + len(survivors)] = constants.genome(n_b, n_s, n_p, lp, w)
     return population
 
+def mutate(genome, parameter, rng, subunit=None):
+    '''
+    mutate a parameter with a given name.
+    getattr/setattr can be used to get the right dataclass fields.
+    if the parameter we're mutating is a per-subunit one, index into
+    getattr to get the right element. we also need to check type,
+    since if we're mutating n_s we need to have integer extents and
+    indices into the resulting arrays.
+    '''
+    if subunit is not None:
+       current = getattr(genome, parameter)[subunit]
+    else:
+       current = getattr(genome, parameter)
+    scale = current * constants.mu_width
+    b = (constants.bounds[parameter] - current) / (scale)
+    new = ss.truncnorm.rvs(b[0], b[1], loc=current,
+                           scale=scale, random_state=rng)
+    if isinstance(current, (int, np.integer)):
+        new = new.round().astype(int)
+    if subunit is not None:
+        getattr(genome, parameter)[subunit] = new
+    else:
+        setattr(genome, parameter, new)
+
 def mutation(rng, individual, n_s_changes):
     '''
     Perform the mutation step of the genetic algorithm.
@@ -195,18 +219,22 @@ def mutation(rng, individual, n_s_changes):
     # NB: if I set up a class for an individual, this is easier to do;
     # then i can just use the name of each parameter and then get the type
     # to decide whether or not we need to round the result
-    current = individual.n_b
-    scale = current * constants.mu_width
-    b = (constants.bounds['n_b'] - current) / (scale)
-    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    new = new.round().astype(int)
-    individual.n_b = new
+    mutate(individual, 'n_b', rng, None)
+    # current = individual.n_b
+    # scale = current * constants.mu_width
+    # b = (constants.bounds['n_b'] - current) / (scale)
+    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    # new = new.round().astype(int)
+    # individual.n_b = new
     # n_s
     current = individual.n_s
-    scale = current * constants.mu_width
-    b = (constants.bounds['n_s'] - current) / (scale)
-    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    new = new.round().astype(int)
+    mutate(individual, 'n_s', rng, None)
+    new = individual.n_s
+    # current = individual.n_s
+    # scale = current * constants.mu_width
+    # b = (constants.bounds['n_s'] - current) / (scale)
+    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    # new = new.round().astype(int)
     if current < new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
@@ -215,7 +243,7 @@ def mutation(rng, individual, n_s_changes):
         individual.lp.resize(new)
         individual.w.resize(new)
         for i in range(new - current):
-            individual.n_s += 1
+            # individual.n_s += 1
             individual.n_p[-(i + 1)] = rng.integers(*constants.bounds['n_p'])
             individual.lp[-(i + 1)] = rng.uniform(*constants.bounds['lp'])
             individual.w[-(i + 1)] = rng.uniform(*constants.bounds['w'])
@@ -224,7 +252,7 @@ def mutation(rng, individual, n_s_changes):
         n_s_changes[1] += current - new
         # this can probably be replaced by np.delete(arr, new-current)
         for i in range(current - new):
-            individual.n_s -= 1
+            # individual.n_s -= 1
             individual.n_p = np.delete(individual.n_p, -1)
             individual.lp = np.delete(individual.lp, -1)
             individual.w = np.delete(individual.w, -1)
@@ -234,25 +262,29 @@ def mutation(rng, individual, n_s_changes):
     # and it's not the only possible way to apply a mutation!
     # n_pigments
     s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-    current = individual.n_p[s]
-    scale = current * constants.mu_width
-    b = (constants.bounds['n_p'] - current) / (scale)
-    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    new = new.round().astype(int)
-    individual.n_p[s] = new
+    mutate(individual, 'n_p', rng, s)
+    # current = individual.n_p[s]
+    # scale = current * constants.mu_width
+    # b = (constants.bounds['n_p'] - current) / (scale)
+    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    # new = new.round().astype(int)
+    # individual.n_p[s] = new
     # lambda_peak
     s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-    current = individual.lp[s]
-    scale = current * constants.mu_width
-    b = (constants.bounds['lp'] - current) / (scale)
-    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    individual.lp[s] = new
+    mutate(individual, 'lp', rng, s)
+    # current = individual.lp[s]
+    # scale = current * constants.mu_width
+    # b = (constants.bounds['lp'] - current) / (scale)
+    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    # individual.lp[s] = new
     # width
     s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-    current = individual.w[s]
-    scale = current * constants.mu_width
-    b = (constants.bounds['w'] - current) / (scale)
-    new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
-    individual.w[s] = new
+    mutate(individual, 'w', rng, s)
+    # current = individual.w[s]
+    # scale = current * constants.mu_width
+    # b = (constants.bounds['w'] - current) / (scale)
+    # new = ss.truncnorm.rvs(b[0], b[1], loc=current, scale=scale, random_state=rng)
+    # individual.w[s] = new
 
     return individual
+
