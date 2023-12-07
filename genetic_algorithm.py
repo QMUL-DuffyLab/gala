@@ -216,32 +216,46 @@ def mutation(rng, individual, n_s_changes):
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
+    per_sub_params = ['n_p', 'lp', 'w']
     if current < new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
         n_s_changes[0] += new - current
-        individual.n_p.resize(new)
-        individual.lp.resize(new)
-        individual.w.resize(new)
-        for i in range(new - current):
+        for p in per_sub_params:
+            c = getattr(individual, p)
+            # i think setting refcheck to false is fine?
+            # it seems to work, and i only reference it here
+            c.resize(new, refcheck=False)
+            if isinstance(constants.bounds[p][0], (int, np.integer)):
+                fn = rng.integers
+            else:
+                fn = rng.uniform
+            for i in range(new - current):
+                c[-(i + 1)] = fn(*constants.bounds[p])
+        # individual.n_p.resize(new)
+        # individual.lp.resize(new)
+        # individual.w.resize(new)
+        # for i in range(new - current):
             # individual.n_s += 1
-            individual.n_p[-(i + 1)] = rng.integers(*constants.bounds['n_p'])
-            individual.lp[-(i + 1)] = rng.uniform(*constants.bounds['lp'])
-            individual.w[-(i + 1)] = rng.uniform(*constants.bounds['w'])
+            # individual.n_p[-(i + 1)] = rng.integers(*constants.bounds['n_p'])
+            # individual.lp[-(i + 1)] = rng.uniform(*constants.bounds['lp'])
+            # individual.w[-(i + 1)] = rng.uniform(*constants.bounds['w'])
     elif current > new:
         # delete the last (new - current) elements
         n_s_changes[1] += current - new
         # this can probably be replaced by np.delete(arr, new-current)
-        for i in range(current - new):
+        for p in per_sub_params:
+            np.delete(getattr(individual, p), new - current)
+        # for i in range(current - new):
             # individual.n_s -= 1
-            individual.n_p = np.delete(individual.n_p, -1)
-            individual.lp = np.delete(individual.lp, -1)
-            individual.w = np.delete(individual.w, -1)
+            # individual.n_p = np.delete(individual.n_p, -1)
+            # individual.lp = np.delete(individual.lp, -1)
+            # individual.w = np.delete(individual.w, -1)
     # now pick a random subunit to apply these mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
     # n_pigments, lambda_peak, width
-    for p in ['n_p', 'lp', 'w']:
+    for p in per_sub_params:
         s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
         mutate(individual, p, rng, s)
     return individual
