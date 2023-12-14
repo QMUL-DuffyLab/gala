@@ -82,7 +82,7 @@ def initialise_individual(rng, init_type):
             lp2[i]  = rng.uniform(*constants.bounds['lp2'])
             w2[i]   = rng.uniform(*constants.bounds['w2'])
             a12[i]  = rng.choice(constants.bounds['a12'])
-        return constants.genome(nb, ns, n_p, lp1, w1, lp2, w2, a12)
+        return constants.genome(nb, ns, n_p, lp1, lp2, w1, w2, a12)
 
 def selection(rng, population):
     '''

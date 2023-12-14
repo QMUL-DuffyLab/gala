@@ -28,14 +28,14 @@ program block_hop
   open(unit=19, file=trim(adjustl(filename)))
 
   do n = nh_min, nh_max
-    do h = nh_min, nh_max
+    ! do h = nh_min, nh_max
       i = n - nh_min + 1
-      j = h - nh_min + 1
+      j = n - nh_min + 1
       t_total = 0.0_dp
       do trial = 1, n_trials
         loc(1) = 1
         call random_number(r)
-        loc(2) = ceiling(r * h)
+        loc(2) = ceiling(r * n)
         call random_number(r)
         loc(3) = ceiling(r * n)
         call random_number(r)
@@ -54,7 +54,7 @@ program block_hop
           k = ceiling(r * 6.0_dp)
           allowed = .true.
 
-          if (neighbours(k, 2).eq.(h + 1)) then
+          if (neighbours(k, 2).eq.(n + 1)) then
             allowed = .false.
           end if
           if (neighbours(k, 3).eq.(n + 1)) then
@@ -80,10 +80,10 @@ program block_hop
 
       avg(i, j) = (t_total / n_trials)
       avg_sq(i, j) = (t_total / n_trials)**2
-      write(*, *) "n, h = ", n, h, " avg = ", avg(i, j),&
+      write(*, *) "n = ", n, " avg = ", avg(i, j),&
         " avg^2 = ", avg_sq(i, j)
       write(19, '(I3.1, I3.1, E18.10, E18.10)') n, h, avg(i, j), avg_sq(i, j)
-    end do
+    ! end do
   end do
   close(19)
 

@@ -64,6 +64,8 @@ two_gauss(double *out, double *l, double lp1, double w1,
     double lp2, double w2, double a12, unsigned n)
 {
   /* normalised double Gaussian */
+  /* printf("lp1 = %f, w1 = %f, lp2 = %f, w2 = %f, a12 = %f\n", */
+  /*     lp1, w1, lp2, w2, a12); */
   for (unsigned i = 0; i < n; i++) {
     out[i] = exp(-1.0 * pow(l[i] - lp1, 2)/(2.0 * pow(w1, 2)))\
            + a12 * exp(-1.0 * pow(l[i] - lp2, 2)/(2.0 * pow(w2, 2)));
@@ -124,7 +126,7 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   }
   
   /* calculate lineshapes */
-  for (unsigned i = 0; i < 2 * (n_s + 1); i++) {
+  for (unsigned i = 0; i < n_s + 1; i++) {
     /* gauss(lines[i], l, lp[i], width[i], l_len); */
     two_gauss(lines[i], l, lp[2 * i], width[2 * i],
         lp[(2 * i) + 1], width[(2 * i) + 1], a12[i], l_len);
