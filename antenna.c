@@ -41,8 +41,8 @@ get_pigment_data(char* filename, char* pigment_name)
   char *data = line; /* can't increment line using offset */
   int offset; /* so we can read successive array elements */
   int ret;
-  int debug = 1;
-  char name[10];
+  int debug = 0;
+  char name[10] = "\0";
   unsigned n_gauss;
   while (strcmp(name, pigment_name)) {
     fgets(line, 1024, fp);
@@ -77,6 +77,7 @@ get_pigment_data(char* filename, char* pigment_name)
       printf("amp, peak, width: %lf, %lf, %lf\n", p.amp[j], p.lp[j], p.w[j]);
     }
   }
+  fclose(fp);
   return p;
 }
 
@@ -145,7 +146,7 @@ dG(double l1, double l2, double n, double t)
 
 void
 antenna(double *l, double *ip_y, double sigma, double k_params[5],
-            double t, unsigned *n_p, double *lp, char *names[10],
+            double t, unsigned *n_p, double *lp, char **names,
             unsigned n_b, unsigned n_s, unsigned l_len,
             double* n_eq, double* nu_phi)
 {
@@ -158,13 +159,11 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
    */
   unsigned side = (n_b * n_s) + 2;
 
-  printf("%s\n", *names);
-
-  for (unsigned i = 0; i < 10; i++) {
+  for (unsigned i = 0; i < n_s + 1; i++) {
     printf("%s\n", names[i]);
   }
 
-  char pigment_file[] = "out/pigments/pigment_data.csv";
+  char pigment_file[] = "pigments/pigment_data.csv";
 
   gsl_vector *gamma = gsl_vector_calloc(side);
   gsl_permutation *perm = gsl_permutation_calloc(side);
@@ -308,4 +307,40 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   free(lines);
   free(fp_y);
   free(kd);
+}
+
+int
+main(int argc, char **argv)
+{
+  unsigned l_len = 4400;
+  unsigned n_s = 5;
+  unsigned n_b = 2;
+  unsigned side = (n_b * n_s) + 2;
+  FILE *fp = fopen("PHOENIX/Scaled_Spectrum_PHOENIX_2300K.dat", "r");
+  char line[100];
+  double *l = calloc(l_len, sizeof(double));
+  double *ip_y = calloc(l_len, sizeof(double));
+  for (unsigned i = 0; i < l_len; i++) {
+    fgets(line, 100, fp); 
+    sscanf(line, "%lf %le", &l[i], &ip_y[i]);
+  }
+  fclose(fp);
+  double sigma = 5e-18;
+  double k_params[5] = {1.0/4.0e-9, 1.0/5.0e-12,
+    1.0/10.0e-3, 1.0/10.0e-12, 1.0/10.0e-12};
+  double t = 300.0;
+  unsigned *n_p = calloc(n_s + 1, sizeof(unsigned));
+  double *lp = calloc(n_s + 1, sizeof(double));
+  char *names[] = {"rc", "bchl_a", "chl_a", "chl_d", "r_pe", "chl_b"};
+  double *n_eq = calloc(side, sizeof(double));
+  double *nu_phi = calloc(3, sizeof(double));
+  antenna(l, ip_y, sigma, k_params, t, n_p, lp, names, n_b, n_s, l_len,
+            n_eq, nu_phi);
+  free(n_eq);
+  free(nu_phi);
+  free(n_p);
+  free(lp);
+  free(l);
+  free(ip_y);
+  return 0;
 }
