@@ -12,6 +12,9 @@ import constants
 import genetic_algorithm as ga
 import plots
 
+# def stats(population, parameter, n_s_max):
+#     h = np.zeros()
+
 if __name__ == "__main__":
     la = ctypes.cdll.LoadLibrary("./libantenna.so")
     la.antenna.argtypes = [ctypes.POINTER(ctypes.c_double),
