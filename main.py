@@ -104,16 +104,15 @@ if __name__ == "__main__":
                     side = (n_b * n_s) + 2
                     n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
                     lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
-                    names = ((ctypes.c_char * 10) * (n_s + 1))()
+                    names = ((ctypes.c_char_p) * (n_s + 1))()
                     # pointers = (ctypes.c_char * (n_s + 1))(*map(ctypes.addressof, names))
                     n_p[0]   = constants.rc_params[0]
                     lp[0]    = constants.rc_params[1]
-                    names[0].value = "rc\x00".encode('utf-8')
+                    names[0] = ctypes.c_char_p("rc\x00".encode('utf-8'))
                     for k in range(n_s):
                         n_p[k + 1] = population[j].n_p[k]
                         lp[k + 1]  = population[j].lp[k]
-                        names[k + 1].value = population[j].name[k].encode('utf-8')
-                    print([name.value for name in names])
+                        names[k + 1] = ctypes.c_char_p(population[j].name[k].encode('utf-8'))
                     n_eq   = (ctypes.c_double * side)()
                     nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, dtype=np.float64))
                     kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)

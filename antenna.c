@@ -37,6 +37,10 @@ Pigment
 get_pigment_data(char* filename, char* pigment_name)
 {
   FILE *fp = fopen(filename, "r");
+  if (!fp) {
+    printf("pigment file not found\n");
+    exit(EXIT_FAILURE);
+  }
   char line[1024];
   char *data = line; /* can't increment line using offset */
   int offset; /* so we can read successive array elements */
@@ -158,10 +162,6 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
    * nu_phi should be double[3].
    */
   unsigned side = (n_b * n_s) + 2;
-
-  for (unsigned i = 0; i < n_s + 1; i++) {
-    printf("%s\n", names[i]);
-  }
 
   char pigment_file[] = "pigments/pigment_data.csv";
 

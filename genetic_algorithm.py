@@ -26,9 +26,12 @@ def fill_arrays(rng, l, res_length, name):
     if (isinstance(constants.bounds[name][0], (int, np.integer))):
         dt = np.int32
         fn = rng.integers
-    else:
+    elif (isinstance(constants.bounds[name][0], (float, np.float))):
         dt = np.float64
         fn = rng.uniform
+    else:
+        dt = 'U10'
+        fn = rng.choice
     result = np.zeros((2, res_length), dtype=dt)
     for i in range(res_length):
         for j in range(2):
@@ -109,8 +112,10 @@ def crossover(child, parents, parameter, rng, subunit):
 
     if isinstance(bounds[0], (int, np.integer)):
         var_type = np.int
-    else:
+    elif isinstance(bounds[0], (float, np.float)):
         var_type = np.float
+    else:
+        var_type = 'U10'
 
     if subunit:
         '''
@@ -130,13 +135,16 @@ def crossover(child, parents, parameter, rng, subunit):
         s = 1
         vals = parent_vals
     if s == 1:
-        b = rng.uniform(-d, 1 + d)
-        new = vals[0] * b + vals[1] * (1 - b)
-        while new < bounds[0] or new > bounds[1]:
+        if parameter == 'name': # binary choice
+            new = rng.choice(vals)
+        else:
             b = rng.uniform(-d, 1 + d)
             new = vals[0] * b + vals[1] * (1 - b)
-        if isinstance(bounds[0], (int, np.integer)):
-            new = np.round(new).astype(int)
+            while new < bounds[0] or new > bounds[1]:
+                b = rng.uniform(-d, 1 + d)
+                new = vals[0] * b + vals[1] * (1 - b)
+            if isinstance(bounds[0], (int, np.integer)):
+                new = np.round(new).astype(int)
     else:
         new = np.zeros(s, dtype=var_type)
         for i in range(s):
