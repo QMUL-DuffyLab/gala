@@ -18,30 +18,56 @@ def generate_random_subunit(rng):
     '''
     n_p  = rng.integers(*constants.bounds['n_p'])
     lp   = rng.uniform(*constants.bounds['lp'])
-    name = rng.choice(constants.bounds['name'])
+    name = rng.choice(constants.bounds['pigment'])
     # sigma       = constants.sig_chl
     return [n_p, lp, name]
 
-def fill_arrays(rng, l, res_length, name):
-    if (isinstance(constants.bounds[name][0], (int, np.integer))):
+def get_type(parameter):
+    ''' get parameter type to declare numpy array correctly '''
+    test = constants.bounds[parameter][0]
+    if (isinstance(test, (int, np.integer))):
         dt = np.int32
-        fn = rng.integers
-    elif (isinstance(constants.bounds[name][0], (float, np.float))):
+    elif (isinstance(test, (float, np.float))):
         dt = np.float64
-        fn = rng.uniform
-    else:
+    elif (isinstance(test, (str, np.str_))):
         dt = 'U10'
-        fn = rng.choice
+    else:
+        raise TypeError("get_type cannot determine parameter type.")
+    return dt
+
+def get_rand(parameter, rng):
+    ''' get a single random number or choice depending on parameter '''
+    bounds = constants.bounds[parameter]
+    if (isinstance(bounds[0], (int, np.integer))):
+        r = rng.integers(*bounds)
+    elif (isinstance(bounds[0], (float, np.float))):
+        r = rng.uniform(*bounds)
+    elif (isinstance(bounds[0], (str, np.str_))):
+        r = rng.choice(bounds)
+    else:
+        raise TypeError("get_rand cannot determine parameter type.")
+    return r
+
+def fill_arrays(rng, l, res_length, parameter):
+    '''
+    the number of subunits a child has might be smaller
+    or larger than one or both of its parents. we make sure
+    we have two arrays of the relevant parameter that are
+    the right length for the child and then perform recombination
+    elementwise on those. fill_arrays takes the values from
+    the parents where they exist, else it generates parameter
+    values randomly. NB: if we relax the assumption that every
+    branch is identical this will stop working. but then so
+    will literally everything else in the code, come to think of it
+    '''
+    dt = get_type(parameter)
     result = np.zeros((2, res_length), dtype=dt)
     for i in range(res_length):
         for j in range(2):
             if i < len(l[j]):
                 result[j][i] = l[j][i]
             else:
-                if name == 'name':
-                    result[j][i] = rng.choice(constants.bounds[name])
-                else:
-                    result[j][i] = fn(*constants.bounds[name])
+                result[j][i] = get_rand(parameter, rng)
     return result
 
 def initialise_individual(rng, init_type):
@@ -67,16 +93,16 @@ def initialise_individual(rng, init_type):
         First randomise n_branches, then n_subunits.
         Then generate n_s random subunits
         '''
-        nb = rng.integers(*constants.bounds['n_b'])
-        ns = rng.integers(*constants.bounds['n_s'])
+        nb = get_rand('n_b', rng)
+        ns = get_rand('n_s', rng)
         n_p = np.zeros(ns, dtype=np.int)
         lp = np.zeros(ns, dtype=np.float64)
-        name = np.empty(ns, dtype='U10')
+        pigment = np.empty(ns, dtype='U10')
         for i in range(ns):
-            n_p[i] = rng.integers(*constants.bounds['n_p'])
-            lp[i]  = rng.uniform(*constants.bounds['lp'])
-            name[i]  = rng.choice(constants.bounds['name'])
-        return constants.genome(nb, ns, n_p, lp, name)
+            n_p[i] = get_rand('n_p', rng)
+            lp[i]  = get_rand('lp', rng)
+            pigment[i]  = get_rand('pigment', rng)
+        return constants.genome(nb, ns, n_p, lp, pigment)
 
 def selection(rng, population):
     '''
@@ -103,31 +129,37 @@ def selection(rng, population):
        survivors.append(population[nu_es_sorted[i][0]])
     return survivors, best
 
-def crossover(child, parents, parameter, rng, subunit):
+def recombine(vals, parameter, rng):
     '''
+    perform intermediate recombination of parameters
+    where possible, and a straight choice in the case of
+    pigment type, for a single subunit.
     '''
     d = constants.d_recomb
     bounds = constants.bounds[parameter]
-    parent_vals = [getattr(p, parameter) for p in parents]
-
-    if isinstance(bounds[0], (int, np.integer)):
-        var_type = np.int
-    elif isinstance(bounds[0], (float, np.float)):
-        var_type = np.float
+    if parameter == 'pigment': # binary choice
+        new = rng.choice(vals)
     else:
-        var_type = 'U10'
+        b = rng.uniform(-d, 1 + d)
+        new = vals[0] * b + vals[1] * (1 - b)
+        while new < bounds[0] or new > bounds[1]:
+            b = rng.uniform(-d, 1 + d)
+            new = vals[0] * b + vals[1] * (1 - b)
+        if isinstance(bounds[0], (int, np.integer)):
+            new = np.round(new).astype(int)
+    return new
 
+def crossover(child, parents, parameter, rng, subunit):
+    '''
+    '''
+    parent_vals = [getattr(p, parameter) for p in parents]
+    dt = get_type(parameter)
     if subunit:
         '''
-        the number of subunits the child has might be shorter
-        or longer than one or both of its parents. we make sure
-        we have two arrays of the relevant parameter that are
-        the right length and then perform our recombination
-        elementwise on those. fill_arrays takes the values from
-        the parents where possible, else it generates parameter
-        values randomly. NB: if we relax the assumption that every
-        branch is identical this will stop working. but then so
-        will literally everything else in the code, come to think of it
+        if this is a per-subunit parameter, the number of subunits on
+        the child might be larger or smaller than one or both parents,
+        so we generate two arrays of the correct size to recombine from.
+        see fill_arrays for more explanation
         '''
         s = child.n_s
         vals = fill_arrays(rng, parent_vals, s, parameter)
@@ -135,35 +167,18 @@ def crossover(child, parents, parameter, rng, subunit):
         s = 1
         vals = parent_vals
     if s == 1:
-        if parameter == 'name': # binary choice
-            new = rng.choice(vals)
-        else:
-            b = rng.uniform(-d, 1 + d)
-            new = vals[0] * b + vals[1] * (1 - b)
-            while new < bounds[0] or new > bounds[1]:
-                b = rng.uniform(-d, 1 + d)
-                new = vals[0] * b + vals[1] * (1 - b)
-            if isinstance(bounds[0], (int, np.integer)):
-                new = np.round(new).astype(int)
+        new = recombine(vals, parameter, rng)
     else:
-        new = np.zeros(s, dtype=var_type)
+        new = np.zeros(s, dtype=dt)
         for i in range(s):
-            # we want to loop here since each value of b should be
-            # different; otherwise we have to find a value of b where
-            # every element of new is within bounds, which would
-            # significantly reduce the amount of variation we can have
+            '''
+            we need to loop here since each value of b in the recombine
+            function should be different; otherwise we have to find
+            a value of b where every element of new is within bounds,
+            which significantly reduces the possible variation
+            '''
             v = [vals[j][i] for j in range(2)]
-            if parameter == 'name': # binary choice
-                n = rng.choice(v)
-            else: 
-                b = rng.uniform(-d, 1 + d)
-                n = v[0] * b + v[1] * (1 - b)
-                while n < bounds[0] or n > bounds[1]:
-                    b = rng.uniform(-d, 1 + d)
-                    n = v[0] * b + v[1] * (1 - b)
-                if isinstance(bounds[0], (int, np.integer)):
-                    n = np.round(n).astype(int)
-            new[i] = n
+            new[i] = recombine(v, parameter, rng)
     setattr(child, parameter, new)
 
 def reproduction(rng, survivors, population):
@@ -172,7 +187,6 @@ def reproduction(rng, survivors, population):
     number of children and return the new population.
     Characteristics are taken randomly from each parent as much as possible.
     '''
-    d = constants.d_recomb
     n_children = constants.population_size - len(survivors)
     for i in range(len(survivors)):
         population[i] = survivors[i]
@@ -184,7 +198,7 @@ def reproduction(rng, survivors, population):
         parents = [survivors[p_i[i]] for i in range(2)]
         crossover(child, parents, 'n_b', rng, False)
         crossover(child, parents, 'n_s', rng, False)
-        for p in ['n_p', 'lp', 'name']:
+        for p in ['n_p', 'lp', 'pigment']:
             crossover(child, parents, p, rng, True)
     return population
 
@@ -201,7 +215,7 @@ def mutate(genome, parameter, rng, subunit=None):
        current = getattr(genome, parameter)[subunit]
     else:
        current = getattr(genome, parameter)
-    if parameter == 'name':
+    if parameter == 'pigment':
         new = rng.choice(constants.bounds[parameter])
     else:
         scale = current * constants.mu_width
@@ -233,29 +247,21 @@ def mutation(rng, individual, n_s_changes):
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
-    per_sub_params = ['n_p', 'lp', 'name']
+    per_sub_params = ['n_p', 'lp', 'pigment']
     if current < new:
         # add subunits as necessary
-        # assume new subunits are also random? this is a meaningful choice
+        # NB: we assume new subunits have completely random properties
         n_s_changes[0] += new - current
         for p in per_sub_params:
             c = getattr(individual, p)
             # i think setting refcheck to false is fine?
             # it seems to work, and i only reference it here
             c.resize(new, refcheck=False)
-            if isinstance(constants.bounds[p][0], (int, np.integer)):
-                fn = rng.integers
-            else:
-                fn = rng.uniform
             for i in range(new - current):
-                if p == 'name':
-                    c[-(i + 1)] = rng.choice(constants.bounds[p])
-                else:
-                    c[-(i + 1)] = fn(*constants.bounds[p])
+                c[-(i + 1)] = get_rand(p, rng)
     elif current > new:
         # delete the last (new - current) elements
         n_s_changes[1] += current - new
-        # this can probably be replaced by np.delete(arr, new-current)
         for p in per_sub_params:
             np.delete(getattr(individual, p), new - current)
     # now pick a random subunit to apply these mutations to.

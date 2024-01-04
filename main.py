@@ -104,23 +104,26 @@ if __name__ == "__main__":
                     side = (n_b * n_s) + 2
                     n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
                     lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
-                    names = ((ctypes.c_char_p) * (n_s + 1))()
-                    # pointers = (ctypes.c_char * (n_s + 1))(*map(ctypes.addressof, names))
+                    pigments = ((ctypes.c_char_p) * (n_s + 1))()
                     n_p[0]   = constants.rc_params[0]
                     lp[0]    = constants.rc_params[1]
-                    names[0] = ctypes.c_char_p("rc\x00".encode('utf-8'))
+                    pigments[0] = ctypes.c_char_p("rc\x00".encode('utf-8'))
                     for k in range(n_s):
                         n_p[k + 1] = population[j].n_p[k]
                         lp[k + 1]  = population[j].lp[k]
-                        names[k + 1] = ctypes.c_char_p(population[j].name[k].encode('utf-8'))
+                        pigments[k + 1] = ctypes.c_char_p(population[j].pigment[k].encode('utf-8'))
                     n_eq   = (ctypes.c_double * side)()
                     nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, dtype=np.float64))
                     kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
-                    names_p = ctypes.cast(names, ctypes.POINTER(ctypes.c_char_p))
+                    # do not ask how strings are treated in python 2
+                    # vs python 3 and how that affects passing char** in ctypes
+                    # it is horrible. i hated every minute of working this out
+                    pigments_p = ctypes.cast(pigments,
+                                 ctypes.POINTER(ctypes.c_char_p))
                     la.antenna(l_c, ip_y_c,
                             ctypes.c_double(constants.sig_chl), kp,
                             ctypes.c_double(constants.T),
-                            n_p, lp, names_p,
+                            n_p, lp, pigments_p,
                             ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                             ctypes.c_uint(len(l)), n_eq, nu_phi)
                     population[j].nu_e  = nu_phi[0]

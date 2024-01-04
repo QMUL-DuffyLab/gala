@@ -24,7 +24,7 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int),
           'n_s': np.array([1, 100], dtype=np.int),
           'n_p': np.array([1, 100], dtype=np.int),
           'lp': np.array([200.0, 1400.0]),
-          'name': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
+          'pigment': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
                             "chl_d\x00", "chl_f\x00", "r_apc\x00",
                             "r_pc\x00", "r_pe\x00"])}
 
@@ -58,9 +58,9 @@ class genome:
     n_s: int = 0
     n_p: npt.NDArray[np.int] = np.empty([], dtype=np.int)
     lp: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    name: npt.NDArray[np.str_] = np.empty([], dtype='U10')
+    pigment: npt.NDArray[np.str_] = np.empty([], dtype='U10')
     nu_e: float = np.nan
     phi_f: float = np.nan
 
 # radiative genome
-rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array([10.0]))
+rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array(['chl_a\x00']))

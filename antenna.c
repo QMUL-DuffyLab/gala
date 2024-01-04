@@ -36,6 +36,7 @@ typedef struct pigment Pigment;
 Pigment
 get_pigment_data(char* filename, char* pigment_name)
 {
+  /* NB: need an EOF check here too */
   FILE *fp = fopen(filename, "r");
   if (!fp) {
     printf("pigment file not found\n");
