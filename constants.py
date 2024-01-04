@@ -23,15 +23,10 @@ d_recomb = 0.25 # random perturbation of values during crossover
 bounds = {'n_b': np.array([1, 12], dtype=np.int),
           'n_s': np.array([1, 100], dtype=np.int),
           'n_p': np.array([1, 100], dtype=np.int),
-          'lp1': np.array([200.0, 1400.0]),
-          'lp2': np.array([200.0, 1400.0]),
-          'w1': np.array([5.0, 30.0]),
-          'w2': np.array([5.0, 30.0]),
-          'a12': np.array([0.2, 0.5])}
-# need to figure out how to deal with a12 bounds/choices
-# if there's only two, could give them here in bounds, then
-# use rng.choices to pick one of the two. add condition in
-# crossover and mutate functions to select for this
+          'lp': np.array([200.0, 1400.0]),
+          'name': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
+                            "chl_d\x00", "chl_f\x00", "r_apc\x00",
+                            "r_pc\x00", "r_pe\x00"])}
 
 '''
 some rates that I think are going to be fixed
@@ -62,21 +57,10 @@ class genome:
     n_b: int = 0
     n_s: int = 0
     n_p: npt.NDArray[np.int] = np.empty([], dtype=np.int)
-    lp1: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    lp2: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    w1: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    w2: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    a12: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
+    lp: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
+    name: npt.NDArray[np.str_] = np.empty([], dtype='U10')
     nu_e: float = np.nan
     phi_f: float = np.nan
 
 # radiative genome
 rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array([10.0]))
-
-# dict to put in dataframe
-c_dict = {'T': T, 'population_size': population_size,
-          'fitness_cutoff': fitness_cutoff,
-          'mu_width': mu_width, 'mu_rate': mu_rate,
-          'max_gen': max_gen, 'd_recomb': d_recomb,
-          'bounds': bounds, 'k_params': k_params,
-          'rc_params': rc_params}

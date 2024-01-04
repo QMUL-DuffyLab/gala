@@ -19,15 +19,13 @@ if __name__ == "__main__":
             ctypes.POINTER(ctypes.c_double),
             ctypes.c_double, ctypes.POINTER(ctypes.c_uint),
             ctypes.POINTER(ctypes.c_double),
-            ctypes.POINTER(ctypes.c_double),
-            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_char_p),
             ctypes.c_uint, ctypes.c_uint, ctypes.c_uint,
             ctypes.POINTER(ctypes.c_double),
             ctypes.POINTER(ctypes.c_double)]
 
     rng = np.random.default_rng()
     df = {}
-    df['params'] = constants.c_dict
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
@@ -105,30 +103,25 @@ if __name__ == "__main__":
                     n_s = population[j].n_s
                     side = (n_b * n_s) + 2
                     n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
-                    lp    = np.ctypeslib.as_ctypes(np.zeros(2 * (n_s + 1), dtype=np.float64))
-                    width = np.ctypeslib.as_ctypes(np.zeros(2 * (n_s + 1), dtype=np.float64))
-                    a12   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+                    lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+                    names = ((ctypes.c_char * 10) * (n_s + 1))()
+                    # pointers = (ctypes.c_char * (n_s + 1))(*map(ctypes.addressof, names))
                     n_p[0]   = constants.rc_params[0]
                     lp[0]    = constants.rc_params[1]
-                    width[0] = constants.rc_params[2]
-                    lp[1]    = constants.rc_params[3]
-                    width[1] = constants.rc_params[4]
-                    a12[0]   = constants.rc_params[5]
+                    names[0].value = "rc\x00".encode('utf-8')
                     for k in range(n_s):
-                        n_p[k + 1]         = population[j].n_p[k]
-                        a12[k + 1]         = population[j].a12[k]
-                        lp[(2 * k) + 2]    = population[j].lp1[k]
-                        lp[(2 * k) + 3]    = population[j].lp2[k]
-                        width[(2 * k) + 2] = population[j].w1[k]
-                        width[(2 * k) + 3] = population[j].w2[k]
+                        n_p[k + 1] = population[j].n_p[k]
+                        lp[k + 1]  = population[j].lp[k]
+                        names[k + 1].value = population[j].name[k].encode('utf-8')
+                    print([name.value for name in names])
                     n_eq   = (ctypes.c_double * side)()
                     nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, dtype=np.float64))
                     kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
-
+                    names_p = ctypes.cast(names, ctypes.POINTER(ctypes.c_char_p))
                     la.antenna(l_c, ip_y_c,
                             ctypes.c_double(constants.sig_chl), kp,
                             ctypes.c_double(constants.T),
-                            n_p, lp, width, a12,
+                            n_p, lp, names_p,
                             ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                             ctypes.c_uint(len(l)), n_eq, nu_phi)
                     population[j].nu_e  = nu_phi[0]
@@ -143,8 +136,6 @@ if __name__ == "__main__":
                     avgsq[3] += np.sum(np.square(n_p[1:])) / (len(n_p) - 1)
                     avgs[4]  += np.sum(lp[1:]) / (len(lp) - 1)
                     avgsq[4] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
-                    avgs[5]  += np.sum(width[1:]) / (len(width) - 1)
-                    avgsq[5] += np.sum(np.square(width[1:])) / (len(width) - 1)
                     avgs[6]  += n_b
                     avgsq[6] += n_b**2
                     avgs[7]  += n_s
@@ -155,10 +146,8 @@ if __name__ == "__main__":
                         nlw_pop[k] += 1
                         np_avg[k] += n_p[k + 1]
                         lp_avg[k] += lp[k + 1]
-                        w_avg[k]  += width[k + 1]
                         np_avgsq[k] += n_p[k + 1]**2
                         lp_avgsq[k] += lp[k + 1]**2
-                        w_avgsq[k]  += width[k + 1]**2
 
                 avgs /= constants.population_size
                 avgsq /= constants.population_size

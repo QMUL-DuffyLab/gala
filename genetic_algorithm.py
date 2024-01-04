@@ -16,14 +16,11 @@ def generate_random_subunit(rng):
     of pigments, random cross-section, random absorption peak and
     random width.
     '''
-    n_p = rng.integers(*constants.bounds['n_p'])
-    lp1 = rng.uniform(*constants.bounds['lp1'])
-    lp2 = rng.uniform(*constants.bounds['lp2'])
-    w1  = rng.uniform(*constants.bounds['w1'])
-    w2  = rng.uniform(*constants.bounds['w2'])
-    a12  = rng.choice(constants.bounds['a12'])
+    n_p  = rng.integers(*constants.bounds['n_p'])
+    lp   = rng.uniform(*constants.bounds['lp'])
+    name = rng.choice(constants.bounds['name'])
     # sigma       = constants.sig_chl
-    return [n_p, lp1, w1, lp2, w2, a12]
+    return [n_p, lp, name]
 
 def fill_arrays(rng, l, res_length, name):
     if (isinstance(constants.bounds[name][0], (int, np.integer))):
@@ -38,7 +35,7 @@ def fill_arrays(rng, l, res_length, name):
             if i < len(l[j]):
                 result[j][i] = l[j][i]
             else:
-                if name == 'a12':
+                if name == 'name':
                     result[j][i] = rng.choice(constants.bounds[name])
                 else:
                     result[j][i] = fn(*constants.bounds[name])
@@ -70,19 +67,13 @@ def initialise_individual(rng, init_type):
         nb = rng.integers(*constants.bounds['n_b'])
         ns = rng.integers(*constants.bounds['n_s'])
         n_p = np.zeros(ns, dtype=np.int)
-        lp1 = np.zeros(ns, dtype=np.float64)
-        w1  = np.zeros(ns, dtype=np.float64)
-        lp2 = np.zeros(ns, dtype=np.float64)
-        w2  = np.zeros(ns, dtype=np.float64)
-        a12  = np.zeros(ns, dtype=np.float64)
+        lp = np.zeros(ns, dtype=np.float64)
+        name = np.empty(ns, dtype='U10')
         for i in range(ns):
             n_p[i] = rng.integers(*constants.bounds['n_p'])
-            lp1[i]  = rng.uniform(*constants.bounds['lp1'])
-            w1[i]   = rng.uniform(*constants.bounds['w1'])
-            lp2[i]  = rng.uniform(*constants.bounds['lp2'])
-            w2[i]   = rng.uniform(*constants.bounds['w2'])
-            a12[i]  = rng.choice(constants.bounds['a12'])
-        return constants.genome(nb, ns, n_p, lp1, lp2, w1, w2, a12)
+            lp[i]  = rng.uniform(*constants.bounds['lp'])
+            name[i]  = rng.choice(constants.bounds['name'])
+        return constants.genome(nb, ns, n_p, lp, name)
 
 def selection(rng, population):
     '''
@@ -154,7 +145,7 @@ def crossover(child, parents, parameter, rng, subunit):
             # every element of new is within bounds, which would
             # significantly reduce the amount of variation we can have
             v = [vals[j][i] for j in range(2)]
-            if parameter == 'a12': # binary choice
+            if parameter == 'name': # binary choice
                 n = rng.choice(v)
             else: 
                 b = rng.uniform(-d, 1 + d)
@@ -185,7 +176,7 @@ def reproduction(rng, survivors, population):
         parents = [survivors[p_i[i]] for i in range(2)]
         crossover(child, parents, 'n_b', rng, False)
         crossover(child, parents, 'n_s', rng, False)
-        for p in ['n_p', 'lp1', 'w1', 'lp2', 'w2', 'a12']:
+        for p in ['n_p', 'lp', 'name']:
             crossover(child, parents, p, rng, True)
     return population
 
@@ -202,7 +193,7 @@ def mutate(genome, parameter, rng, subunit=None):
        current = getattr(genome, parameter)[subunit]
     else:
        current = getattr(genome, parameter)
-    if parameter == 'a12':
+    if parameter == 'name':
         new = rng.choice(constants.bounds[parameter])
     else:
         scale = current * constants.mu_width
@@ -234,7 +225,7 @@ def mutation(rng, individual, n_s_changes):
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
-    per_sub_params = ['n_p', 'lp1', 'w1', 'lp2', 'w2', 'a12']
+    per_sub_params = ['n_p', 'lp', 'name']
     if current < new:
         # add subunits as necessary
         # assume new subunits are also random? this is a meaningful choice
@@ -249,7 +240,7 @@ def mutation(rng, individual, n_s_changes):
             else:
                 fn = rng.uniform
             for i in range(new - current):
-                if p == 'a12':
+                if p == 'name':
                     c[-(i + 1)] = rng.choice(constants.bounds[p])
                 else:
                     c[-(i + 1)] = fn(*constants.bounds[p])

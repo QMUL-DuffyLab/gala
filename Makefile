@@ -3,7 +3,7 @@ CC    = gcc
 FLAGS = -std=c11
 CFLAGS = -fPIC -Wall -Werror -pedantic
 LDFLAGS = -shared -lm -lgsl -lgslcblas
-DEBUGFLAGS = -g -ggdb3
+DEBUGFLAGS = -g -g3 -O0 -ggdb3
 RELEASEFLAGS = -O2
 
 TARGET = libantenna.so
@@ -18,4 +18,4 @@ clean:
 	rm -f $(OBJECTS) $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(FLAGS) $(CFLAGS) $(RELEASEFLAGS) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
+	$(CC) $(FLAGS) $(CFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(LDFLAGS) $(OBJECTS)

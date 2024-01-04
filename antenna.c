@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <signal.h>
 #include <math.h>
 #include <gsl/gsl_linalg.h>
@@ -21,6 +22,63 @@
 #if ! defined(M_KB)
 	#define M_KB 1.380649E-23L
 #endif
+
+struct pigment {
+  unsigned n_gauss;
+  double* lp;
+  double* w;
+  double* amp;
+  char name[10];
+};
+
+typedef struct pigment Pigment;
+
+Pigment
+get_pigment_data(char* filename, char* pigment_name)
+{
+  FILE *fp = fopen(filename, "r");
+  char line[1024];
+  char *data = line; /* can't increment line using offset */
+  int offset; /* so we can read successive array elements */
+  int ret;
+  int debug = 1;
+  char name[10];
+  unsigned n_gauss;
+  while (strcmp(name, pigment_name)) {
+    fgets(line, 1024, fp);
+    ret = sscanf(line, "%s %u%n", name, &n_gauss, &offset);
+    if (debug) {
+      printf(line, ret, name, n_gauss, offset);
+    }
+  }
+  data += offset;
+
+  Pigment p;
+  strcpy(p.name, name);
+  p.n_gauss = n_gauss;
+  /* these need to be freed in main once the lineshape's calculated */
+  p.lp = calloc(n_gauss, sizeof(double));
+  p.w = calloc(n_gauss, sizeof(double));
+  p.amp = calloc(n_gauss, sizeof(double));
+  for (unsigned j = 0; j < n_gauss; j++) {
+    sscanf(data, "%le %le %le%n", &p.amp[j], &p.lp[j], &p.w[j], &offset);
+    data += offset; /* move forward to the next array elements */
+    if (j > 0) {
+      /* we want the differences in peak wavelength because we
+       * overwrite the reddest peak - that's what mutation does */
+      p.lp[j] -= p.lp[0];
+    }
+  }
+  if (debug) {
+    printf("input pigment name: %s\n", pigment_name);
+    printf("read pigment name: %s\n", p.name);
+    printf("n_gauss: %d\n", p.n_gauss);
+    for (unsigned j = 0; j < n_gauss; j++) {
+      printf("amp, peak, width: %lf, %lf, %lf\n", p.amp[j], p.lp[j], p.w[j]);
+    }
+  }
+  return p;
+}
 
 double
 trapezoid(double *f, double *x, unsigned n)
@@ -60,18 +118,17 @@ gauss(double *out, double *l, double lambda_peak, double width, unsigned n)
 }
 
 void
-two_gauss(double *out, double *l, double lp1, double w1, 
-    double lp2, double w2, double a12, unsigned n)
+multi_gauss(double *out, double *l, unsigned l_len,
+    unsigned n_gauss, double *lp, double *w, double *amp)
 {
-  /* normalised double Gaussian */
-  /* printf("lp1 = %f, w1 = %f, lp2 = %f, w2 = %f, a12 = %f\n", */
-  /*     lp1, w1, lp2, w2, a12); */
-  for (unsigned i = 0; i < n; i++) {
-    out[i] = exp(-1.0 * pow(l[i] - lp1, 2)/(2.0 * pow(w1, 2)))\
-           + a12 * exp(-1.0 * pow(l[i] - lp2, 2)/(2.0 * pow(w2, 2)));
+  /* NB: out must be zeroed before this! */
+  for (unsigned j = 0; j < n_gauss; j++) {
+    for (unsigned i = 0; i < l_len; i++) {
+      out[i] += amp[j] * exp(-1.0 * pow(l[i] - lp[j], 2)/(2.0 * pow(w[j], 2)));
+    }
   }
-  double norm = trapezoid(out, l, n);
-  for (unsigned i = 0; i < n; i++) {
+  double norm = trapezoid(out, l, l_len);
+  for (unsigned i = 0; i < l_len; i++) {
     out[i] /= norm;
   }
 }
@@ -82,26 +139,32 @@ dG(double l1, double l2, double n, double t)
   /* change in Gibbs free energy on moving from domain 1 -> 2.
    * enthalpy h, entropy s. note that g_21 = - g_12 so only do it once */
   double h = ((M_H * M_C) / 1.0E-9) * ((l1 - l2) / (l1 * l2));
-  /* printf("h = %10.6e\n", h); */
   double s = -1.0 * M_KB * log(n);
-  /* printf("s = %10.6e\n", s); */
   return (h - (t * s)); 
 }
 
 void
 antenna(double *l, double *ip_y, double sigma, double k_params[5],
-            double t, unsigned *n_p, double *lp, double *width,
-            double *a12, unsigned n_b, unsigned n_s, unsigned l_len,
+            double t, unsigned *n_p, double *lp, char *names[10],
+            unsigned n_b, unsigned n_s, unsigned l_len,
             double* n_eq, double* nu_phi)
 {
   /* 
-   * length of n_p, lp and width should be n_s + 1; RC params are in [0].
+   * length of n_p, lp and names should be n_s + 1; RC params are in [0].
    * k_params should be given as [k_diss, k_trap,  k_con, k_hop, k_lhc_rc].
    * l_len is the length of the l and ip_y arrays
    * n_eq should be a vector with dim = (side).
    * nu_phi should be double[3].
    */
   unsigned side = (n_b * n_s) + 2;
+
+  printf("%s\n", *names);
+
+  for (unsigned i = 0; i < 10; i++) {
+    printf("%s\n", names[i]);
+  }
+
+  char pigment_file[] = "out/pigments/pigment_data.csv";
 
   gsl_vector *gamma = gsl_vector_calloc(side);
   gsl_permutation *perm = gsl_permutation_calloc(side);
@@ -127,9 +190,16 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   
   /* calculate lineshapes */
   for (unsigned i = 0; i < n_s + 1; i++) {
-    /* gauss(lines[i], l, lp[i], width[i], l_len); */
-    two_gauss(lines[i], l, lp[2 * i], width[2 * i],
-        lp[(2 * i) + 1], width[(2 * i) + 1], a12[i], l_len);
+    Pigment pigment = get_pigment_data(pigment_file, names[i]);
+    pigment.lp[0] = lp[i];
+    for (unsigned j = 1; j < pigment.n_gauss; j++) {
+      pigment.lp[j] += pigment.lp[0];
+    }
+    multi_gauss(lines[i], l, l_len, pigment.n_gauss,
+        pigment.lp, pigment.w, pigment.amp);
+    free(pigment.lp);
+    free(pigment.w);
+    free(pigment.amp);
     if ((i > 0) && (i < n_s + 1)) { 
       /* 
        * add to the vector of photon inputs for later.
