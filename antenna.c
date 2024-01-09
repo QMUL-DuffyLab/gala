@@ -40,6 +40,7 @@ get_pigment_data(char* filename, char* pigment_name)
   FILE *fp = fopen(filename, "r");
   if (!fp) {
     printf("pigment file not found\n");
+    printf(filename);
     exit(EXIT_FAILURE);
   }
   char line[1024];
@@ -153,7 +154,7 @@ void
 antenna(double *l, double *ip_y, double sigma, double k_params[5],
             double t, unsigned *n_p, double *lp, char **names,
             unsigned n_b, unsigned n_s, unsigned l_len,
-            double* n_eq, double* nu_phi)
+            double* n_eq, double* nu_phi, int plot_lines)
 {
   /* 
    * length of n_p, lp and names should be n_s + 1; RC params are in [0].
@@ -197,6 +198,19 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
     }
     multi_gauss(lines[i], l, l_len, pigment.n_gauss,
         pigment.lp, pigment.w, pigment.amp);
+    if (plot_lines) {
+      char fmt[] = "out/lineshapes/lineshape_%4d_%2d.dat";
+      int sz = snprintf(NULL, 0, fmt, plot_lines, i);
+      char buf[sz + 1];
+      snprintf(buf, sizeof(buf), fmt, plot_lines, i);
+      FILE *fp = fopen(buf, "w");
+      if (fp) {
+        for (unsigned j = 0; j < l_len; j++) {
+          fprintf(fp, "%18.10e %18.10e\n", l[j], lines[i][j]);
+        }
+      }
+      fclose(fp);
+    }
     free(pigment.lp);
     free(pigment.w);
     free(pigment.amp);
@@ -336,7 +350,7 @@ main(int argc, char **argv)
   double *n_eq = calloc(side, sizeof(double));
   double *nu_phi = calloc(3, sizeof(double));
   antenna(l, ip_y, sigma, k_params, t, n_p, lp, names, n_b, n_s, l_len,
-            n_eq, nu_phi);
+            n_eq, nu_phi, 0);
   free(n_eq);
   free(nu_phi);
   free(n_p);

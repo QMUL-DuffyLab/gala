@@ -15,14 +15,17 @@ spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
 population_size = 1000
+max_gen = 1000
+n_runs = 3
 fitness_cutoff = 0.2 # fraction of individuals kept
+d_recomb = 0.25 # random perturbation of values during crossover
 mu_width = 0.25 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05
-max_gen = 1000
-d_recomb = 0.25 # random perturbation of values during crossover
+hist_snapshot = 50 # generate histograms every hist_snapshot generations
+hist_sub_max = 10 # number of subunits to make histograms for
 bounds = {'n_b': np.array([1, 12], dtype=np.int),
           'n_s': np.array([1, 100], dtype=np.int),
-          'n_p': np.array([1, 100], dtype=np.int),
+          'n_p': np.array([1, 200], dtype=np.int),
           'lp': np.array([200.0, 1400.0]),
           'pigment': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
                             "chl_d\x00", "chl_f\x00", "r_apc\x00",

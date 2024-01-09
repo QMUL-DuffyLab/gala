@@ -11,6 +11,7 @@ import numpy as np
 import constants
 import genetic_algorithm as ga
 import plots
+import stats
 
 if __name__ == "__main__":
     la = ctypes.cdll.LoadLibrary("./libantenna.so")
@@ -29,9 +30,9 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
+    temps = [5800]
     for ts in temps:
         print("T = ", ts)
-        n_runs = 3
         init_type = 'random' # can be radiative or random
         avgs_prefix  = "out/avgs_{:4d}K".format(ts)
         avgsq_prefix = "out/avgsq_{:4d}K".format(ts)
@@ -56,20 +57,20 @@ if __name__ == "__main__":
         l_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(l))
         ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
 
-        for i in range(n_runs):
+        for run in range(constants.n_runs):
             # dftr = df["{:4d}".format(ts)]["{:1d}".format(i)]
             df['input_file'] = spectrum_file
             population = [None for _ in range(constants.population_size)]
-            avgs_file = avgs_prefix + "_r{:1d}.dat".format(i)
-            avgsq_file = avgsq_prefix + "_r{:1d}.dat".format(i)
-            best_file = best_prefix + "_r{:1d}.dat".format(i)
-            np_file = np_prefix + "_r{:1d}.dat".format(i)
-            npsq_file = npsq_prefix + "_r{:1d}.dat".format(i)
-            lp_file = lp_prefix + "_r{:1d}.dat".format(i)
-            lpsq_file = lpsq_prefix + "_r{:1d}.dat".format(i)
-            w_file = w_prefix + "_r{:1d}.dat".format(i)
-            wsq_file = wsq_prefix + "_r{:1d}.dat".format(i)
-            nlw_pop_file = nlw_pop_prefix + "_r{:1d}.dat".format(i)
+            avgs_file = avgs_prefix + "_r{:1d}.dat".format(run)
+            avgsq_file = avgsq_prefix + "_r{:1d}.dat".format(run)
+            best_file = best_prefix + "_r{:1d}.dat".format(run)
+            np_file = np_prefix + "_r{:1d}.dat".format(run)
+            npsq_file = npsq_prefix + "_r{:1d}.dat".format(run)
+            lp_file = lp_prefix + "_r{:1d}.dat".format(run)
+            lpsq_file = lpsq_prefix + "_r{:1d}.dat".format(run)
+            w_file = w_prefix + "_r{:1d}.dat".format(run)
+            wsq_file = wsq_prefix + "_r{:1d}.dat".format(run)
+            nlw_pop_file = nlw_pop_prefix + "_r{:1d}.dat".format(run)
             with open(best_file, "w") as f:
                 pass # start a new file
             f.close()
@@ -120,12 +121,20 @@ if __name__ == "__main__":
                     # it is horrible. i hated every minute of working this out
                     pigments_p = ctypes.cast(pigments,
                                  ctypes.POINTER(ctypes.c_char_p))
+                    if (gen == 100 and j > 450 and j < 500):
+                        # j > 0 will evaluate to true in the C code
+                        # and the specific number will label the genome
+                        # print out 50 of them to make sure we don't get
+                        # some random non-representative sample
+                        plot_lines = j
+                    else:
+                        plot_lines = 0
                     la.antenna(l_c, ip_y_c,
                             ctypes.c_double(constants.sig_chl), kp,
                             ctypes.c_double(constants.T),
                             n_p, lp, pigments_p,
                             ctypes.c_uint(n_b), ctypes.c_uint(n_s),
-                            ctypes.c_uint(len(l)), n_eq, nu_phi)
+                            ctypes.c_uint(len(l)), n_eq, nu_phi, plot_lines)
                     population[j].nu_e  = nu_phi[0]
                     population[j].phi_f = nu_phi[1]
                     avgs[0]  += nu_phi[0]
@@ -162,6 +171,10 @@ if __name__ == "__main__":
                 np_avgsq = np.divide(np_avgsq, nlw_pop, where=nlw_pop > 0.0)
                 lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
                 w_avgsq = np.divide(w_avgsq, nlw_pop, where=nlw_pop > 0.0)
+
+                if (gen % constants.hist_snapshot == 0):
+                    stats.hist(population, gen, run, ts)
+
                 print("Generation {:4d}: ".format(gen))
                 print("================")
                 print(f"<ν_e>     = {avgs[0]:10.4n}\t<ν_e^2>       = {avgsq[0]:10.4n}\tσ = {std_dev[0]:10.4n}")
@@ -214,9 +227,9 @@ if __name__ == "__main__":
             df['best'] = best
             
             
-            plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(i)
-            plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(i)
-            plot_nu_phi_file = avgs_prefix + "_r{:1d}_nu_phi.pdf".format(i)
+            plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(run)
+            plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(run)
+            plot_nu_phi_file = avgs_prefix + "_r{:1d}_nu_phi.pdf".format(run)
             plots.antenna_plot_2d(best, phoenix_data, plot_final_best_2d_file)
             plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
