@@ -230,8 +230,9 @@ if __name__ == "__main__":
             plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(run)
             plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(run)
             plot_nu_phi_file = avgs_prefix + "_r{:1d}_nu_phi.pdf".format(run)
-            plots.antenna_plot_2d(best, phoenix_data, plot_final_best_2d_file)
-            plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)
+            # these no longer work - need new histogram plot functions
+            # plots.antenna_plot_2d(best, phoenix_data, plot_final_best_2d_file)
+            # plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
     df = pd.DataFrame(df)

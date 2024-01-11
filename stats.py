@@ -36,8 +36,6 @@ def hist(population, gen, run, temp):
             if i < p.n_s:
                l_arr[i][j] = p.lp[i]
                p_arr[i][j] = p.pigment[i]
-    # lh = np.histogramdd(l_arr, bins=(sbins, lbins))
-    # ph = np.histogramdd(p_arr, bins=(sbins, lbins))
     lh = [lbins[:-1]] # len(lbins) = len(hist) + 1
     ph = [pvals]
     for i in range(s_max):

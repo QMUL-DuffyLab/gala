@@ -48,7 +48,7 @@ def get_rand(parameter, rng):
         raise TypeError("get_rand cannot determine parameter type.")
     return r
 
-def fill_arrays(rng, l, res_length, parameter):
+def fill_arrays(rng, parent_values, res_length, parameter):
     '''
     the number of subunits a child has might be smaller
     or larger than one or both of its parents. we make sure
@@ -64,10 +64,11 @@ def fill_arrays(rng, l, res_length, parameter):
     result = np.zeros((2, res_length), dtype=dt)
     for i in range(res_length):
         for j in range(2):
-            if i < len(l[j]):
-                result[j][i] = l[j][i]
+            if i < len(parent_values[j]):
+                result[j][i] = parent_values[j][i]
             else:
-                result[j][i] = get_rand(parameter, rng)
+                # new subunits are just copies of tail subunits
+                result[j][i] = parent_values[j][len(parent_values[j]) - 1]
     return result
 
 def initialise_individual(rng, init_type):
@@ -250,7 +251,7 @@ def mutation(rng, individual, n_s_changes):
     per_sub_params = ['n_p', 'lp', 'pigment']
     if current < new:
         # add subunits as necessary
-        # NB: we assume new subunits have completely random properties
+        # NB: we assume new subunits are copies of the tail subunit
         n_s_changes[0] += new - current
         for p in per_sub_params:
             c = getattr(individual, p)
@@ -258,7 +259,7 @@ def mutation(rng, individual, n_s_changes):
             # it seems to work, and i only reference it here
             c.resize(new, refcheck=False)
             for i in range(new - current):
-                c[-(i + 1)] = get_rand(p, rng)
+                c[-(i + 1)] = c[current - 1]
     elif current > new:
         # delete the last (new - current) elements
         n_s_changes[1] += current - new
