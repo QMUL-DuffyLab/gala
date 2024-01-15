@@ -10,18 +10,6 @@ import numpy as np
 import scipy.stats as ss
 import constants
 
-def generate_random_subunit(rng):
-    '''
-    Generates a completely random subunit, with a random number
-    of pigments, random cross-section, random absorption peak and
-    random width.
-    '''
-    n_p  = rng.integers(*constants.bounds['n_p'])
-    lp   = rng.uniform(*constants.bounds['lp'])
-    name = rng.choice(constants.bounds['pigment'])
-    # sigma       = constants.sig_chl
-    return [n_p, lp, name]
-
 def get_type(parameter):
     ''' get parameter type to declare numpy array correctly '''
     test = constants.bounds[parameter][0]
@@ -105,6 +93,11 @@ def initialise_individual(rng, init_type):
             pigment[i]  = get_rand('pigment', rng)
         return constants.genome(nb, ns, n_p, lp, pigment)
 
+def fitness(individual):
+    nu_e_weight = 1.0
+    phi_f_weight = 1.0
+    return (nu_e_weight * individual.nu_e) * (phi_f_weight * individual.phi_f)
+
 def selection(rng, population):
     '''
     given a population and the calculated results (nu_e, quantum efficiency,
@@ -115,12 +108,12 @@ def selection(rng, population):
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     '''
-    pull out nu_e and efficiency values and their indices in the results,
+    apply fitness function to the entire population (defined above),
     then sort them in descending order (reverse=True) by the product of these.
     then the first n_survivors of nu_es_sorted are the highest values,
     and we can pull them from the population using the corresponding indices.
     '''
-    nu_es_sorted = sorted([(i, r.nu_e * r.phi_f)
+    nu_es_sorted = sorted([(i, fitness(r))
                           for i, r in enumerate(population)],
                           key=itemgetter(1), reverse=True)
     best_ind = nu_es_sorted[0][0]

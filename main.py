@@ -30,8 +30,8 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
-    temps = [5800]
-    for ts in temps:
+    # temps = [5800]
+    for ts in reversed(temps):
         print("T = ", ts)
         init_type = 'random' # can be radiative or random
         avgs_prefix  = "out/avgs_{:4d}K".format(ts)
