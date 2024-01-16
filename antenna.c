@@ -297,13 +297,20 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
    * 2 -> vec(0) 1 0; 3 -> vec(0) 1 1;
    * then for i = 0, n_b * n_s:
    * (2i + 4) -> 1_i 0 0; (2i + 5) -> 1_i 0 1
+   * 
+   * finally we add a row to impose
+   * sum(p_i) = 1 over all i.
    *
    * hopefully with comments this is parsable :)
    */
 
   double **new = calloc(2 * side, sizeof(double));
-  for (unsigned i = 0; i < 2 * side; i++) {
-    new[i] = calloc(2 * side, sizeof(double));
+  double **new2 = calloc(2 * side + 1, sizeof(double));
+  for (unsigned i = 0; i < 2 * side + 1; i++) {
+    if (i < 2 * side) {
+      new[i] = calloc(2 * side, sizeof(double));
+    }
+    new2[i] = calloc(2 * side, sizeof(double));
   }
   new[1][0] = k_params[2]; /* 0 0 1 -> 0 0 0 (k_con) */
   new[2][0] = k_params[0]; /* 0 1 0 -> 0 0 0 (k_diss) */
@@ -334,14 +341,16 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
     }
   }
 
-  double* newvec = calloc(pow((2 * side), 2), sizeof(double));
   for (unsigned i = 0; i < 2 * side; i++) {
     for (unsigned j = 0; j < 2 * side; j++) {
       if (i != j) {
-        newvec[(i * (2 * side)) + j]  = new[j][i];
-        newvec[(i * (2 * side)) + i] -= new[i][j];
+        new2[i][j]  = new[j][i];
+        new2[i][i] -= new[i][j];
       }
     }
+  }
+  for (unsigned i = 0; i < 2 * side; i++) {
+    new2[2 * side][i] = 1.0;
   }
 
   gsl_matrix_view k = gsl_matrix_view_array(kd, side, side);
