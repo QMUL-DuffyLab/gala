@@ -41,7 +41,7 @@ get_pigment_data(char* filename, char* pigment_name)
   if (!fp) {
     printf("pigment file not found\n");
     printf(filename);
-    exit(EXIT_FAILURE);
+    raise(SIGABRT);
   }
   char line[1024];
   char *data = line; /* can't increment line using offset */
@@ -277,6 +277,65 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
       if (i != j) {
         kd[(i * side) + j]  = twa[j][i];
         kd[(i * side) + i] -= twa[i][j];
+      }
+    }
+  }
+
+  /*
+   * SATURATING RC CODE - NOT TESTED YET
+   */
+
+  double **new = calloc(2 * side, sizeof(double));
+  for (unsigned i = 0; i < 2 * side; i++) {
+    new[i] = calloc(2 * side, sizeof(double));
+  }
+  /* 
+   * new indexing convention needed:
+   * 0 -> vec(0) 0 0; 1 -> vec(0) 0 1; 
+   * 2 -> vec(0) 1 0; 3 -> vec(0) 1 1;
+   * then 
+   * (2i + 4) -> 1_i 0 0; (2i + 5) -> 1_i 0 1 
+   * for i = 0, n_b * n_s 
+   */
+  new[1][0] = k_params[2]; /* k_con */
+  new[2][0] = k_params[0]; /* k_diss */
+  /* new[1][1] -= k_params[2]; */
+  new[2][1] = k_params[1]; /* k_trap */
+  new[3][1] = k_params[0];
+  /* new[2][2] -=(k_params[0] + k_params[1]); */
+  new[3][2] = k_params[2];
+  /* new[3][3] -= (k_params[0] + k_params[2]); */
+  for (unsigned j = 4; j < 2 * side; j = j + 2 * n_s) {
+    /* two pairs of RC <-> rates at the bottom of each branch */
+    new[2][j]     = k_b[0];
+    new[j][2]     = k_b[1];
+    new[3][j + 1] = k_b[0];
+    new[j + 1][3] = k_b[1];
+    for (unsigned i = 0; i < n_s; i++) {
+      unsigned ind = j + (2 * i);
+      new[ind][0] = k_params[0];
+      new[ind + 1][1] = k_params[0];
+      /* new[2 * i][2 * i] -= k_params[0]; */
+      /* new[(2 * i) + 1][(2 * i) + 1] -= k_params[0]; */
+      new[ind + 1][ind] = k_params[2];
+      if (i > 0) {
+        new[ind][(ind - 2)] = k_b[(2 * i) + 1];
+      }
+      if (i < (n_s - 1)) {
+        new[ind][ind + 2] = k_b[2 * (i + 1)];
+      }
+      new[0][ind] = g[i];
+      new[1][ind + 1] = g[i];
+    }
+  }
+
+  double* newvec = calloc(pow((2 * side), 2), sizeof(double));
+  for (unsigned i = 0; i < 2 * side; i++) {
+    if (i >= 2) {
+    for (unsigned j = 0; j < side; j++) {
+      if (i != j) {
+        newvec[(i * (2 * side)) + j]  = new[j][i];
+        newvec[(i * (2 * side)) + i] -= new[i][j];
       }
     }
   }
