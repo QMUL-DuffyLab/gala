@@ -283,56 +283,60 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
 
   /*
    * SATURATING RC CODE - NOT TESTED YET
+   * new indexing convention:
+   *
+   * denote a config using occupancy numbers (n_s, n_RC, n_trap);
+   * where n_s is actually a vector of occupancies for each subunit.
+   * the set of possible transfers and rates depend on whether
+   * the trap's open or closed, so we have double the possible
+   * number of states from before: 2 * ((n_s * n_b) + 2).
+   * collapse our occupancy numbers down into one index
+   * in order to build a transfer matrix as follows:
+   *
+   * 0 -> vec(0) 0 0; 1 -> vec(0) 0 1; 
+   * 2 -> vec(0) 1 0; 3 -> vec(0) 1 1;
+   * then for i = 0, n_b * n_s:
+   * (2i + 4) -> 1_i 0 0; (2i + 5) -> 1_i 0 1
+   *
+   * hopefully with comments this is parsable :)
    */
 
   double **new = calloc(2 * side, sizeof(double));
   for (unsigned i = 0; i < 2 * side; i++) {
     new[i] = calloc(2 * side, sizeof(double));
   }
-  /* 
-   * new indexing convention needed:
-   * 0 -> vec(0) 0 0; 1 -> vec(0) 0 1; 
-   * 2 -> vec(0) 1 0; 3 -> vec(0) 1 1;
-   * then 
-   * (2i + 4) -> 1_i 0 0; (2i + 5) -> 1_i 0 1 
-   * for i = 0, n_b * n_s 
-   */
-  new[1][0] = k_params[2]; /* k_con */
-  new[2][0] = k_params[0]; /* k_diss */
-  /* new[1][1] -= k_params[2]; */
-  new[2][1] = k_params[1]; /* k_trap */
-  new[3][1] = k_params[0];
-  /* new[2][2] -=(k_params[0] + k_params[1]); */
-  new[3][2] = k_params[2];
-  /* new[3][3] -= (k_params[0] + k_params[2]); */
+  new[1][0] = k_params[2]; /* 0 0 1 -> 0 0 0 (k_con) */
+  new[2][0] = k_params[0]; /* 0 1 0 -> 0 0 0 (k_diss) */
+  new[2][1] = k_params[1]; /* 0 1 0 -> 0 0 1 (k_trap) */
+  new[3][1] = k_params[0]; /* 0 1 1 -> 0 0 1 */
+  new[3][2] = k_params[2]; /* 0 1 1 -> 0 1 0 */
   for (unsigned j = 4; j < 2 * side; j = j + 2 * n_s) {
     /* two pairs of RC <-> rates at the bottom of each branch */
-    new[2][j]     = k_b[0];
-    new[j][2]     = k_b[1];
-    new[3][j + 1] = k_b[0];
-    new[j + 1][3] = k_b[1];
+    new[2][j]     = k_b[0]; /* 0 1 0   -> 1_i 0 0 */
+    new[j][2]     = k_b[1]; /* 1_i 0 0 -> 0 1 0 */
+    new[3][j + 1] = k_b[0]; /* 0 1 1   -> 1_i 0 1 */
+    new[j + 1][3] = k_b[1]; /* 1_i 0 1 -> 0 1 1 */
     for (unsigned i = 0; i < n_s; i++) {
       unsigned ind = j + (2 * i);
-      new[ind][0] = k_params[0];
-      new[ind + 1][1] = k_params[0];
-      /* new[2 * i][2 * i] -= k_params[0]; */
-      /* new[(2 * i) + 1][(2 * i) + 1] -= k_params[0]; */
-      new[ind + 1][ind] = k_params[2];
-      if (i > 0) {
-        new[ind][(ind - 2)] = k_b[(2 * i) + 1];
+      new[ind][0]       = k_params[0]; /* 1_i 0 0 -> 0 0 0 */
+      new[ind + 1][1]   = k_params[0]; /* 1_i 0 1 -> 0 0 1 */
+      new[ind + 1][ind] = k_params[2]; /* 1_i 0 1 -> 1_i 0 0 */
+      if (i > 0) { /* pair of backward transfers down the branch */
+        new[ind][ind - 2]     = k_b[(2 * i) + 1]; /* empty trap */
+        new[ind + 1][ind - 1] = k_b[(2 * i) + 1]; /* full trap */
       }
-      if (i < (n_s - 1)) {
-        new[ind][ind + 2] = k_b[2 * (i + 1)];
+      if (i < (n_s - 1)) { /* pair of forward transfers */
+        new[ind][ind + 2]     = k_b[2 * (i + 1)]; /* empty */
+        new[ind + 1][ind + 3] = k_b[2 * (i + 1)]; /* full */
       }
-      new[0][ind] = g[i];
-      new[1][ind + 1] = g[i];
+      new[0][ind]     = g[i]; /* 0 0 0 -> 1_i 0 0 */
+      new[1][ind + 1] = g[i]; /* 0 0 1 -> 1_i 0 1 */
     }
   }
 
   double* newvec = calloc(pow((2 * side), 2), sizeof(double));
   for (unsigned i = 0; i < 2 * side; i++) {
-    if (i >= 2) {
-    for (unsigned j = 0; j < side; j++) {
+    for (unsigned j = 0; j < 2 * side; j++) {
       if (i != j) {
         newvec[(i * (2 * side)) + j]  = new[j][i];
         newvec[(i * (2 * side)) + i] -= new[i][j];
