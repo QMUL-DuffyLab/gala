@@ -108,63 +108,63 @@ def antenna(l, ip_y, p):
             twa[0][ind]     = gamma[i] # 0 0 0 -> 1_i 0 0
             twa[1][ind + 1] = gamma[i] # 0 0 1 -> 1_i 0 1
 
-    k_phi = np.zeros((2 * side, 2 * side))
     for i in range(2 * side):
         for j in range(2 * side):
             if (i != j):
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
-                k_phi[i][j]  = twa[j][i]
-                k_phi[i][i] -= twa[i][j]
         # add a row for the probability constraint
         k[2 * side][i] = 1.0
-    np.savetxt("out/K_mat.dat", k, fmt='%.6e')
     b = np.zeros((2 * side) + 1, dtype=np.float64)
     b[-1] = 1.0
     p_eq, p_eq_res, rank, s = np.linalg.lstsq(k, b, rcond=None)
     n_eq = np.zeros(side, dtype=np.float64)
     for i in range(side):
-        n_eq[i] = p_eq[2 * i] + p_eq[(2 * i) + 1]
+        n_eq[0] += p_eq[(2 * i) + 1] # P(1_i, 1)
         if i > 0:
-            n_eq[0] += p_eq[(2 * i) + 1]
+            n_eq[i] = p_eq[2 * i] + p_eq[(2 * i) + 1] # P(1_i, 0) + P(1_i, 1)
     nu_e = constants.k_con * n_eq[0]
+    # print(np.sum(n_eq[1:]))
+    phi_e_g = nu_e / (nu_e + (constants.k_diss * np.sum(n_eq[1:])))
 
     # efficiency
-    # need to zero out where the gamma terms would be
-    k_phi[0][0] = 0.0
-    k_phi[1][1] = 0.0
+    k_phi = np.copy(k)
+    gamma_sum = np.sum(gamma)
+    gamma_norm = gamma / (1000.0 * gamma_sum)
+    k_phi[0][0] += gamma_sum
+    k_phi[1][1] += gamma_sum
     for j in range(4, 2 * side, 2 * n_s):
         for i in range(n_s):
             ind = j + (2 * i)
-            k_phi[0][ind] = 0.0
-            k_phi[1][ind + 1] = 0.0
+            k_phi[ind][0] = gamma_norm[i]
+            k_phi[ind + 1][1] = gamma_norm[i]
+            k_phi[0][0] -= gamma_norm[i]
+            k_phi[1][1] -= gamma_norm[i]
+    b[:] = 0.0
+    b[-1] = 1.0
+    p_eq_low, p_eq_res_low, rank, s = np.linalg.lstsq(k_phi, b, rcond=None)
+    n_eq_low = np.zeros(side, dtype=np.float64)
+    for i in range(side):
+        n_eq_low[0] += p_eq_low[(2 * i) + 1] # P(1_i, 1)
+        if i > 0:
+            n_eq_low[i] = p_eq_low[2 * i] + p_eq_low[(2 * i) + 1] # P(1_i, 0) + P(1_i, 1)
+    nu_e_low = constants.k_con * n_eq_low[0]
+    print(np.sum(p_eq_low))
+    # print(np.sum(n_eq_low[1:]))
+    phi_e = nu_e_low / (nu_e_low + (constants.k_diss * np.sum(n_eq_low[1:])))
+    # print(phi_e - phi_e_g)
 
-    P0 = np.zeros(2 * side, dtype=np.float64)
-    np_total = np.sum(p.n_p)
-    for i in range(n_s):
-        # ind is the index of P(1_i, 0, 0)
-        ind = (2 * i) + 4
-        P0[ind] = p.n_p[i] / np_total
-    lam, C = np.linalg.eig(k_phi)
-    print("eigenvalues: ", lam)
-    C_inv = np.linalg.inv(C)
-    t_max = 1.0 / constants.k_diss
-    t_step = t_max / 1000.0
-    tr = np.arange(0.0, t_max, t_step)
-    expLt = np.zeros((2 * side, 2 * side))
-    phi_int = []
-    for t in tr:
-        for i, li in enumerate(lam):
-            expLt[i][i] = np.exp(li * t)
-        Pt = np.matmul(C, np.matmul(expLt, np.matmul(C_inv, P0)))
-        phi_int.append(np.sum(Pt[1:len(Pt):2]) * constants.k_con)
-    phi_e = np.trapz(phi_int, tr)
     od = {
             'nu_e': nu_e,
+            'nu_e_low': nu_e_low,
+            'phi_e_g': phi_e_g,
             'phi_e': phi_e,
             'N_eq': n_eq,
+            'N_eq_low': n_eq_low,
             'P_eq': p_eq,
             'P_eq_residuals': p_eq_res,
+            'P_eq_low': p_eq_low,
+            'P_eq_residuals_low': p_eq_res_low,
             'gamma': gamma,
             'gamma_total': np.sum(gamma),
             'K_mat': k,
@@ -181,9 +181,9 @@ if __name__ == '__main__':
     # note that n_p, lp and w include the RC as the first element!
     # this is just so i can generate everything in one set of loops
     n_b = 6
-    n_p = [1, 50, 100, 20, 60]
+    n_p = [1, 10, 10, 10, 10]
     lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
-    w   = [constants.w_rc, 10.0, 8.0, 12.0, 6.0]
+    w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
     n_s = len(n_p)
     test = genome(n_b, n_s, n_p, lp, w)
 
