@@ -140,10 +140,13 @@ def antenna(l, ip_y, p):
             k_phi[1][ind + 1] = 0.0
 
     P0 = np.zeros(2 * side, dtype=np.float64)
-    # need to set initial populations somehow?
-    # something to do with antenna size??
+    np_total = np.sum(p.n_p)
+    for i in range(n_s):
+        # ind is the index of P(1_i, 0, 0)
+        ind = (2 * i) + 4
+        P0[ind] = p.n_p[i] / np_total
     lam, C = np.linalg.eig(k_phi)
-    # print("eigenvalues: ", lam)
+    print("eigenvalues: ", lam)
     C_inv = np.linalg.inv(C)
     t_max = 1.0 / constants.k_diss
     t_step = t_max / 1000.0
@@ -175,6 +178,8 @@ if __name__ == '__main__':
     file = "PHOENIX/Scaled_Spectrum_PHOENIX_" + ts + ".dat"
     d = np.loadtxt(file)
 
+    # note that n_p, lp and w include the RC as the first element!
+    # this is just so i can generate everything in one set of loops
     n_b = 6
     n_p = [1, 50, 100, 20, 60]
     lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
