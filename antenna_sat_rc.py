@@ -124,35 +124,35 @@ def antenna(l, ip_y, p):
         if i > 0:
             n_eq[i] = p_eq[2 * i] + p_eq[(2 * i) + 1] # P(1_i, 0) + P(1_i, 1)
     nu_e = constants.k_con * n_eq[0]
-    # print(np.sum(n_eq[1:]))
     phi_e_g = nu_e / (nu_e + (constants.k_diss * np.sum(n_eq[1:])))
 
     # efficiency
-    k_phi = np.copy(k)
+    k_phi = np.zeros_like(k)
     gamma_sum = np.sum(gamma)
-    gamma_norm = gamma / (1000.0 * gamma_sum)
-    k_phi[0][0] += gamma_sum
-    k_phi[1][1] += gamma_sum
+    norm_fac = 1e-6
+    gamma_norm = norm_fac * gamma / (gamma_sum)
     for j in range(4, 2 * side, 2 * n_s):
         for i in range(n_s):
             ind = j + (2 * i)
-            k_phi[ind][0] = gamma_norm[i]
-            k_phi[ind + 1][1] = gamma_norm[i]
-            k_phi[0][0] -= gamma_norm[i]
-            k_phi[1][1] -= gamma_norm[i]
+            twa[0][ind]     = gamma_norm[i]
+            twa[1][ind + 1] = gamma_norm[i]
+    for i in range(2 * side):
+        for j in range(2 * side):
+            if (i != j):
+                k_phi[i][j]      = twa[j][i]
+                k_phi[i][i]     -= twa[i][j]
+        k_phi[2 * side][i] = 1.0
+
     b[:] = 0.0
     b[-1] = 1.0
     p_eq_low, p_eq_res_low, rank, s = np.linalg.lstsq(k_phi, b, rcond=None)
     n_eq_low = np.zeros(side, dtype=np.float64)
     for i in range(side):
-        n_eq_low[0] += p_eq_low[(2 * i) + 1] # P(1_i, 1)
+        n_eq_low[0] += p_eq_low[(2 * i) + 1]
         if i > 0:
-            n_eq_low[i] = p_eq_low[2 * i] + p_eq_low[(2 * i) + 1] # P(1_i, 0) + P(1_i, 1)
+            n_eq_low[i] = p_eq_low[2 * i] + p_eq_low[(2 * i) + 1]
     nu_e_low = constants.k_con * n_eq_low[0]
-    print(np.sum(p_eq_low))
-    # print(np.sum(n_eq_low[1:]))
     phi_e = nu_e_low / (nu_e_low + (constants.k_diss * np.sum(n_eq_low[1:])))
-    # print(phi_e - phi_e_g)
 
     od = {
             'nu_e': nu_e,
@@ -171,7 +171,6 @@ def antenna(l, ip_y, p):
             }
     return od
 
-
 if __name__ == '__main__':
 
     ts = "5800K"
@@ -181,7 +180,7 @@ if __name__ == '__main__':
     # note that n_p, lp and w include the RC as the first element!
     # this is just so i can generate everything in one set of loops
     n_b = 6
-    n_p = [1, 10, 10, 10, 10]
+    n_p = [1, 100, 100, 100, 100]
     lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
     w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
     n_s = len(n_p)
