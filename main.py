@@ -103,8 +103,10 @@ if __name__ == "__main__":
                     n_b = population[j].n_b
                     n_s = population[j].n_s
                     side = (n_b * n_s) + 2
-                    n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.uint32))
-                    lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, dtype=np.float64))
+                    n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, 
+                        dtype=np.uint32))
+                    lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1,
+                        dtype=np.float64))
                     pigments = ((ctypes.c_char_p) * (n_s + 1))()
                     n_p[0]   = constants.rc_params[0]
                     lp[0]    = constants.rc_params[1]
@@ -112,29 +114,24 @@ if __name__ == "__main__":
                     for k in range(n_s):
                         n_p[k + 1] = population[j].n_p[k]
                         lp[k + 1]  = population[j].lp[k]
-                        pigments[k + 1] = ctypes.c_char_p(population[j].pigment[k].encode('utf-8'))
+                        pigments[k + 1] = ctypes.c_char_p(
+                                population[j].pigment[k].encode('utf-8'))
                     n_eq   = (ctypes.c_double * side)()
-                    nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, dtype=np.float64))
-                    kp = (ctypes.c_double * len(constants.k_params))(*constants.k_params)
+                    nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, 
+                        dtype=np.float64))
+                    kp = (ctypes.c_double * 
+                            len(constants.k_params))(*constants.k_params)
                     # do not ask how strings are treated in python 2
                     # vs python 3 and how that affects passing char** in ctypes
                     # it is horrible. i hated every minute of working this out
                     pigments_p = ctypes.cast(pigments,
                                  ctypes.POINTER(ctypes.c_char_p))
-                    if (gen == 100 and j > 450 and j < 500):
-                        # j > 0 will evaluate to true in the C code
-                        # and the specific number will label the genome
-                        # print out 50 of them to make sure we don't get
-                        # some random non-representative sample
-                        plot_lines = j
-                    else:
-                        plot_lines = 0
                     la.antenna(l_c, ip_y_c,
                             ctypes.c_double(constants.sig_chl), kp,
                             ctypes.c_double(constants.T),
                             n_p, lp, pigments_p,
                             ctypes.c_uint(n_b), ctypes.c_uint(n_s),
-                            ctypes.c_uint(len(l)), n_eq, nu_phi, plot_lines)
+                            ctypes.c_uint(len(l)), n_eq, nu_phi, 0)
                     population[j].nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity,
@@ -179,9 +176,9 @@ if __name__ == "__main__":
                 print("Generation {:4d}: ".format(gen))
                 print("================")
                 print(f"<ν_e>     = {avgs[0]:10.4n}\t<ν_e^2>       = {avgsq[0]:10.4n}\tσ = {std_dev[0]:10.4n}")
-                print(f"<φ_e()>     = {avgs[1]:10.4n}\t<φ_e()^2>       = {avgsq[1]:10.4n}\tσ = {std_dev[1]:10.4n}")
-                print(f"<φ_e> = {avgs[2]:10.4n}\t<φ_e^2> = {avgsq[2]:10.4n}\tσ = {std_dev[2]:10.4n}")
-                print(f"<φ_e ν_e>     = {avgs[3]:10.4n}\t<φ_e ν_e^2>       = {avgsq[3]:10.4n}\tσ = {std_dev[3]:10.4n}")
+                print(f"<φ_e(γ)>  = {avgs[1]:10.4n}\t<φ_e(γ)^2>    = {avgsq[1]:10.4n}\tσ = {std_dev[1]:10.4n}")
+                print(f"<φ_e>     = {avgs[2]:10.4n}\t<φ_e^2>       = {avgsq[2]:10.4n}\tσ = {std_dev[2]:10.4n}")
+                print(f"<φ_e ν_e> = {avgs[3]:10.4n}\t<φ_e ν_e^2>   = {avgsq[3]:10.4n}\tσ = {std_dev[3]:10.4n}")
                 print(f"<n_p>     = {avgs[4]:10.4n}\t<n_p^2>       = {avgsq[4]:10.4n}\tσ = {std_dev[4]:10.4n}")
                 print(f"<λ_p>     = {avgs[5]:10.4n}\t<λ_p^2>       = {avgsq[5]:10.4n}\tσ = {std_dev[5]:10.4n}")
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")
@@ -215,18 +212,6 @@ if __name__ == "__main__":
             np.savetxt(w_file, w_avg)
             np.savetxt(wsq_file, w_avgsq)
             np.savetxt(nlw_pop_file, nlw_pop)
-            df['avgs'] = running_avgs
-            df['avgsq'] = running_avgsq
-            df['np_avg'] = np_avg
-            df['np_avgsq'] = np_avgsq
-            df['lp_avg'] = lp_avg
-            df['lp_avgsq'] = lp_avgsq
-            df['w_avg'] = w_avg
-            df['w_avgsq'] = w_avgsq
-            df['nlw_pop'] = nlw_pop
-            df['best'] = best
-            
-            
             plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(run)
             plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(run)
             plot_nu_phi_file = avgs_prefix + "_r{:1d}_nu_phi.pdf".format(run)
@@ -235,6 +220,3 @@ if __name__ == "__main__":
             # plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
-    df = pd.DataFrame(df)
-    timestamp = datetime.now().isoformat('_', timespec='minutes')
-    df.to_csv("out/" + timestamp + ".csv")
