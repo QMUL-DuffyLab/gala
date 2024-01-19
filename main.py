@@ -136,23 +136,26 @@ if __name__ == "__main__":
                             ctypes.c_uint(n_b), ctypes.c_uint(n_s),
                             ctypes.c_uint(len(l)), n_eq, nu_phi, plot_lines)
                     population[j].nu_e  = nu_phi[0]
-                    population[j].phi_f = nu_phi[1]
+                    # nu_phi[1] is the high intensity result,
+                    # nu_phi[2] is the limit at low intensity,
+                    # which is what we actually want, I think
+                    population[j].phi_f = nu_phi[2]
                     avgs[0]  += nu_phi[0]
                     avgsq[0] += nu_phi[0]**2
                     avgs[1]  += nu_phi[1]
                     avgsq[1] += nu_phi[1]**2
-                    avgs[2]  += nu_phi[0] * nu_phi[1]
-                    avgsq[2] += (nu_phi[0] * nu_phi[1])**2
-                    avgs[3]  += np.sum(n_p[1:]) / (len(n_p) - 1) # don't count RC
-                    avgsq[3] += np.sum(np.square(n_p[1:])) / (len(n_p) - 1)
-                    avgs[4]  += np.sum(lp[1:]) / (len(lp) - 1)
-                    avgsq[4] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
+                    avgs[2]  += nu_phi[2]
+                    avgsq[2] += nu_phi[2]**2
+                    avgs[3]  += nu_phi[0] * nu_phi[2]
+                    avgsq[3] += (nu_phi[0] * nu_phi[2])**2
+                    avgs[4]  += np.sum(n_p[1:]) / (len(n_p) - 1) # don't count RC
+                    avgsq[4] += np.sum(np.square(n_p[1:])) / (len(n_p) - 1)
+                    avgs[5]  += np.sum(lp[1:]) / (len(lp) - 1)
+                    avgsq[5] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
                     avgs[6]  += n_b
                     avgsq[6] += n_b**2
                     avgs[7]  += n_s
                     avgsq[7] += n_s**2
-                    avgs[8]  += nu_phi[2]
-                    avgsq[8] += nu_phi[2]**2
                     for k in range(n_s):
                         nlw_pop[k] += 1
                         np_avg[k] += n_p[k + 1]
@@ -167,10 +170,8 @@ if __name__ == "__main__":
                 running_avgsq[gen] = avgsq
                 np_avg = np.divide(np_avg, nlw_pop, where=nlw_pop > 0.0)
                 lp_avg = np.divide(lp_avg, nlw_pop, where=nlw_pop > 0.0)
-                w_avg = np.divide(w_avg, nlw_pop, where=nlw_pop > 0.0)
                 np_avgsq = np.divide(np_avgsq, nlw_pop, where=nlw_pop > 0.0)
                 lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
-                w_avgsq = np.divide(w_avgsq, nlw_pop, where=nlw_pop > 0.0)
 
                 if (gen % constants.hist_snapshot == 0):
                     stats.hist(population, gen, run, ts)
@@ -178,14 +179,13 @@ if __name__ == "__main__":
                 print("Generation {:4d}: ".format(gen))
                 print("================")
                 print(f"<ν_e>     = {avgs[0]:10.4n}\t<ν_e^2>       = {avgsq[0]:10.4n}\tσ = {std_dev[0]:10.4n}")
-                print(f"<φ_f>     = {avgs[1]:10.4n}\t<φ_f^2>       = {avgsq[1]:10.4n}\tσ = {std_dev[1]:10.4n}")
-                print(f"<φ_f ν_e> = {avgs[2]:10.4n}\t<(φ_f ν_e)^2> = {avgsq[2]:10.4n}\tσ = {std_dev[2]:10.4n}")
-                print(f"<n_p>     = {avgs[3]:10.4n}\t<n_p^2>       = {avgsq[3]:10.4n}\tσ = {std_dev[3]:10.4n}")
-                print(f"<λ_p>     = {avgs[4]:10.4n}\t<λ_p^2>       = {avgsq[4]:10.4n}\tσ = {std_dev[4]:10.4n}")
-                print(f"<w>       = {avgs[5]:10.4n}\t<w^2>         = {avgsq[5]:10.4n}\tσ = {std_dev[5]:10.4n}")
+                print(f"<φ_e()>     = {avgs[1]:10.4n}\t<φ_e()^2>       = {avgsq[1]:10.4n}\tσ = {std_dev[1]:10.4n}")
+                print(f"<φ_e> = {avgs[2]:10.4n}\t<φ_e^2> = {avgsq[2]:10.4n}\tσ = {std_dev[2]:10.4n}")
+                print(f"<φ_e ν_e>     = {avgs[3]:10.4n}\t<φ_e ν_e^2>       = {avgsq[3]:10.4n}\tσ = {std_dev[3]:10.4n}")
+                print(f"<n_p>     = {avgs[4]:10.4n}\t<n_p^2>       = {avgsq[4]:10.4n}\tσ = {std_dev[4]:10.4n}")
+                print(f"<λ_p>     = {avgs[5]:10.4n}\t<λ_p^2>       = {avgsq[5]:10.4n}\tσ = {std_dev[5]:10.4n}")
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")
                 print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
-                print(f"<n_eq>    = {avgs[8]:10.4n}\t<n_eq^2>      = {avgsq[8]:10.4n}\tσ = {std_dev[8]:10.4n}")
 
                 survivors, best = ga.selection(rng, population)
                 avg_nb_surv = np.sum(np.array([s.n_b
