@@ -151,6 +151,54 @@ dG(double l1, double l2, double n, double t)
 }
 
 void
+get_nu_phi(double *k, double *n_eq, double *nu_phi,
+    double *k_params, unsigned n1, unsigned n2)
+{
+  /* this is very ugly, honestly. but we have to do this twice,
+   * once for normal light intensity and then again at very low
+   * intensity to get the "true" efficiency, so I just wrapped it
+   */
+  gsl_vector *b = gsl_vector_calloc(n1);
+  gsl_vector *x = gsl_vector_calloc(n1);
+  gsl_vector *work = gsl_vector_calloc(n2);
+  gsl_matrix *T = gsl_matrix_calloc(n2, n2);
+
+  gsl_vector_set(b, n1 - 1, 1.0);
+  gsl_matrix_view km = gsl_matrix_view_array(k, n1, n2);
+  gsl_linalg_QR_decomp_r(&km.matrix, T);
+  gsl_linalg_QR_lssolve_r(&km.matrix, T, b, x, work);
+
+  for (unsigned i = 0; i < n2 / 2; i++) {
+    n_eq[0] += gsl_vector_get(x, 2 * i + 1);
+    if (i > 0) {
+      n_eq[i] = gsl_vector_get(x, 2 * i) + gsl_vector_get(x, (2 * i) + 1);
+    }
+  }
+  if (isnan(n_eq[0])) {
+    /* 
+     * this shouldn't happen - if it does, something's gone wrong
+     * earlier on somewhere, and it'll ruin the running averages in
+     * the Python code. raise the SIGABRT to make it easier to debug
+     */
+    printf("NAN DETECTED\n");
+    raise(SIGABRT);
+  }
+
+  nu_phi[0] = k_params[2] * n_eq[0];
+  double sum_rate = 0.0;
+  /* is this right? i think the indexing's correct */
+  for (unsigned i = 1; i < n2 / 2; i++) {
+    sum_rate += k_params[0] * n_eq[i];
+  }
+  nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
+
+  gsl_vector_free(b);
+  gsl_vector_free(x);
+  gsl_vector_free(work);
+  gsl_matrix_free(T);
+}
+
+void
 antenna(double *l, double *ip_y, double sigma, double k_params[5],
             double t, unsigned *n_p, double *lp, char **names,
             unsigned n_b, unsigned n_s, unsigned l_len,
@@ -167,18 +215,13 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
 
   char pigment_file[] = "pigments/pigment_data.csv";
 
-  gsl_vector *gamma = gsl_vector_calloc(side);
-  gsl_permutation *perm = gsl_permutation_calloc(side);
-  gsl_vector *n_eq_gsl = gsl_vector_calloc(side);
-  int signum;
-
   double*  k_b   = calloc(2 * n_s, sizeof(double));
   double*  g     = calloc(n_s, sizeof(double));
   double*  fp_y  = calloc(l_len, sizeof(double));
   double** lines = calloc(n_s + 1, sizeof(double*));
-  double** twa   = calloc(side, sizeof(double*));
-  for (unsigned i = 0; i < side; i++) {
-    twa[i]   = calloc(side,  sizeof(double));
+  double** twa   = calloc(2 * side, sizeof(double*));
+  for (unsigned i = 0; i < 2 * side; i++) {
+    twa[i]   = calloc(2 * side,  sizeof(double));
     if (i < n_s + 1) {
       lines[i] = calloc(l_len, sizeof(double));
     }
@@ -221,10 +264,6 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
        * then subtract 1 to get back to correct indexing on g.
        */
       g[i - 1] = n_p[i] * sigma * overlap(l, fp_y, lines[i], l_len);
-      for (unsigned j = 2; j < side; j = j + n_s) {
-        /* j is the set of start indices for each branch */
-        gsl_vector_set(gamma, i - 1 + j, -1.0 * g[i - 1]);
-      }
     }
   }
 
@@ -252,37 +291,8 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
     }
   }
 
-  twa[1][0] = k_params[1]; /* k_trap */
-  for (unsigned j = 2; j < side; j = j + n_s) {
-    twa[1][j] = k_b[0]; /* RC -> LHC[0] */
-    twa[j][1] = k_b[1]; /* RC <- LHC[0] */
-    for (unsigned i = 0; i < n_s; i++) {
-      if (i > 0) {
-        twa[(i + j)][(i + j - 1)] = k_b[(2 * i) + 1];
-      }
-      if (i < (n_s - 1)) {
-        twa[(i + j)][(i + j + 1)] = k_b[2 * (i + 1)];
-      }
-    }
-  }
-
-  /* now construct k */
-  double* kd = calloc(side * side, sizeof(double));
-  kd[0] -= k_params[2]; /* k_con */
-  for (unsigned i = 0; i < side; i++) {
-    if (i >= 2) {
-      kd[(i * side) + i] -= k_params[0]; /* k_diss */
-    }
-    for (unsigned j = 0; j < side; j++) {
-      if (i != j) {
-        kd[(i * side) + j]  = twa[j][i];
-        kd[(i * side) + i] -= twa[i][j];
-      }
-    }
-  }
-
   /*
-   * SATURATING RC CODE - NOT TESTED YET
+   * SATURATING RC CODE
    * new indexing convention:
    *
    * denote a config using occupancy numbers (n_s, n_RC, n_trap);
@@ -304,90 +314,95 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
    * hopefully with comments this is parsable :)
    */
 
-  double **new = calloc(2 * side, sizeof(double));
-  double **new2 = calloc(2 * side + 1, sizeof(double));
-  for (unsigned i = 0; i < 2 * side + 1; i++) {
-    if (i < 2 * side) {
-      new[i] = calloc(2 * side, sizeof(double));
-    }
-    new2[i] = calloc(2 * side, sizeof(double));
-  }
-  new[1][0] = k_params[2]; /* 0 0 1 -> 0 0 0 (k_con) */
-  new[2][0] = k_params[0]; /* 0 1 0 -> 0 0 0 (k_diss) */
-  new[2][1] = k_params[1]; /* 0 1 0 -> 0 0 1 (k_trap) */
-  new[3][1] = k_params[0]; /* 0 1 1 -> 0 0 1 */
-  new[3][2] = k_params[2]; /* 0 1 1 -> 0 1 0 */
+  twa[1][0] = k_params[2]; /* 0 0 1 -> 0 0 0 (k_con) */
+  twa[2][0] = k_params[0]; /* 0 1 0 -> 0 0 0 (k_diss) */
+  twa[2][1] = k_params[1]; /* 0 1 0 -> 0 0 1 (k_trap) */
+  twa[3][1] = k_params[0]; /* 0 1 1 -> 0 0 1 */
+  twa[3][2] = k_params[2]; /* 0 1 1 -> 0 1 0 */
   for (unsigned j = 4; j < 2 * side; j = j + 2 * n_s) {
     /* two pairs of RC <-> rates at the bottom of each branch */
-    new[2][j]     = k_b[0]; /* 0 1 0   -> 1_i 0 0 */
-    new[j][2]     = k_b[1]; /* 1_i 0 0 -> 0 1 0 */
-    new[3][j + 1] = k_b[0]; /* 0 1 1   -> 1_i 0 1 */
-    new[j + 1][3] = k_b[1]; /* 1_i 0 1 -> 0 1 1 */
+    twa[2][j]     = k_b[0]; /* 0 1 0   -> 1_i 0 0 */
+    twa[j][2]     = k_b[1]; /* 1_i 0 0 -> 0 1 0 */
+    twa[3][j + 1] = k_b[0]; /* 0 1 1   -> 1_i 0 1 */
+    twa[j + 1][3] = k_b[1]; /* 1_i 0 1 -> 0 1 1 */
     for (unsigned i = 0; i < n_s; i++) {
       unsigned ind = j + (2 * i);
-      new[ind][0]       = k_params[0]; /* 1_i 0 0 -> 0 0 0 */
-      new[ind + 1][1]   = k_params[0]; /* 1_i 0 1 -> 0 0 1 */
-      new[ind + 1][ind] = k_params[2]; /* 1_i 0 1 -> 1_i 0 0 */
+      twa[ind][0]       = k_params[0]; /* 1_i 0 0 -> 0 0 0 */
+      twa[ind + 1][1]   = k_params[0]; /* 1_i 0 1 -> 0 0 1 */
+      twa[ind + 1][ind] = k_params[2]; /* 1_i 0 1 -> 1_i 0 0 */
       if (i > 0) { /* pair of backward transfers down the branch */
-        new[ind][ind - 2]     = k_b[(2 * i) + 1]; /* empty trap */
-        new[ind + 1][ind - 1] = k_b[(2 * i) + 1]; /* full trap */
+        twa[ind][ind - 2]     = k_b[(2 * i) + 1]; /* empty trap */
+        twa[ind + 1][ind - 1] = k_b[(2 * i) + 1]; /* full trap */
       }
       if (i < (n_s - 1)) { /* pair of forward transfers */
-        new[ind][ind + 2]     = k_b[2 * (i + 1)]; /* empty */
-        new[ind + 1][ind + 3] = k_b[2 * (i + 1)]; /* full */
+        twa[ind][ind + 2]     = k_b[2 * (i + 1)]; /* empty */
+        twa[ind + 1][ind + 3] = k_b[2 * (i + 1)]; /* full */
       }
-      new[0][ind]     = g[i]; /* 0 0 0 -> 1_i 0 0 */
-      new[1][ind + 1] = g[i]; /* 0 0 1 -> 1_i 0 1 */
+      twa[0][ind]     = g[i]; /* 0 0 0 -> 1_i 0 0 */
+      twa[1][ind + 1] = g[i]; /* 0 0 1 -> 1_i 0 1 */
     }
   }
 
+  double *kd = calloc((2 * side + 1) * 2 * side, sizeof(double));
   for (unsigned i = 0; i < 2 * side; i++) {
     for (unsigned j = 0; j < 2 * side; j++) {
       if (i != j) {
-        new2[i][j]  = new[j][i];
-        new2[i][i] -= new[i][j];
+        kd[(2 * side) * i + j]  = twa[j][i];
+        kd[(2 * side) * i + i] -= twa[i][j];
       }
     }
+    kd[((2 * side) * (2 * side)) + i] = 1.0;
   }
+
+  get_nu_phi(kd, n_eq, nu_phi, k_params, 2 * side + 1, 2 * side);
+  
+  /* now do it again in the limit of low light intensity:
+   * nu_phi[1] is phi_e(gamma) i.e. at high intensity,
+   * nu_phi[2] will be phi_e i.e. low intensity
+   */
+  double gamma_sum = 0.0;
+  double norm_fac = 1e-6;
+  for (unsigned i = 0; i < n_s; i++) {
+    gamma_sum += g[i];
+  }
+  for (unsigned i = 0; i < n_s; i++) {
+    g[i] *= norm_fac / gamma_sum;
+  }
+  for (unsigned j = 4; j < 2 * side; j = j + 2 * n_s) {
+    for (unsigned i = 0; i < n_s; i++) {
+      unsigned ind = j + (2 * i);
+      twa[0][ind]     = g[i];
+      twa[1][ind + 1] = g[i];
+    }
+  }
+
+  /* in theory it should be possible to just change kd directly
+   * without looping over twa and then doing this. but in practice
+   * i couldn't get it to work? unsure why. so just do it this way */
   for (unsigned i = 0; i < 2 * side; i++) {
-    new2[2 * side][i] = 1.0;
+    for (unsigned j = 0; j < 2 * side; j++) {
+      if (i != j) {
+        kd[(2 * side) * i + j]  = twa[j][i];
+        kd[(2 * side) * i + i] -= twa[i][j];
+      }
+    }
+    kd[((2 * side) * (2 * side)) + i] = 1.0;
   }
 
-  gsl_matrix_view k = gsl_matrix_view_array(kd, side, side);
-  gsl_linalg_LU_decomp(&k.matrix, perm, &signum);
-  gsl_linalg_LU_solve(&k.matrix, perm, gamma, n_eq_gsl);
-  for (unsigned i = 0; i < side; i++) {
-    n_eq[i] = gsl_vector_get(n_eq_gsl, i);
-  }
+  double *n_eq_low = calloc(side, sizeof(double));
+  double *nu_phi_low = calloc(2, sizeof(double));
+  get_nu_phi(kd, n_eq_low, nu_phi_low, k_params, 2 * side + 1, 2 * side);
+  nu_phi[2] = nu_phi_low[1];
 
-  if (isnan(n_eq[0])) {
-    /* 
-     * this shouldn't happen - if it does, something's gone wrong
-     * earlier on somewhere, and it'll ruin the running averages in
-     * the Python code. raise the SIGABRT to make it easier to debug
-     */
-    printf("NAN DETECTED\n");
-    raise(SIGABRT);
-  }
-  nu_phi[0] = k_params[2] * n_eq[0];
-  double sum_rate = 0.0;
-  nu_phi[2] = 0.0; /* should already be. but just in case */
-  for (unsigned i = 2; i < side; i++) {
-    sum_rate += k_params[0] * n_eq[i];
-    nu_phi[2] += n_eq[i];
-  }
-  nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
-
-  for (unsigned i = 0; i < side; i++) {
+  for (unsigned i = 0; i < 2 * side; i++) {
     free(twa[i]);
     if (i < n_s + 1) {
       free(lines[i]);
     }
   }
 
-  gsl_vector_free(gamma);
-  gsl_vector_free(n_eq_gsl);
-  gsl_permutation_free(perm);
+  free(n_eq_low);
+  free(nu_phi_low);
   free(k_b);
   free(twa);
   free(g);
@@ -400,8 +415,8 @@ int
 main(int argc, char **argv)
 {
   unsigned l_len = 4400;
-  unsigned n_s = 5;
-  unsigned n_b = 2;
+  unsigned n_s = 4;
+  unsigned n_b = 3;
   unsigned side = (n_b * n_s) + 2;
   FILE *fp = fopen("PHOENIX/Scaled_Spectrum_PHOENIX_2300K.dat", "r");
   char line[100];
@@ -416,17 +431,18 @@ main(int argc, char **argv)
   double k_params[5] = {1.0/4.0e-9, 1.0/5.0e-12,
     1.0/10.0e-3, 1.0/10.0e-12, 1.0/10.0e-12};
   double t = 300.0;
-  unsigned *n_p = calloc(n_s + 1, sizeof(unsigned));
-  double *lp = calloc(n_s + 1, sizeof(double));
-  char *names[] = {"rc", "bchl_a", "chl_a", "chl_d", "r_pe", "chl_b"};
+  unsigned n_p[5] = {1, 50, 50, 50, 50};
+  double lp[5] = {680.0, 660.0, 650.0, 640.0, 630.0};
+  char *names[] = {"rc", "bchl_a", "chl_a", "chl_d", "r_pe"};
   double *n_eq = calloc(side, sizeof(double));
   double *nu_phi = calloc(3, sizeof(double));
   antenna(l, ip_y, sigma, k_params, t, n_p, lp, names, n_b, n_s, l_len,
             n_eq, nu_phi, 0);
+  printf("nu_e = %10.6f\n", nu_phi[0]);
+  printf("phi_e_g = %10.6f\n", nu_phi[1]);
+  printf("phi_e = %10.6f\n", nu_phi[2]);
   free(n_eq);
   free(nu_phi);
-  free(n_p);
-  free(lp);
   free(l);
   free(ip_y);
   return 0;
