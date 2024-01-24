@@ -159,19 +159,24 @@ get_nu_phi(double *k, double *n_eq, double *nu_phi,
    * intensity to get the "true" efficiency, so I just wrapped it
    */
   gsl_vector *b = gsl_vector_calloc(n1);
-  gsl_vector *x = gsl_vector_calloc(n1);
+  gsl_vector *x = gsl_vector_calloc(n2);
   gsl_vector *work = gsl_vector_calloc(n2);
-  gsl_matrix *T = gsl_matrix_calloc(n2, n2);
+  gsl_matrix *V = gsl_matrix_calloc(n2, n2);
+  gsl_vector *s = gsl_vector_calloc(n2);
 
   gsl_vector_set(b, n1 - 1, 1.0);
   gsl_matrix_view km = gsl_matrix_view_array(k, n1, n2);
-  gsl_linalg_QR_decomp_r(&km.matrix, T);
-  gsl_linalg_QR_lssolve_r(&km.matrix, T, b, x, work);
+  gsl_linalg_SV_decomp(&km.matrix, V, s, work);
+  gsl_linalg_SV_solve(&km.matrix, V, s, b, x);
 
   for (unsigned i = 0; i < n2 / 2; i++) {
     n_eq[0] += gsl_vector_get(x, 2 * i + 1);
     if (i > 0) {
       n_eq[i] = gsl_vector_get(x, 2 * i) + gsl_vector_get(x, (2 * i) + 1);
+    }
+    if (n_eq[i] < 0.0) {
+      printf("%4d %10.8e %10.8e\n", i, gsl_vector_get(x, 2*i),
+          gsl_vector_get(x, (2*i)+1));
     }
   }
   if (isnan(n_eq[0])) {
@@ -195,7 +200,8 @@ get_nu_phi(double *k, double *n_eq, double *nu_phi,
   gsl_vector_free(b);
   gsl_vector_free(x);
   gsl_vector_free(work);
-  gsl_matrix_free(T);
+  gsl_matrix_free(V);
+  gsl_vector_free(s);
 }
 
 void
@@ -361,7 +367,7 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
    * nu_phi[2] will be phi_e i.e. low intensity
    */
   double gamma_sum = 0.0;
-  double norm_fac = 1e-6;
+  double norm_fac = 1e-2;
   for (unsigned i = 0; i < n_s; i++) {
     gamma_sum += g[i];
   }
@@ -393,6 +399,13 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   double *nu_phi_low = calloc(2, sizeof(double));
   get_nu_phi(kd, n_eq_low, nu_phi_low, k_params, 2 * side + 1, 2 * side);
   nu_phi[2] = nu_phi_low[1];
+  if (nu_phi[2] < 0.0) {
+    for (unsigned i = 0; i < side; i++) {
+      printf("phi_e < 0!!");
+      printf("%4d %10.8e\n", i, n_eq_low[i]);
+    }
+    raise(SIGABRT);
+  }
 
   for (unsigned i = 0; i < 2 * side; i++) {
     free(twa[i]);

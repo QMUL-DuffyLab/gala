@@ -12,6 +12,8 @@ from scipy.constants import Boltzmann as kB
 from dataclasses import dataclass, fields
 import constants
 
+hcnm = (h * c) / (1.0E-9)
+
 @dataclass()
 class genome:
     n_b: int = 0
@@ -43,7 +45,7 @@ def overlap(l, f1, f2):
     return np.trapz(f1 * f2, l)
 
 def dG(l1, l2, n, T):
-    h12 = (h * c / 1.0E-9) * ((l1 - l2) / (l1 * l2))
+    h12 = hcnm * ((l1 - l2) / (l1 * l2))
     s12 = -kB * np.log(n)
     return h12 - (s12 * T)
 
@@ -54,10 +56,10 @@ def antenna(l, ip_y, p):
     is given at the bottom in the name = main section
     '''
     n_s = p.n_s - 1 # rc included
-    fp_y = (ip_y * l) * (1.0E-9 / (h * c))
+    fp_y = (ip_y * l) / hcnm
     lines = np.zeros((p.n_s, len(l)))
-    gamma = np.zeros(n_s)
-    k_b = np.zeros(2 * n_s)
+    gamma = np.zeros(n_s, dtype=np.float64)
+    k_b = np.zeros(2 * n_s, dtype=np.float64)
     for i in range(p.n_s):
         lines[i] = gauss(l, p.lp[i], p.w[i])
         if i > 0:
@@ -81,11 +83,11 @@ def antenna(l, ip_y, p):
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
 
     side = (p.n_b * n_s) + 2
-    twa = np.zeros((2 * side, 2 * side), dtype=np.float64)
+    twa = np.zeros((2 * side, 2 * side), dtype=np.longdouble)
     k = np.zeros(((2 * side) + 1, 2 * side), dtype=np.float64)
-    twa[1][0] = constants.k_con
-    twa[2][0] = constants.k_diss
-    twa[2][1] = constants.k_trap
+    twa[1][0] = constants.k_con # 1e+2
+    twa[2][0] = constants.k_diss # 2.5e+8
+    twa[2][1] = constants.k_trap # 2e+11
     twa[3][1] = constants.k_diss
     twa[3][2] = constants.k_con
     for j in range(4, 2 * side, 2 * n_s):
@@ -111,13 +113,16 @@ def antenna(l, ip_y, p):
     for i in range(2 * side):
         for j in range(2 * side):
             if (i != j):
-                k[i][j]      = twa[j][i]
-                k[i][i]     -= twa[i][j]
+                k[i][j]      = twa[i][j]
+                k[i][i] -= k[i][j]
         # add a row for the probability constraint
         k[2 * side][i] = 1.0
+
+    np.savetxt("out/sat_rc_kmat.dat", k, fmt="%8.6e")
     b = np.zeros((2 * side) + 1, dtype=np.float64)
     b[-1] = 1.0
     p_eq, p_eq_res, rank, s = np.linalg.lstsq(k, b, rcond=None)
+    print(rank, s)
     n_eq = np.zeros(side, dtype=np.float64)
     for i in range(side):
         n_eq[0] += p_eq[(2 * i) + 1] # P(1_i, 1)
@@ -129,23 +134,33 @@ def antenna(l, ip_y, p):
     # efficiency
     k_phi = np.zeros_like(k)
     gamma_sum = np.sum(gamma)
-    norm_fac = 1e-6
+    norm_fac = 1e-4
     gamma_norm = norm_fac * gamma / (gamma_sum)
     for j in range(4, 2 * side, 2 * n_s):
         for i in range(n_s):
             ind = j + (2 * i)
             twa[0][ind]     = gamma_norm[i]
             twa[1][ind + 1] = gamma_norm[i]
+
     for i in range(2 * side):
+        ks = 0.0
         for j in range(2 * side):
             if (i != j):
-                k_phi[i][j]      = twa[j][i]
-                k_phi[i][i]     -= twa[i][j]
+                k_phi[i][j]  = twa[i][j]
+                k_phi[i][i] -= k_phi[i][j]
         k_phi[2 * side][i] = 1.0
+
+    np.savetxt("out/sat_rc_kphi.dat", k_phi, fmt="%20.16e")
 
     b[:] = 0.0
     b[-1] = 1.0
     p_eq_low, p_eq_res_low, rank, s = np.linalg.lstsq(k_phi, b, rcond=None)
+    print(k_phi @ p_eq_low, np.sum(p_eq_low))
+    print(s)
+    if np.any(p_eq_low < 0.0):
+        print("negative probabilities!")
+        print(p_eq_low)
+
     n_eq_low = np.zeros(side, dtype=np.float64)
     for i in range(side):
         n_eq_low[0] += p_eq_low[(2 * i) + 1]
@@ -179,7 +194,7 @@ if __name__ == '__main__':
 
     # note that n_p, lp and w include the RC as the first element!
     # this is just so i can generate everything in one set of loops
-    n_b = 6
+    n_b = 2
     n_p = [1, 100, 100, 100, 100]
     lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
     w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
