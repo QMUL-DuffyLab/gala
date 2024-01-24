@@ -174,10 +174,10 @@ get_nu_phi(double *k, double *n_eq, double *nu_phi,
     if (i > 0) {
       n_eq[i] = gsl_vector_get(x, 2 * i) + gsl_vector_get(x, (2 * i) + 1);
     }
-    if (n_eq[i] < 0.0) {
-      printf("%4d %10.8e %10.8e\n", i, gsl_vector_get(x, 2*i),
-          gsl_vector_get(x, (2*i)+1));
-    }
+    /* if (n_eq[i] < 0.0) { */
+    /*   printf("%4d %10.8e %10.8e\n", i, gsl_vector_get(x, 2*i), */
+    /*       gsl_vector_get(x, (2*i)+1)); */
+    /* } */
   }
   if (isnan(n_eq[0])) {
     /* 
@@ -399,12 +399,13 @@ antenna(double *l, double *ip_y, double sigma, double k_params[5],
   double *nu_phi_low = calloc(2, sizeof(double));
   get_nu_phi(kd, n_eq_low, nu_phi_low, k_params, 2 * side + 1, 2 * side);
   nu_phi[2] = nu_phi_low[1];
+  printf("%10.8e %10.8e %10.8e\n", nu_phi[0], nu_phi[1], nu_phi[2]);
   if (nu_phi[2] < 0.0) {
     for (unsigned i = 0; i < side; i++) {
       printf("phi_e < 0!!");
       printf("%4d %10.8e\n", i, n_eq_low[i]);
     }
-    raise(SIGABRT);
+    /* raise(SIGABRT); */
   }
 
   for (unsigned i = 0; i < 2 * side; i++) {

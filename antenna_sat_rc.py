@@ -110,19 +110,27 @@ def antenna(l, ip_y, p):
             twa[0][ind]     = gamma[i] # 0 0 0 -> 1_i 0 0
             twa[1][ind + 1] = gamma[i] # 0 0 1 -> 1_i 0 1
 
+    ksum = np.zeros(2 * side, dtype=np.float64)
     for i in range(2 * side):
         for j in range(2 * side):
             if (i != j):
-                k[i][j]      = twa[i][j]
-                k[i][i] -= k[i][j]
+                k[i][j]      = twa[j][i]
+                k[i][i]     -= twa[i][j]
+        ksum[i] = np.sum(k[:, i])
         # add a row for the probability constraint
         k[2 * side][i] = 1.0
+
+    for i in range( 2 * side):
+        if ksum[i] > 0.0:
+            print(i, ksum[i], k[:, i])
 
     np.savetxt("out/sat_rc_kmat.dat", k, fmt="%8.6e")
     b = np.zeros((2 * side) + 1, dtype=np.float64)
     b[-1] = 1.0
     p_eq, p_eq_res, rank, s = np.linalg.lstsq(k, b, rcond=None)
-    print(rank, s)
+    print(b.shape, p_eq.shape)
+    print("p_eq = ", p_eq)
+    print(k @ p_eq)
     n_eq = np.zeros(side, dtype=np.float64)
     for i in range(side):
         n_eq[0] += p_eq[(2 * i) + 1] # P(1_i, 1)
@@ -146,8 +154,8 @@ def antenna(l, ip_y, p):
         ks = 0.0
         for j in range(2 * side):
             if (i != j):
-                k_phi[i][j]  = twa[i][j]
-                k_phi[i][i] -= k_phi[i][j]
+                k_phi[i][j]  = twa[j][i]
+                k_phi[i][i] -= twa[i][j]
         k_phi[2 * side][i] = 1.0
 
     np.savetxt("out/sat_rc_kphi.dat", k_phi, fmt="%20.16e")
@@ -155,8 +163,7 @@ def antenna(l, ip_y, p):
     b[:] = 0.0
     b[-1] = 1.0
     p_eq_low, p_eq_res_low, rank, s = np.linalg.lstsq(k_phi, b, rcond=None)
-    print(k_phi @ p_eq_low, np.sum(p_eq_low))
-    print(s)
+    print("p_eq_low = ", p_eq_low)
     if np.any(p_eq_low < 0.0):
         print("negative probabilities!")
         print(p_eq_low)
@@ -182,7 +189,7 @@ def antenna(l, ip_y, p):
             'P_eq_residuals_low': p_eq_res_low,
             'gamma': gamma,
             'gamma_total': np.sum(gamma),
-            'K_mat': k,
+            # 'K_mat': k,
             }
     return od
 
