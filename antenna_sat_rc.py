@@ -110,12 +110,16 @@ def antenna(l, ip_y, p):
             twa[0][ind]     = gamma[i] # 0 0 0 -> 1_i 0 0
             twa[1][ind + 1] = gamma[i] # 0 0 1 -> 1_i 0 1
 
+    print(twa)
     ksum = np.zeros(2 * side, dtype=np.float64)
+    ksq = np.zeros((2 * side, 2 * side), dtype=np.float64)
     for i in range(2 * side):
         for j in range(2 * side):
             if (i != j):
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
+                ksq[i][j]      = twa[j][i]
+                ksq[i][i]     -= twa[i][j]
         ksum[i] = np.sum(k[:, i])
         # add a row for the probability constraint
         k[2 * side][i] = 1.0
@@ -128,6 +132,8 @@ def antenna(l, ip_y, p):
     b = np.zeros((2 * side) + 1, dtype=np.float64)
     b[-1] = 1.0
     p_eq, p_eq_res, rank, s = np.linalg.lstsq(k, b, rcond=None)
+    kinv = np.linalg.inv(ksq)
+    print("K inverse:", kinv)
     print(b.shape, p_eq.shape)
     print("p_eq = ", p_eq)
     print(k @ p_eq)
@@ -202,9 +208,12 @@ if __name__ == '__main__':
     # note that n_p, lp and w include the RC as the first element!
     # this is just so i can generate everything in one set of loops
     n_b = 2
-    n_p = [1, 100, 100, 100, 100]
-    lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
-    w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
+    # n_p = [1, 100, 100, 100, 100]
+    # lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
+    # w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
+    n_p = [1, 137]
+    lp = [constants.lp_rc, 1300.0]
+    w = [constants.w_rc, 13.3]
     n_s = len(n_p)
     test = genome(n_b, n_s, n_p, lp, w)
 
