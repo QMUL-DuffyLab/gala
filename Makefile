@@ -2,7 +2,7 @@ SHELL = /bin/sh
 CC    = gcc
 FLAGS = -std=c11
 CFLAGS = -fPIC -Wall -Werror -pedantic
-LDFLAGS = -shared -lm -lgsl -lgslcblas
+LDFLAGS = -shared -lm -lgsl -lgslcblas -ltsnnls
 DEBUGFLAGS = -g -g3 -O0 -ggdb3
 RELEASEFLAGS = -O2
 

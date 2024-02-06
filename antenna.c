@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <math.h>
 #include <gsl/gsl_linalg.h>
+#include "/usr/local/include/libtsnnls/tsnnls.h"
 
 /* various constants */
 
@@ -200,6 +201,26 @@ get_nu_phi(double *k, double *n_eq, double *nu_phi,
   }
   nu_phi[1] = nu_phi[0] / (nu_phi[0] + sum_rate);
 
+  taucs_ccs_matrix *mat = taucs_construct_sorted_ccs_matrix(
+      k, n2, n1);
+  double out_res = 0.0;
+  taucs_double *bd = calloc(n1, sizeof(double));
+  bd[n1 - 1] = 1.0;
+  taucs_double *res = t_snnls(mat, bd, &out_res, -1.0, 1);
+  printf("TSNNLS run. result:\n");
+  if (res) {
+    for (unsigned i = 0; i < n2; i++) {
+      printf("%6.4g\n", res[i]);
+    }
+  } else {
+    printf("TSNNLS shat itself :) setting stuff to 0\n");
+    nu_phi[0] = 0.0;
+    nu_phi[1] = 0.0;
+    nu_phi[2] = 0.0;
+  }
+
+  free(bd);
+  if (res) free(res);
   gsl_vector_free(b);
   gsl_vector_free(x);
   gsl_vector_free(work);

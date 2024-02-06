@@ -35,40 +35,46 @@ assign_linear_slice(double *slice, double **A, int *slice_size,
 }
 
 int
-construct_householder(double *u, double up, unsigned n)
+construct_householder(double *u, int ui, int n, double up)
 {
   double cl = 0.0;
   for (unsigned i = 0; i < n; i++) {
-    cl = (u[i] > cl) ? u[i] : cl;
+    cl = (u[ui + i] > cl) ? u[ui + i] : cl;
   }
-  assert(cl > 0.0);
+  if (cl < 0.0) {
+    printf("what's happened here then. ui = %d, cl = %g\n", ui, cl);
+    for (unsigned i = 0; i < n; i++) {
+      printf("u[ui + %d] = %g\n", i, u[ui + i]);
+    }
+  }
   double cli = 1.0 / cl;
   double sm = 0.0;
   for (unsigned i = 0; i < n; i++) {
-    sm += pow((u[i] * cli), 2);
+    sm += pow((u[ui + i] * cli), 2);
   }
   cl *= sqrt(sm);
-  if (u[0] > 0) cl *= -1.0;
-  double res = u[0] - cl;
-  u[0] = cl;
+  if (u[ui] > 0) cl *= -1.0;
+  double res = u[ui] - cl;
+  u[ui] = cl;
   return res; 
 }
 
 void
-apply_householder(double *u, double up, double *c, unsigned n)
+apply_householder(double *u, int ui,
+    double *c, int ci, int n, double up)
 {
   double b = up * u[0];
   if (b >= 0) return;
   b = 1.0 / b;
   double sm = c[0] * up;
   for (unsigned i = 1; i < n; i++) {
-    sm += c[i] * u[i];
+    sm += c[ci + i] * u[ui + i];
   }
   if (sm != 0.0) {
     sm *= b;
     c[0] += sm * up;
     for (unsigned i = 1; i < n; i++) {
-      c[i] += sm * u[i];
+      c[ci + i] += sm * u[ui + i];
     }
   }
 }
@@ -104,7 +110,7 @@ solve_triangular_system(double *zz, double *A, int n, int *idx, int nsetp, int j
   for (unsigned i = 0; i < nsetp; i++) {
     int ip = nsetp - i;
     if (i != 0) {
-      for (unsigned ii = 0; i < ip; ii++) {
+      for (unsigned ii = 0; ii < ip; ii++) {
         zz[ii] -= A[(ii * n) + j] * zz[ip];
       }
     }
@@ -184,7 +190,7 @@ nnls(int m, int n, double *A, double *b, double *x,
     for (;;) {
       /* find largest positive element of w */
       largest_positive_dual(w, idx, iz1, iz2, &wmax, &izmax);
-      if (wmax < 0.0) {
+      if (wmax <= 0.0) {
         terminated = 1;
         break;
       }
@@ -197,19 +203,8 @@ nnls(int m, int n, double *A, double *b, double *x,
       double Asave = A[(nsp * n) + j];
       /* get subset of A - I think this is correct but who knows */
       int xi = nsp * n + j;
-      int xf = m - nsp;
-      int slice_size = xf - xi;
-      /* 
-       * since the slice size will vary I think we just have
-       * to keep malloc'ing here, or allocate a big vector
-       * at the start and just use chunks of it?
-       */
-      double *Aslice = calloc(slice_size, sizeof(double));
-      for (unsigned i = 0; i < slice_size; i++) {
-        Aslice[i] = A[i + xi];
-      }
-      up = construct_householder(Aslice, up, slice_size);
-      free(Aslice);
+      int size = m - nsp;
+      up = construct_householder(A, xi, size, up);
       double unorm = 0.0;
       for (unsigned l = 0; l < nsp; l++) {
         unorm += pow(A[(l * n) + j], 2);
@@ -222,22 +217,14 @@ nnls(int m, int n, double *A, double *b, double *x,
         }
 
         /* 
-         * need to get slices of A and of zz here
-         * this is not correct yet! need to think about indexing more
-         * in fact, maybe I should include the alloc etc in
-         * the householder function to make bookkeeping easier
+         * apply_householder slices the array from xi/xi2
+         * so don't need to worry about malloc'ing slices
+         * and then assigning them back
          */
         xi = nsp * n + j;
-        xf = m - nsp;
-        slice_size = xf - xi;
-        double *Aslice = calloc(slice_size, sizeof(double));
-        xi = nsp;
-        xf = m - nsp;
-        slice_size = xf - xi;
-        double *c = calloc(slice_size, sizeof(double));
-        apply_householder(Aslice, up, c, slice_size);
-        free(Aslice);
-        free(c);
+        size = m - nsp;
+        int xi2 = nsp;
+        apply_householder(A, xi, zz, xi2, size, up);
         double ztest = zz[nsp] / A[(nsp * n) + j];
 
         if (ztest > 0.0) {
@@ -272,16 +259,9 @@ nnls(int m, int n, double *A, double *b, double *x,
       for (unsigned jz = iz1; jz < iz2; jz++) {
         int k = idx[jz];
         int xi = nsp * n + j;
-        int xf = m - nsp;
-        int slice_size = xf - xi;
-        double *As1 = calloc(slice_size, sizeof(double));
-        xi = nsp * n + k;
-        xf = m - nsp;
-        slice_size = xf - xi;
-        double *As2 = calloc(slice_size, sizeof(double));
-        apply_householder(As1, up, As2, slice_size);
-        free(As1);
-        free(As2);
+        int size = m - nsp;
+        int xi2 = nsp * n + k;
+        apply_householder(A, xi, A, xi2, size, up);
       }
     }
 
@@ -298,7 +278,6 @@ nnls(int m, int n, double *A, double *b, double *x,
     /* SECONDARY LOOP */
     for (;;) {
       iter++;
-      printf("iteration %d\n", iter);
       if (iter > MAX_ITER) {
         mode = 3;
         terminated = 1;
@@ -348,7 +327,7 @@ nnls(int m, int n, double *A, double *b, double *x,
         x[imove] = 0;
         if (j != nsp) {
           j++;
-          for (unsigned k = j; j < nsp; k++) {
+          for (unsigned k = j; k < nsp; k++) {
             /* indexing again - julia's 1-based, and ranges are
              * inclusive at both ends, so this probably isn't
              * quite right? maybe one off at one end? */
@@ -393,25 +372,31 @@ nnls(int m, int n, double *A, double *b, double *x,
         }
         if (all_feasible) break;
 
+        printf("all feasible = %d\n", all_feasible);
       } /* for (;;) */
       for (unsigned i = 0; i < n; i++) {
         zz[i] = b[i];
-        j = solve_triangular_system(zz, A, n, idx, nsp, j);
       }
+      j = solve_triangular_system(zz, A, n, idx, nsp, j);
 
     }
 
     if (terminated) break;
     /* end of secondary loop (??) */
 
+    printf("nsp = %d\n", nsp);
     for (unsigned i = 0; i < nsp; i++) {
       x[idx[i]] = zz[i];
+      printf("i, idx[i], x[idx[i]] = %d, %d, %g\n", i, idx[i], x[idx[i]]);
     }
     /* all new cofficients are positive - loop back */
 
   } /* outer for(;;) */
 
   /* end of main loop - termination */
+  for (unsigned i = 0; i < n; i++) {
+    printf("%g\n", x[i]);
+  }
 
   /* compute residual norm */
   double sm = 0.0;
@@ -444,29 +429,46 @@ main(int argc, char** argv)
   double *x = calloc(n, sizeof(double));
   double *res = calloc(n, sizeof(double));
   int *idx = calloc(n, sizeof(int));
-  double *rnorm = NULL;
-  int *nsetp = NULL;
+  double rnorm = 0.0;
+  int nsetp = 0;
   int mode = 0;
-  srand(time(NULL));
+  srand(0);
   clock_t start = clock();
   int n_iter = atoi(argv[1]);
 
   while (i < n_iter) {
-    for (unsigned j = 0; j < n; j++) {
-      x[j] = RANDF();
-      for (unsigned k = 0; k < m; k++) {
+    printf("iteration %d: Ax = \n", i);
+    for (unsigned j = 0; j < m; j++) {
+      if (j < n) x[j] = RANDF();
+      b[j] = 0.0;
+    }
+    for (unsigned j = 0; j < m; j++) {
+      for (unsigned k = 0; k < n; k++) {
         A[(j * n) + k] = RANDF();
+        b[j] += A[(j * n) + k] * x[k];
       }
     }
     for (unsigned j = 0; j < m; j++) {
       for (unsigned k = 0; k < n; k++) {
-        /* matmul - get b */
-        b[j] = A[j * n + k] * x[k];
+        printf("%6.4g ", A[(j * n) + k]);
+      }
+      if (j < n) {
+        printf("\t%6.4g = %6.4g\n", x[j], b[j]);
+      } else {
+        printf("\t\t=%6.4g\n", b[j]);
       }
     }
-    nnls(m, n, A, b, res, idx, rnorm, mode, nsetp);
+    nnls(m, n, A, b, res, idx, &rnorm, mode, &nsetp);
+    printf("Iteration %d finished\n", i);
+    for (unsigned j = 0; j < m; j++) {
+      for (unsigned k = 0; k < n; k++) {
+        printf("%6.4g ", A[(j * n) + k]);
+      }
+        printf("\n");
+    }
     double diff = 0.0;
     for (unsigned j = 0; j < n; j++) {
+      printf("%6.4g \t %6.4g\n", x[j], res[j]);
       diff += fabs(x[j] - res[j]);
     }
     printf("iteration %d - sum of diff = %g\n", i, diff);
@@ -484,6 +486,4 @@ main(int argc, char** argv)
   free(x);
   free(res);
   free(idx);
-  free(rnorm);
-  free(nsetp);
 }

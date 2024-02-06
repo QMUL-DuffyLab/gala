@@ -1,0 +1,20 @@
+gala - Genetic Algorithm for Lattice Antenna
+=
+
+generates a set of random antenna, calculates their electron output, evolves them
+
+currently uses TSNNLS in C to solve the set of equations governing occupation
+probabilities; this was a bit of a nightmare.
+For reference, I got TSNNLS from 
+`https://jasoncantarella.com/downloads/libtsnnls2.3.4.tar.gz`
+first, then `sudo ./configure && make && make install` should work.
+It worked fine on Ubuntu in WSL but did not work at all in Fedora;
+for Fedora I ended up installing OpenBLAS in a separate directory,
+(`https://github.com/OpenMathLib/OpenBLAS`),
+pointing TSNNLS to that BLAS instead, and then I still had to go into
+one of the header files and rename a couple of typedef'd integers
+because it was adamant it couldn't find a 32-bit integer type anywhere.
+Adding `#include <stdint.h>` and typedef'ing the types it wanted to
+`int32_t, uint32_t` fixed it and it compiled fine. Note that if you
+need to do this you'll probably also have to update `LD_LIBRARY_PATH`
+accordingly before it'll actually run.
