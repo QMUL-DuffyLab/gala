@@ -5,7 +5,7 @@
 branched antenna with saturating reaction centre
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
 from scipy.optimize import nnls
@@ -16,22 +16,40 @@ import constants
 hcnm = (h * c) / (1.0E-9)
 
 @dataclass()
-class genome:
+class gaussian_genome:
     n_b: int = 0
     n_s: int = 0
-    n_p: npt.NDArray[np.int64] = np.empty([], dtype=np.int64)
+    n_p: npt.NDArray[np.int32] = np.empty([], dtype=np.int32)
     lp: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
     w: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    pigment: npt.NDArray[np.str_] = np.empty([], dtype='U10')
     nu_e: float = np.nan
     phi_f: float = np.nan
+
+def get_lineshape(l, p, i):
+    '''
+    return the lineshape corresponding to index i of genome p
+    '''
+    if hasattr(p, 'pigment'):
+        # get the set of pigment lineshapes
+        params = constants.pigment_data[p.pigment[i]]
+        lp_offset = p.lp[i] - params['lp'][0]
+        lp = [x + lp_offset for x in params['lp']]
+        g = gauss(l, lp, params['w'], params['amp'])
+    else:
+        # if we're generating gaussians ourselves to stand in for
+        # pigment absorption then at least l_p and width must be defined
+        if hasattr(p, 'amp'): # but maybe not amplitudes
+            g = gauss(l, p.lp[i], p.w[i], p.amp[i])
+        else:
+            g = gauss(l, p.lp[i], p.w[i])
+    return g
 
 def gauss(l, lp, w, a = None):
     '''
     return a gaussian lineshape. if you give it one peak
     it'll use that, if you give it a list of peaks it'll
     add them together. assumes that w and a are arrays
-    of the same length.
+    of the same length as lp.
     '''
     g = np.zeros_like(l)
     if isinstance(lp, float):
@@ -50,11 +68,15 @@ def dG(l1, l2, n, T):
     s12 = -kB * np.log(n)
     return h12 - (s12 * T)
 
-def antenna(l, ip_y, p):
+def antenna(l, ip_y, p, debug=False, test_lstsq=False):
     '''
     branched antenna, saturating RC
-    p should be a genome as defined above; an example
-    is given at the bottom in the name = main section
+    p should be a genome either as defined above or as defined
+    in constants.py (they take different arguments!).
+    an example is given at the bottom in the name = main section
+    set debug = True to output a dict with a load of info in it,
+    set test_lstsq = True to solve with numpy's lstsq in addition
+    to scipy's non-negative least squares solver and output both.
     '''
     n_s = p.n_s - 1 # rc included
     fp_y = (ip_y * l) / hcnm
@@ -62,7 +84,7 @@ def antenna(l, ip_y, p):
     gamma = np.zeros(n_s, dtype=np.float64)
     k_b = np.zeros(2 * n_s, dtype=np.float64)
     for i in range(p.n_s):
-        lines[i] = gauss(l, p.lp[i], p.w[i])
+        lines[i] = get_lineshape(l, p, i)
         if i > 0:
             gamma[i - 1] = (p.n_p[i] * constants.sig_chl *
                             overlap(l, fp_y, lines[i]))
@@ -111,33 +133,25 @@ def antenna(l, ip_y, p):
             twa[0][ind]     = gamma[i] # 0 0 0 -> 1_i 0 0
             twa[1][ind + 1] = gamma[i] # 0 0 1 -> 1_i 0 1
 
-    print("TWA: ", twa)
-    ksum = np.zeros(2 * side, dtype=np.float64)
-    ksq = np.zeros((2 * side, 2 * side), dtype=np.float64)
     for i in range(2 * side):
         for j in range(2 * side):
             if (i != j):
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
-        ksum[i] = np.sum(k[:, i])
         # add a row for the probability constraint
         k[2 * side][i] = 1.0
 
-    for i in range( 2 * side):
-        if ksum[i] > 0.0:
-            print(i, ksum[i], k[:, i])
-
-    np.savetxt("out/sat_rc_kmat.dat", k, fmt="%8.6e")
     b = np.zeros((2 * side) + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res, rank, s = np.linalg.lstsq(k, b, rcond=None)
-    p_eq_nnls, p_eq_res_nnls = nnls(k, b)
+    if test_lstsq:
+        p_eq_lstsq, p_eq_res_lstsq, rank, s = np.linalg.lstsq(k, b, rcond=None)
+    else:
+        p_eq_lstsq = None
+        p_eq_res_lstsq = None
 
-    print("Numpy linalg lstsq:")
-    print(p_eq, k @ p_eq, (k @ p_eq) - b)
-
-    print("Scipy nnls:")
-    print(p_eq_nnls, k @ p_eq_nnls, (k @ p_eq_nnls) - b)
+    p_eq, p_eq_res = nnls(k, b)
+    # print("Scipy nnls:")
+    # print(p_eq, k @ p_eq, (k @ p_eq) - b)
 
     n_eq = np.zeros(side, dtype=np.float64)
     for i in range(side):
@@ -150,8 +164,7 @@ def antenna(l, ip_y, p):
     # efficiency
     k_phi = np.zeros_like(k)
     gamma_sum = np.sum(gamma)
-    norm_fac = 1e-4
-    gamma_norm = norm_fac * gamma / (gamma_sum)
+    gamma_norm = constants.gamma_fac * gamma / (gamma_sum)
     for j in range(4, 2 * side, 2 * n_s):
         for i in range(n_s):
             ind = j + (2 * i)
@@ -166,14 +179,20 @@ def antenna(l, ip_y, p):
                 k_phi[i][i] -= twa[i][j]
         k_phi[2 * side][i] = 1.0
 
-    np.savetxt("out/sat_rc_kphi.dat", k_phi, fmt="%20.16e")
-
     b[:] = 0.0
     b[-1] = 1.0
-    p_eq_low, p_eq_res_low, rank, s = np.linalg.lstsq(k_phi, b, rcond=None)
-    print("p_eq_low = ", p_eq_low)
+
+    if test_lstsq:
+        p_eq_lstsq_low, p_eq_res_lstsq_low, rank, s = np.linalg.lstsq(k_phi,
+                                                            b, rcond=None)
+    else:
+        p_eq_lstsq_low = None
+        p_eq_res_lstsq_low = None
+
+    p_eq_low, p_eq_res_low = nnls(k_phi, b)
+
     if np.any(p_eq_low < 0.0):
-        print("negative probabilities!")
+        print("negative probabilities in p_eq_low!")
         print(p_eq_low)
 
     n_eq_low = np.zeros(side, dtype=np.float64)
@@ -184,22 +203,26 @@ def antenna(l, ip_y, p):
     nu_e_low = constants.k_con * n_eq_low[0]
     phi_e = nu_e_low / (nu_e_low + (constants.k_diss * np.sum(n_eq_low[1:])))
 
-    od = {
-            'nu_e': nu_e,
-            'nu_e_low': nu_e_low,
-            'phi_e_g': phi_e_g,
-            'phi_e': phi_e,
-            'N_eq': n_eq,
-            'N_eq_low': n_eq_low,
-            'P_eq': p_eq,
-            'P_eq_residuals': p_eq_res,
-            'P_eq_low': p_eq_low,
-            'P_eq_residuals_low': p_eq_res_low,
-            'gamma': gamma,
-            'gamma_total': np.sum(gamma),
-            'K_mat': k,
-            }
-    return od
+    if debug:
+        return {
+                'nu_e': nu_e,
+                'nu_e_low': nu_e_low,
+                'phi_e_g': phi_e_g,
+                'phi_e': phi_e,
+                'N_eq': n_eq,
+                'N_eq_low': n_eq_low,
+                'P_eq': p_eq,
+                'P_eq_residuals': p_eq_res,
+                'P_eq_lstsq': p_eq_lstsq,
+                'P_eq_low': p_eq_low,
+                'P_eq_residuals_low': p_eq_res_low,
+                'P_eq_low_lstsq': p_eq_lstsq_low,
+                'gamma': gamma,
+                'gamma_total': np.sum(gamma),
+                'K_mat': k,
+                }
+    else:
+        return np.array([nu_e, phi_e_g, phi_e])
 
 if __name__ == '__main__':
 
@@ -217,7 +240,10 @@ if __name__ == '__main__':
     lp = [constants.lp_rc, 650.0, 660.0, 620.0]
     w = [constants.w_rc, 10.0, 10.0, 10.0]
     n_s = len(n_p)
-    test = genome(n_b, n_s, n_p, lp, w)
+    # uncomment these to use the whole thing with named pigments
+    # pigments = ['rc', 'chl_a', 'chl_b', 'r_pe']
+    # test = constants.genome(n_b, n_s, n_p, lp, w)
+    test = gaussian_genome(n_b, n_s, n_p, lp, w)
 
-    od = antenna(d[:, 0], d[:, 1], test)
+    od = antenna(d[:, 0], d[:, 1], test, True, True)
     print(od)
