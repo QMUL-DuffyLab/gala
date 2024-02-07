@@ -24,9 +24,9 @@ mu_width = 0.25 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05
 hist_snapshot = 50 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-bounds = {'n_b': np.array([1, 12], dtype=np.int),
-          'n_s': np.array([1, 100], dtype=np.int),
-          'n_p': np.array([1, 100], dtype=np.int),
+bounds = {'n_b': np.array([1, 12], dtype=np.int32),
+          'n_s': np.array([1, 100], dtype=np.int32),
+          'n_p': np.array([1, 100], dtype=np.int32),
           'lp': np.array([200.0, 1400.0]),
           'pigment': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
                             "chl_d\x00", "chl_f\x00", "r_apc\x00",
