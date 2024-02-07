@@ -6,7 +6,7 @@
 
 import numpy as np
 import numpy.typing as npt
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field
 
 '''
 General stuff
@@ -23,9 +23,9 @@ mu_width = 0.25 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05
 hist_snapshot = 50 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-bounds = {'n_b': np.array([1, 12], dtype=np.int),
-          'n_s': np.array([1, 100], dtype=np.int),
-          'n_p': np.array([1, 200], dtype=np.int),
+bounds = {'n_b': np.array([1, 12], dtype=np.int32),
+          'n_s': np.array([1, 100], dtype=np.int32),
+          'n_p': np.array([1, 200], dtype=np.int32),
           'lp': np.array([200.0, 1400.0]),
           'pigment': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
                             "chl_d\x00", "chl_f\x00", "r_apc\x00",
@@ -59,9 +59,9 @@ rc_params = (1, lp_rc, w_rc, lp2_rc, w2_rc, a12_rc)
 class genome:
     n_b: int = 0
     n_s: int = 0
-    n_p: npt.NDArray[np.int] = np.empty([], dtype=np.int)
-    lp: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    pigment: npt.NDArray[np.str_] = np.empty([], dtype='U10')
+    n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
+    lp: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
+    pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     nu_e: float = np.nan
     phi_f: float = np.nan
 

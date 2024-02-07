@@ -9,17 +9,17 @@ import numpy as np
 import numpy.typing as npt
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field
 import constants
 
 @dataclass()
 class genome:
     n_b: int = 0
     n_s: int = 0
-    n_p: npt.NDArray[np.int64] = np.empty([], dtype=np.int64)
-    lp: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    w: npt.NDArray[np.float64] = np.empty([], dtype=np.float64)
-    pigment: npt.NDArray[np.str_] = np.empty([], dtype='U10')
+    n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
+    lp: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
+    w: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
+    pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     nu_e: float = np.nan
     phi_f: float = np.nan
 
