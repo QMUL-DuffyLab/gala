@@ -44,6 +44,7 @@ if __name__ == "__main__":
         wsq_prefix  = "out/wsq_{:4d}K".format(ts)
         nlw_pop_prefix = "out/nlw_pop_{:4d}K".format(ts)
         best_prefix  = "out/best_{:4d}K".format(ts)
+        negative_prefix  = "out/neg_{:4d}K".format(ts)
 
         spectrum_file = constants.spectrum_prefix \
                         + '{:4d}K'.format(ts) \
@@ -64,6 +65,7 @@ if __name__ == "__main__":
             avgs_file = avgs_prefix + "_r{:1d}.dat".format(run)
             avgsq_file = avgsq_prefix + "_r{:1d}.dat".format(run)
             best_file = best_prefix + "_r{:1d}.dat".format(run)
+            neg_file = negative_prefix + "_r{:1d}.dat".format(run)
             np_file = np_prefix + "_r{:1d}.dat".format(run)
             npsq_file = npsq_prefix + "_r{:1d}.dat".format(run)
             lp_file = lp_prefix + "_r{:1d}.dat".format(run)
@@ -72,6 +74,9 @@ if __name__ == "__main__":
             wsq_file = wsq_prefix + "_r{:1d}.dat".format(run)
             nlw_pop_file = nlw_pop_prefix + "_r{:1d}.dat".format(run)
             with open(best_file, "w") as f:
+                pass # start a new file
+            f.close()
+            with open(neg_file, "w") as f:
                 pass # start a new file
             f.close()
 
@@ -137,6 +142,11 @@ if __name__ == "__main__":
                     # nu_phi[2] is the limit at low intensity,
                     # which is what we actually want, I think
                     population[j].phi_f = nu_phi[2]
+                    if nu_phi[2] < 0.0:
+                        with open(neg_file, "a") as f:
+                            f.write(str(population[j]))
+                            f.write("\n")
+                        f.close()
                     avgs[0]  += nu_phi[0]
                     avgsq[0] += nu_phi[0]**2
                     avgs[1]  += nu_phi[1]

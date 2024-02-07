@@ -14,6 +14,7 @@ General stuff
 spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
+gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc
 population_size = 1000
 max_gen = 1000
 n_runs = 3
@@ -23,9 +24,9 @@ mu_width = 0.25 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05
 hist_snapshot = 50 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-bounds = {'n_b': np.array([1, 12], dtype=np.int32),
-          'n_s': np.array([1, 100], dtype=np.int32),
-          'n_p': np.array([1, 200], dtype=np.int32),
+bounds = {'n_b': np.array([1, 12], dtype=np.int),
+          'n_s': np.array([1, 100], dtype=np.int),
+          'n_p': np.array([1, 100], dtype=np.int),
           'lp': np.array([200.0, 1400.0]),
           'pigment': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
                             "chl_d\x00", "chl_f\x00", "r_apc\x00",
@@ -67,3 +68,60 @@ class genome:
 
 # radiative genome
 rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array(['chl_a\x00']))
+
+pigment_data = {
+'rc': {
+    'n_gauss': 2,
+    'amp': [1.00e+00, 2.00e-01],
+    'lp': [6.80e+02, 6.40e+02],
+    'w': [9.00e+00, 1.5e+01]
+    },
+'bchl_a': {
+    'n_gauss': 3,
+    'amp': [9.327708e-01, 1.868076e-01, 2.200819e-01],
+    'lp': [7.801765e+02, 7.357920e+02, 6.110172e+02],
+    'w': [1.351709e+01, 3.463805e+01, 1.840540e+01]
+   },
+'chl_a': {
+    'n_gauss': 2,
+    'amp': [8.724538e-01, 2.245409e-01],
+    'lp': [6.661618e+02, 6.250687e+02],
+    'w': [8.878352e+00, 3.685004e+01],
+    },
+'chl_b': {
+    'n_gauss': 3,
+    'amp': [9.138061e-01, 1.695460e-01, 1.633274e-01],
+    'lp': [6.514902e+02, 6.052384e+02, 5.821592e+02],
+    'w': [1.164620e+01, 1.445649e+01, 5.696023e+01],
+    },
+'chl_d': {
+    'n_gauss': 2,
+    'amp': [8.543801e-01, 2.434290e-01],
+    'lp': [6.988473e+02, 6.570787e+02],
+    'w': [1.189424e+01, 4.001474e+01],
+    },
+'chl_f': {
+    'n_gauss': 2,
+    'amp': [8.745562e-01, 1.972934e-01],
+    'lp': [7.094259e+02, 6.666164e+02],
+    'w': [1.332439e+01, 4.319979e+01],
+    },
+'r_apc': {
+    'n_gauss': 2,
+    'amp': [7.133819e-01, 6.393681e-01],
+    'lp': [6.512198e+02, 6.130897e+02],
+    'w': [8.502225e+00, 3.140512e+01],
+    },
+'r_pc': {
+    'n_gauss': 2,
+    'amp': [9.007754e-01, 5.814556e-01],
+    'lp': [6.167174e+02, 5.558603e+02],
+    'w': [1.616777e+01, 3.300788e+01],
+    },
+'r_pe': {
+    'n_gauss': 3,
+    'amp': [6.199999e-01, 9.10000e-01, 6.35000e-01],
+    'lp': [5.67000e+02, 5.37000e+02, 4.95000e+02],
+    'w': [9.000000e+00, 2.200000e+01, 9.199999e+00],
+    },
+}
