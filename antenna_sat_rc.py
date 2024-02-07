@@ -5,16 +5,12 @@
 branched antenna with saturating reaction centre
 """
 
-from dataclasses import dataclass, fields
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
-<<<<<<< HEAD
 from dataclasses import dataclass, field
-=======
 from scipy.optimize import nnls
 import numpy as np
 import numpy.typing as npt
->>>>>>> fd433ca0195519a521eac9bde535215e11b78a37
 import constants
 
 hcnm = (h * c) / (1.0E-9)
