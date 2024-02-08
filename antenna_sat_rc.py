@@ -22,7 +22,7 @@ class gaussian_genome:
     n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
     lp: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
     w: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
-    pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
+    # pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     nu_e: float = np.nan
     phi_f: float = np.nan
 
@@ -233,12 +233,12 @@ if __name__ == '__main__':
 
     # note that n_p, lp and w include the RC as the first element!
     # this is just so i can generate everything in one set of loops
-    n_b = 1
+    n_b = 6
     # n_p = [1, 100, 100, 100, 100]
     # lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
     # w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
-    n_p = [1, 50, 20, 100]
-    lp = [constants.lp_rc, 650.0, 660.0, 620.0]
+    n_p = [1, 50, 50, 50]
+    lp = [constants.lp_rc, 660.0, 640.0, 620.0]
     w = [constants.w_rc, 10.0, 10.0, 10.0]
     n_s = len(n_p)
     # uncomment these to use the whole thing with named pigments
