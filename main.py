@@ -71,6 +71,7 @@ if __name__ == "__main__":
                 avgs.fill(0.0)
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
+                fit_max = 0.0
                 for j, p in enumerate(population):
                     nu_phi = la.antenna(l, ip_y, p, False, False)
                     p.nu_e  = nu_phi[0]
@@ -78,6 +79,9 @@ if __name__ == "__main__":
                     # nu_phi[2] is the limit at low intensity,
                     # which is what we actually want, I think
                     p.phi_f = nu_phi[2]
+                    if (ga.fitness(p) > fit_max):
+                        fit_max = ga.fitness(p)
+                        best = population[j]
                     if nu_phi[2] < 0.0:
                         with open(filenames['neg'], "a") as f:
                             f.write(str(population[j]))
@@ -130,7 +134,7 @@ if __name__ == "__main__":
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")
                 print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
 
-                survivors, best = ga.selection(rng, population)
+                survivors = ga.selection(rng, population)
                 avg_nb_surv = np.sum(np.array([s.n_b
                                         for s in survivors]) / len(survivors))
                 avg_ns_surv = np.sum(np.array([s.n_s

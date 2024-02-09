@@ -98,30 +98,26 @@ def fitness(individual):
     phi_f_weight = 1.0
     return (nu_e_weight * individual.nu_e) * (phi_f_weight * individual.phi_f)
 
+def tournament(population, k, rng):
+    fit_max = 0.0
+    for i in range(k):
+        ind = rng.integers(constants.population_size)
+        p = population[ind]
+        if (fitness(p) > fit_max):
+            fit_max = fitness(p)
+            winner = ind
+    return population[winner]
+
 def selection(rng, population):
     '''
-    given a population and the calculated results (nu_e, quantum efficiency,
-    etc.), pick out the top fraction based on a cutoff given in constants.py.
-    Return these along with the very best individual and its score.
-    Note - I feel like normally they're picked probabilistically based on
-    a fitness criterion, rather than just deterministically taking the best?
+    run tournaments with tournament size given by constants.tourney_k
+    to determine which members of the population survive.
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
-    '''
-    apply fitness function to the entire population (defined above),
-    then sort them in descending order (reverse=True) by the product of these.
-    then the first n_survivors of nu_es_sorted are the highest values,
-    and we can pull them from the population using the corresponding indices.
-    '''
-    nu_es_sorted = sorted([(i, fitness(r))
-                          for i, r in enumerate(population)],
-                          key=itemgetter(1), reverse=True)
-    best_ind = nu_es_sorted[0][0]
-    best = (population[best_ind])
     survivors = []
     for i in range(n_survivors):
-       survivors.append(population[nu_es_sorted[i][0]])
-    return survivors, best
+        survivors.append(tournament(population, constants.tourney_k, rng))
+    return survivors
 
 def recombine(vals, parameter, rng):
     '''
@@ -212,7 +208,8 @@ def mutate(genome, parameter, rng, subunit=None):
     if parameter == 'pigment':
         new = rng.choice(constants.bounds[parameter])
     else:
-        scale = current * constants.mu_width
+        b = constants.bounds[parameter]
+        scale = (b[1] - b[0]) * constants.mu_width
         b = (constants.bounds[parameter] - current) / (scale)
         new = ss.truncnorm.rvs(b[0], b[1], loc=current,
                                scale=scale, random_state=rng)

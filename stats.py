@@ -20,6 +20,7 @@ def hist(population, gen, run, temp):
     l_bin_size = 1.0
     s_max = constants.hist_sub_max
     n_pop = constants.population_size
+    # this needs changing to be e.g. 200-1400, now i've changed lp
     l_b = constants.bounds['lp']
     lbins = np.linspace(*l_b,
             num=np.round(((l_b[1] - l_b[0]) / l_bin_size)).astype(int))
@@ -34,8 +35,10 @@ def hist(population, gen, run, temp):
     for j, p in enumerate(population):
         for i in range(s_max):
             if i < p.n_s:
-               l_arr[i][j] = p.lp[i]
-               p_arr[i][j] = p.pigment[i]
+                par = constants.pigment_data[p.pigment[i]]
+                # p.lp[i] is the offset now!
+                l_arr[i][j] = p.lp[i] + par['lp'][0]
+                p_arr[i][j] = p.pigment[i]
     lh = [lbins[:-1]] # len(lbins) = len(hist) + 1
     ph = [pvals]
     for i in range(s_max):

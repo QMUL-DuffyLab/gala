@@ -15,12 +15,11 @@ import constants
 
 hcnm = (h * c) / (1.0E-9)
 
-def get_lineshape(l, pigment, lp):
+def get_lineshape(l, pigment, lp_offset):
     '''
     return lineshape of pigment shifted to lp
     '''
     params = constants.pigment_data[pigment]
-    lp_offset = lp - params['lp'][0]
     lp = [x + lp_offset for x in params['lp']]
     g = gauss(l, lp, params['w'], params['amp'])
     return g
