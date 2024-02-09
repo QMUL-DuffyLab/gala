@@ -185,7 +185,7 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         p_eq_res_lstsq_low = None
 
     try:
-        p_eq_low, p_eq_res_low = nnls(k, b)
+        p_eq_low, p_eq_res_low = nnls(k_phi, b)
     except RuntimeError:
         p_eq_low = None
         p_eq_res_low = None
