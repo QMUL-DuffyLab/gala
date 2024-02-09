@@ -15,34 +15,14 @@ import constants
 
 hcnm = (h * c) / (1.0E-9)
 
-@dataclass()
-class gaussian_genome:
-    n_b: int = 0
-    n_s: int = 0
-    n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
-    lp: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
-    w: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
-    # pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
-    nu_e: float = np.nan
-    phi_f: float = np.nan
-
-def get_lineshape(l, p, i):
+def get_lineshape(l, pigment, lp):
     '''
-    return the lineshape corresponding to index i of genome p
+    return lineshape of pigment shifted to lp
     '''
-    if hasattr(p, 'pigment'):
-        # get the set of pigment lineshapes
-        params = constants.pigment_data[p.pigment[i]]
-        lp_offset = p.lp[i] - params['lp'][0]
-        lp = [x + lp_offset for x in params['lp']]
-        g = gauss(l, lp, params['w'], params['amp'])
-    else:
-        # if we're generating gaussians ourselves to stand in for
-        # pigment absorption then at least l_p and width must be defined
-        if hasattr(p, 'amp'): # but maybe not amplitudes
-            g = gauss(l, p.lp[i], p.w[i], p.amp[i])
-        else:
-            g = gauss(l, p.lp[i], p.w[i])
+    params = constants.pigment_data[pigment]
+    lp_offset = lp - params['lp'][0]
+    lp = [x + lp_offset for x in params['lp']]
+    g = gauss(l, lp, params['w'], params['amp'])
     return g
 
 def gauss(l, lp, w, a = None):
@@ -79,21 +59,24 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
     set test_lstsq = True to solve with numpy's lstsq in addition
     to scipy's non-negative least squares solver and output both.
     '''
-    n_s = p.n_s - 1 # rc included
     fp_y = (ip_y * l) / hcnm
-    lines = np.zeros((p.n_s, len(l)))
-    gamma = np.zeros(n_s, dtype=np.float64)
-    k_b = np.zeros(2 * n_s, dtype=np.float64)
-    for i in range(p.n_s):
-        lines[i] = get_lineshape(l, p, i)
+    # gonna switch over and use these instead
+    n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
+    lp = np.array([constants.lp_rc, *p.lp], dtype=np.float64)
+    pigment = np.array(['rc', *p.pigment], dtype='U10')
+    lines = np.zeros((p.n_s + 1, len(l)))
+    gamma = np.zeros(p.n_s, dtype=np.float64)
+    k_b = np.zeros(2 * p.n_s, dtype=np.float64)
+    for i in range(p.n_s + 1):
+        lines[i] = get_lineshape(l, pigment[i], lp[i])
         if i > 0:
-            gamma[i - 1] = (p.n_p[i] * constants.sig_chl *
+            gamma[i - 1] = (n_p[i] * constants.sig_chl *
                             overlap(l, fp_y, lines[i]))
 
-    for i in range(n_s):
+    for i in range(p.n_s):
         de = overlap(l, lines[i], lines[i + 1])
-        n = float(p.n_p[i]) / float(p.n_p[i + 1])
-        dg = dG(p.lp[i], p.lp[i + 1], n, constants.T)
+        n = float(n_p[i]) / float(n_p[i + 1])
+        dg = dG(lp[i], lp[i + 1], n, constants.T)
         if i == 0:
             rate = constants.k_lhc_rc
         else:
@@ -106,7 +89,7 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
 
-    side = (p.n_b * n_s) + 2
+    side = (p.n_b * p.n_s) + 2
     twa = np.zeros((2 * side, 2 * side), dtype=np.longdouble)
     k = np.zeros(((2 * side) + 1, 2 * side), dtype=np.float64)
     twa[1][0] = constants.k_con # 1e+2
@@ -114,13 +97,13 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
     twa[2][1] = constants.k_trap # 2e+11
     twa[3][1] = constants.k_diss
     twa[3][2] = constants.k_con
-    for j in range(4, 2 * side, 2 * n_s):
+    for j in range(4, 2 * side, 2 * p.n_s):
         # two pairs of RC <-> rates at the bottom of each branch */
         twa[2][j]     = k_b[0] # 0 1 0   -> 1_i 0 0
         twa[j][2]     = k_b[1] # 1_i 0 0 -> 0 1 0
         twa[3][j + 1] = k_b[0] # 0 1 1   -> 1_i 0 1
         twa[j + 1][3] = k_b[1] # 1_i 0 1 -> 0 1 1
-        for i in range(n_s):
+        for i in range(p.n_s):
             ind = j + (2 * i)
             twa[ind][0]       = constants.k_diss
             twa[ind + 1][1]   = constants.k_diss
@@ -128,7 +111,7 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
             if i > 0:
                 twa[ind][ind - 2]     = k_b[(2 * i) + 1] # empty trap
                 twa[ind + 1][ind - 1] = k_b[(2 * i) + 1] # full trap
-            if i < (n_s - 1):
+            if i < (p.n_s - 1):
                 twa[ind][ind + 2]     = k_b[2 * (i + 1)] # empty
                 twa[ind + 1][ind + 3] = k_b[2 * (i + 1)] # full
             twa[0][ind]     = gamma[i] # 0 0 0 -> 1_i 0 0
@@ -150,7 +133,18 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         p_eq_lstsq = None
         p_eq_res_lstsq = None
 
-    p_eq, p_eq_res = nnls(k, b)
+    try:
+        p_eq, p_eq_res = nnls(k, b)
+    except RuntimeError:
+        p_eq = None
+        p_eq_res = None
+        nu_e = 0.0
+        phi_e_g = 0.0
+        phi_e = 0.0
+        if debug:
+            print("RuntimeError - nnls reached iteration limit. high intensity")
+        return np.array([nu_e, phi_e_g, phi_e])
+
     # print("Scipy nnls:")
     # print(p_eq, k @ p_eq, (k @ p_eq) - b)
 
@@ -166,8 +160,8 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
     k_phi = np.zeros_like(k)
     gamma_sum = np.sum(gamma)
     gamma_norm = constants.gamma_fac * gamma / (gamma_sum)
-    for j in range(4, 2 * side, 2 * n_s):
-        for i in range(n_s):
+    for j in range(4, 2 * side, 2 * p.n_s):
+        for i in range(p.n_s):
             ind = j + (2 * i)
             twa[0][ind]     = gamma_norm[i]
             twa[1][ind + 1] = gamma_norm[i]
@@ -190,7 +184,17 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         p_eq_lstsq_low = None
         p_eq_res_lstsq_low = None
 
-    p_eq_low, p_eq_res_low = nnls(k_phi, b)
+    try:
+        p_eq_low, p_eq_res_low = nnls(k, b)
+    except RuntimeError:
+        p_eq_low = None
+        p_eq_res_low = None
+        nu_e = 0.0
+        phi_e_g = 0.0
+        phi_e = 0.0
+        if debug:
+            print("RuntimeError - nnls reached iteration limit. low intensity")
+        return np.array([nu_e, phi_e_g, phi_e])
 
     if np.any(p_eq_low < 0.0):
         print("negative probabilities in p_eq_low!")
@@ -231,20 +235,14 @@ if __name__ == '__main__':
     file = "PHOENIX/Scaled_Spectrum_PHOENIX_" + ts + ".dat"
     d = np.loadtxt(file)
 
-    # note that n_p, lp and w include the RC as the first element!
-    # this is just so i can generate everything in one set of loops
+    # changed behaviour - now the RC's added inside antenna
     n_b = 6
-    # n_p = [1, 100, 100, 100, 100]
-    # lp  = [constants.lp_rc, 670.0, 660.0, 650.0, 640.0]
-    # w   = [constants.w_rc, 10.0, 10.0, 10.0, 10.0]
-    n_p = [1, 50, 50, 50]
-    lp = [constants.lp_rc, 660.0, 640.0, 620.0]
-    w = [constants.w_rc, 10.0, 10.0, 10.0]
+    n_p = [50, 50, 50]
+    lp = [660.0, 640.0, 620.0]
+    # w = [10.0, 10.0, 10.0]
     n_s = len(n_p)
-    # uncomment these to use the whole thing with named pigments
-    # pigments = ['rc', 'chl_a', 'chl_b', 'r_pe']
-    # test = constants.genome(n_b, n_s, n_p, lp, w)
-    test = gaussian_genome(n_b, n_s, n_p, lp, w)
+    pigments = ['chl_a', 'chl_b', 'r_pe']
+    test = constants.genome(n_b, n_s, n_p, lp, pigments)
 
     od = antenna(d[:, 0], d[:, 1], test, True, True)
     print(od)

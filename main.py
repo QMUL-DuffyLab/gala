@@ -10,21 +10,11 @@ import pandas as pd
 import numpy as np
 import constants
 import genetic_algorithm as ga
+import antenna as la
 import plots
 import stats
 
 if __name__ == "__main__":
-    la = ctypes.cdll.LoadLibrary("./libantenna.so")
-    la.antenna.argtypes = [ctypes.POINTER(ctypes.c_double),
-            ctypes.POINTER(ctypes.c_double), ctypes.c_double,
-            ctypes.POINTER(ctypes.c_double),
-            ctypes.c_double, ctypes.POINTER(ctypes.c_uint),
-            ctypes.POINTER(ctypes.c_double),
-            ctypes.POINTER(ctypes.c_char_p),
-            ctypes.c_uint, ctypes.c_uint, ctypes.c_uint,
-            ctypes.POINTER(ctypes.c_double),
-            ctypes.POINTER(ctypes.c_double)]
-
     rng = np.random.default_rng()
     df = {}
 
@@ -34,17 +24,9 @@ if __name__ == "__main__":
     for ts in reversed(temps):
         print("T = ", ts)
         init_type = 'random' # can be radiative or random
-        avgs_prefix  = "out/avgs_{:4d}K".format(ts)
-        avgsq_prefix = "out/avgsq_{:4d}K".format(ts)
-        np_prefix    = "out/np_{:4d}K".format(ts)
-        npsq_prefix  = "out/npsq_{:4d}K".format(ts)
-        lp_prefix    = "out/lp_{:4d}K".format(ts)
-        lpsq_prefix  = "out/lpsq_{:4d}K".format(ts)
-        w_prefix    = "out/w_{:4d}K".format(ts)
-        wsq_prefix  = "out/wsq_{:4d}K".format(ts)
-        nlw_pop_prefix = "out/nlw_pop_{:4d}K".format(ts)
-        best_prefix  = "out/best_{:4d}K".format(ts)
-        negative_prefix  = "out/neg_{:4d}K".format(ts)
+        names = ["avg", "avgsq", "np", "npsq", "lp",
+                "lpsq", "w", "wsq", "best", "neg"]
+        prefs = ["out/{}_{:4d}K".format(p, ts) for p in names]
 
         spectrum_file = constants.spectrum_prefix \
                         + '{:4d}K'.format(ts) \
@@ -55,28 +37,16 @@ if __name__ == "__main__":
         phoenix_data = np.loadtxt(spectrum_file)
         l    = phoenix_data[:, 0]
         ip_y = phoenix_data[:, 1]
-        l_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(l))
-        ip_y_c = np.ctypeslib.as_ctypes(np.ascontiguousarray(ip_y))
 
         for run in range(constants.n_runs):
-            # dftr = df["{:4d}".format(ts)]["{:1d}".format(i)]
             df['input_file'] = spectrum_file
             population = [None for _ in range(constants.population_size)]
-            avgs_file = avgs_prefix + "_r{:1d}.dat".format(run)
-            avgsq_file = avgsq_prefix + "_r{:1d}.dat".format(run)
-            best_file = best_prefix + "_r{:1d}.dat".format(run)
-            neg_file = negative_prefix + "_r{:1d}.dat".format(run)
-            np_file = np_prefix + "_r{:1d}.dat".format(run)
-            npsq_file = npsq_prefix + "_r{:1d}.dat".format(run)
-            lp_file = lp_prefix + "_r{:1d}.dat".format(run)
-            lpsq_file = lpsq_prefix + "_r{:1d}.dat".format(run)
-            w_file = w_prefix + "_r{:1d}.dat".format(run)
-            wsq_file = wsq_prefix + "_r{:1d}.dat".format(run)
-            nlw_pop_file = nlw_pop_prefix + "_r{:1d}.dat".format(run)
-            with open(best_file, "w") as f:
+            filenames = {name: pref + "_r{:1d}.dat".format(run)
+                    for (name, pref) in zip(names, prefs)}
+            with open(filenames['best'], "w") as f:
                 pass # start a new file
             f.close()
-            with open(neg_file, "w") as f:
+            with open(filenames['neg'], "w") as f:
                 pass # start a new file
             f.close()
 
@@ -101,49 +71,15 @@ if __name__ == "__main__":
                 avgs.fill(0.0)
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
-                for j in range(constants.population_size):
-                    '''
-                    setup for calling C version
-                    '''
-                    n_b = population[j].n_b
-                    n_s = population[j].n_s
-                    side = (n_b * n_s) + 2
-                    n_p   = np.ctypeslib.as_ctypes(np.zeros(n_s + 1, 
-                        dtype=np.uint32))
-                    lp    = np.ctypeslib.as_ctypes(np.zeros(n_s + 1,
-                        dtype=np.float64))
-                    pigments = ((ctypes.c_char_p) * (n_s + 1))()
-                    n_p[0]   = constants.rc_params[0]
-                    lp[0]    = constants.rc_params[1]
-                    pigments[0] = ctypes.c_char_p("rc\x00".encode('utf-8'))
-                    for k in range(n_s):
-                        n_p[k + 1] = population[j].n_p[k]
-                        lp[k + 1]  = population[j].lp[k]
-                        pigments[k + 1] = ctypes.c_char_p(
-                                population[j].pigment[k].encode('utf-8'))
-                    n_eq   = (ctypes.c_double * side)()
-                    nu_phi = np.ctypeslib.as_ctypes(np.zeros(3, 
-                        dtype=np.float64))
-                    kp = (ctypes.c_double * 
-                            len(constants.k_params))(*constants.k_params)
-                    # do not ask how strings are treated in python 2
-                    # vs python 3 and how that affects passing char** in ctypes
-                    # it is horrible. i hated every minute of working this out
-                    pigments_p = ctypes.cast(pigments,
-                                 ctypes.POINTER(ctypes.c_char_p))
-                    la.antenna(l_c, ip_y_c,
-                            ctypes.c_double(constants.sig_chl), kp,
-                            ctypes.c_double(constants.T),
-                            n_p, lp, pigments_p,
-                            ctypes.c_uint(n_b), ctypes.c_uint(n_s),
-                            ctypes.c_uint(len(l)), n_eq, nu_phi, 0)
-                    population[j].nu_e  = nu_phi[0]
+                for j, p in enumerate(population):
+                    nu_phi = la.antenna(l, ip_y, p, False, False)
+                    p.nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity,
                     # which is what we actually want, I think
-                    population[j].phi_f = nu_phi[2]
+                    p.phi_f = nu_phi[2]
                     if nu_phi[2] < 0.0:
-                        with open(neg_file, "a") as f:
+                        with open(filenames['neg'], "a") as f:
                             f.write(str(population[j]))
                             f.write("\n")
                         f.close()
@@ -155,20 +91,20 @@ if __name__ == "__main__":
                     avgsq[2] += nu_phi[2]**2
                     avgs[3]  += nu_phi[0] * nu_phi[2]
                     avgsq[3] += (nu_phi[0] * nu_phi[2])**2
-                    avgs[4]  += np.sum(n_p[1:]) / (len(n_p) - 1) # don't count RC
-                    avgsq[4] += np.sum(np.square(n_p[1:])) / (len(n_p) - 1)
-                    avgs[5]  += np.sum(lp[1:]) / (len(lp) - 1)
-                    avgsq[5] += np.sum(np.square(lp[1:])) / (len(lp) - 1)
-                    avgs[6]  += n_b
-                    avgsq[6] += n_b**2
-                    avgs[7]  += n_s
-                    avgsq[7] += n_s**2
-                    for k in range(n_s):
+                    avgs[4]  += np.sum(p.n_p) / (p.n_s) # don't count RC
+                    avgsq[4] += np.sum(np.square(p.n_p)) / (p.n_s)
+                    avgs[5]  += np.sum(p.lp) / (p.n_s)
+                    avgsq[5] += np.sum(np.square(p.lp)) / (p.n_s)
+                    avgs[6]  += p.n_b
+                    avgsq[6] += p.n_b**2
+                    avgs[7]  += p.n_s
+                    avgsq[7] += p.n_s**2
+                    for k in range(p.n_s):
                         nlw_pop[k] += 1
-                        np_avg[k] += n_p[k + 1]
-                        lp_avg[k] += lp[k + 1]
-                        np_avgsq[k] += n_p[k + 1]**2
-                        lp_avgsq[k] += lp[k + 1]**2
+                        np_avg[k]   += p.n_p[k]
+                        lp_avg[k]   += p.lp[k]
+                        np_avgsq[k] += p.n_p[k]**2
+                        lp_avgsq[k] += p.lp[k]**2
 
                 avgs /= constants.population_size
                 avgsq /= constants.population_size
@@ -202,7 +138,7 @@ if __name__ == "__main__":
                 print("Average n_b, n_s of survivors: ", avg_nb_surv, avg_ns_surv)
                 print("\n")
 
-                with open(best_file, "a") as f:
+                with open(filenames['best'], "a") as f:
                     f.write(str(best))
                     f.write("\n")
                 f.close()
@@ -213,20 +149,16 @@ if __name__ == "__main__":
                         population[j] = ga.mutation(rng, population[j], n_s_changes)
                 gen += 1
 
-            np.savetxt(avgs_file, np.array(running_avgs))
-            np.savetxt(avgsq_file, np.array(running_avgsq))
-            np.savetxt(np_file, np_avg)
-            np.savetxt(npsq_file, np_avgsq)
-            np.savetxt(lp_file, lp_avg)
-            np.savetxt(lpsq_file, lp_avgsq)
-            np.savetxt(w_file, w_avg)
-            np.savetxt(wsq_file, w_avgsq)
-            np.savetxt(nlw_pop_file, nlw_pop)
-            plot_final_best_2d_file = best_prefix + "_r{:1d}_2d.pdf".format(run)
-            plot_final_best_3d_file = best_prefix + "_r{:1d}_3d.pdf".format(run)
-            plot_nu_phi_file = avgs_prefix + "_r{:1d}_nu_phi.pdf".format(run)
-            # these no longer work - need new histogram plot functions
-            # plots.antenna_plot_2d(best, phoenix_data, plot_final_best_2d_file)
-            # plots.antenna_plot_3d(best, phoenix_data, plot_final_best_3d_file)
+            np.savetxt(filenames['avg'], np.array(running_avgs))
+            np.savetxt(filenames['avgsq'], np.array(running_avgsq))
+            np.savetxt(filenames['np'], np_avg)
+            np.savetxt(filenames['npsq'], np_avgsq)
+            np.savetxt(filenames['lp'], lp_avg)
+            np.savetxt(filenames['lpsq'], lp_avgsq)
+            np.savetxt(filenames['w'], w_avg)
+            np.savetxt(filenames['wsq'], w_avgsq)
+            plot_final_best_2d_file = prefs[-2] + "_r{:1d}_2d.pdf".format(run)
+            plot_final_best_3d_file = prefs[-2] + "_r{:1d}_3d.pdf".format(run)
+            plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
