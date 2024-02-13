@@ -94,9 +94,13 @@ def initialise_individual(rng, init_type):
         return constants.genome(nb, ns, n_p, lp, pigment)
 
 def fitness(individual):
-    nu_e_weight = 1.0
-    phi_f_weight = 1.0
-    return (nu_e_weight * individual.nu_e) * (phi_f_weight * individual.phi_f)
+    '''
+    obviously higher electron output is what's primarily wanted,
+    but the bigger the antenna is, the more of those electrons
+    have to be used building and maintaining the antenna, so
+    we use electron output per pigment as our proxy for fitness
+    '''
+    return (individual.nu_e / np.sum(individual.n_p))
 
 def tournament(population, k, rng):
     fit_max = 0.0
@@ -112,6 +116,7 @@ def selection(rng, population):
     '''
     run tournaments with tournament size given by constants.tourney_k
     to determine which members of the population survive.
+    we do this without replacement to build up a "mating pool".
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     survivors = []
@@ -188,7 +193,7 @@ def reproduction(rng, survivors, population):
         parents = [survivors[p_i[i]] for i in range(2)]
         crossover(child, parents, 'n_b', rng, False)
         crossover(child, parents, 'n_s', rng, False)
-        for p in ['n_p', 'lp', 'pigment']:
+        for p in constants.subunit_params:
             crossover(child, parents, p, rng, True)
     return population
 
@@ -238,12 +243,11 @@ def mutation(rng, individual, n_s_changes):
     current = individual.n_s
     mutate(individual, 'n_s', rng, None)
     new = individual.n_s
-    per_sub_params = ['n_p', 'lp', 'pigment']
     if current < new:
         # add subunits as necessary
         # NB: we assume new subunits are copies of the tail subunit
         n_s_changes[0] += new - current
-        for p in per_sub_params:
+        for p in constants.subunit_params:
             c = getattr(individual, p)
             # i think setting refcheck to false is fine?
             # it seems to work, and i only reference it here
@@ -253,12 +257,12 @@ def mutation(rng, individual, n_s_changes):
     elif current > new:
         # delete the last (new - current) elements
         n_s_changes[1] += current - new
-        for p in per_sub_params:
+        for p in constants.subunit_params:
             np.delete(getattr(individual, p), new - current)
     # now pick a random subunit to apply these mutations to.
     # note that this is also a choice about how the algorithm works,
     # and it's not the only possible way to apply a mutation!
-    for p in per_sub_params:
+    for p in constants.subunit_params:
         s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
         mutate(individual, p, rng, s)
     return individual

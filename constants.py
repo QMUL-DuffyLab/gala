@@ -68,9 +68,21 @@ class genome:
     nu_e: float = np.nan
     phi_f: float = np.nan
 
+# list of parameters defined per subunit rather than per genome
+# the strings here *must match* the names in genome definition above
+subunit_params = ['n_p', 'lp', 'pigment']
+
 # radiative genome
 rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array(['chl_a\x00']))
 
+'''
+Gaussian fits to pigment data, done by me.
+details in pigments directory.
+taken variously from Nancy Kiang's database
+(https://vplapps.astro.washington.edu/pigments)
+and PhotochemCAD
+(https://www.photochemcad.com)
+'''
 pigment_data = {
 'rc': {
     'n_gauss': 2,

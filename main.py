@@ -20,7 +20,6 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
-    # temps = [5800]
     for ts in reversed(temps):
         print("T = ", ts)
         init_type = 'random' # can be radiative or random
@@ -76,8 +75,7 @@ if __name__ == "__main__":
                     nu_phi = la.antenna(l, ip_y, p, False, False)
                     p.nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
-                    # nu_phi[2] is the limit at low intensity,
-                    # which is what we actually want, I think
+                    # nu_phi[2] is the limit at low intensity
                     p.phi_f = nu_phi[2]
                     if (ga.fitness(p) > fit_max):
                         fit_max = ga.fitness(p)
