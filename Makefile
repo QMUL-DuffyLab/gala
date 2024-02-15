@@ -1,13 +1,15 @@
 SHELL = /bin/sh
-CC    = gcc
-FLAGS = -std=c11
-CFLAGS = -fPIC -Wall -Werror -pedantic
-LDFLAGS = -shared -lm -lgsl -lgslcblas -ltsnnls
+CC    = gfortran
+FLAGS = -std=f2018
+# CFLAGS = -fPIC -Wall -Werror -pedantic
+CFLAGS = -Wall -Werror -pedantic
+# LDFLAGS = -shared -lm -lgsl -lgslcblas -ltsnnls
+LDFLAGS = -L/usr/lib64 -llapack -lblas
 DEBUGFLAGS = -g -g3 -O0 -ggdb3
 RELEASEFLAGS = -O2
 
-TARGET = libantenna.so
-SOURCES = antenna.c
+TARGET = nnls
+SOURCES = nnls.f90 main.f90
 OBJECTS = $(SOURCES:.c=.o)
 
 .PHONY: clean
@@ -18,4 +20,4 @@ clean:
 	rm -f $(OBJECTS) $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(FLAGS) $(CFLAGS) $(RELEASEFLAGS) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
+	$(CC) $(FLAGS) $(CFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(LDFLAGS) $(OBJECTS)
