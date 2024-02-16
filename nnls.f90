@@ -13,10 +13,11 @@ module nnls_solver
     subroutine update_s(s, ata, atb, p, n_true, s_p_min)&
         bind(c, name="update_s")
       implicit none
+      external :: dsysv
       real(kind=c_double), dimension(:, :) :: ata
       real(kind=c_double), dimension(:) :: atb, s
       logical(kind=c_bool), dimension(:) :: p
-      integer(kind=c_int) :: n_true, i, ldb, info, lwork
+      integer(kind=c_int) :: p_i_c, n_true, i, ldb, info, lwork
       real(kind=c_double) :: s_p_min
       integer(kind=c_int), dimension(n_true) :: p_i, ipiv
       real(kind=c_double), dimension(n_true, n_true) :: atap
@@ -29,11 +30,14 @@ module nnls_solver
       if (size(ata, 1).ne.size(p)) then
         write (*,*) "ata and p not same size"
       end if
-      do i = 1, size(ata, 1)
-        if (p(i)) then
-          p_i(i) = i
+      p_i_c = 1
+      do i = 1, size(p)
+        if (p(i).eqv..true.) then
+          p_i(p_i_c) = i
+          p_i_c = p_i_c + 1
         end if
       end do
+      ldb = n_true
 
       atap = ata(p_i, p_i)
       atbp = atb(p_i)
@@ -85,24 +89,23 @@ module nnls_solver
       real(kind=c_double), dimension(size(A, 1)) :: b
       real(kind=c_double), dimension(size(A, 2)) :: x
       integer(kind=c_int) :: m, n, iter, k, n_true, i, mode
-      real(kind=c_double) :: s_p_min, alpha, alpha_min, res
+      real(kind=c_double) :: s_p_min, alpha, alpha_min, res, resid_max
       m = size(A, 1)
       n = size(A, 2)
       if (size(b).ne.m) then
         write(*, *) "A and b dimensions incorrect"
       end if
 
-      allocate(ata(n, n))
+      allocate(ata(n, n), source=0.0_c_double)
       ata = matmul(transpose(A), A)
-      allocate(atb(n))
-      allocate(resid(n))
+      allocate(atb(n), source=0.0_c_double)
+      allocate(resid(n), source=0.0_c_double)
       atb = matmul(b, A)
       resid = atb
-      x = 0.0
+      x = 0.0_c_double
       allocate(p(n))
-      p = .false.
-      allocate(s(n))
-      s = 0.0
+      p = .false._c_bool
+      allocate(s(n), source=0.0_c_double)
 
       ! will have to do this in python - can't have
       ! optional variables in a c bound function
@@ -115,19 +118,39 @@ module nnls_solver
 
       iter = 0
       do while ((.not.all(p)).and.&
-        (any(merge(resid, 0.0_c_double, (p.eqv..false.)) > tol)))
+        (any(merge(resid, 0.0_c_double, (p.eqv..false._c_bool)) > tol)))
 
-        where (p.eqv..true.) resid = -huge(0.0)
-        k = maxloc(resid, 1) ! i think you have to specify dim to get a scalar
-        p(k) = .true.
+        do i = 1, n
+          if (p(i).eqv..true._c_bool) then
+            resid(i) = -huge(0.0)
+          end if 
+        end do
+        ! k = 1
+        resid_max = -1.0_c_double * huge(0.0_c_double) + 1.0
+        ! do i = 1, size(p)
+        !   if (resid(k).gt.resid_max) then
+
+        !     k = i
+        !     resid_max = resid(k)
+        !   end if
+        ! end do
+        k = maxloc(resid, 1) ! you have to specify dim to get a scalar
+        ! this line doesn't work properly. the code hangs because
+        ! not all p's are true when they should be; one element of the
+        ! array will still be false, but p(k) will return true. why?
+        p(k) = .true._c_bool
+        write(*, *) "alkdfhsakleh", i, n, k, resid(k), p(k), p
 
         s = 0.0
         n_true = count(p)
+        write(*, *) resid, p, k, p(k)
+
         call update_s(s, ata, atb, p, n_true, s_p_min)
 
         do while ((iter.lt.maxiter).and.(s_p_min.le.tol))
+
           alpha_min = huge(0.0)
-          do i = 1, size(p)
+          do i = 1, n
             if ((p(i)).and.s(i).le.tol) then
               alpha = (x(i) / (x(i) - s(i))) 
               if (alpha.lt.alpha_min) then
@@ -137,14 +160,20 @@ module nnls_solver
           end do
           x = x * (1.0 - alpha)
           x = x + alpha * s
-          do i = 1, size(p)
+          write(*, *) "inner pre x loop: ", x, p, n_true, tol
+          ! do i = 1, size(x)
+          !   write(*, *) "inner x loop: ", i, x(i), p(i)
+          ! end do
+          do i = 1, n
             if (x(i).lt.tol) then
-              p(i) = .false.
+              write(*, *) "inner in x loop: ", i, x(i), p(i)
+              p(i) = .false._c_bool
             end if
           end do
           n_true = count(p)
+          write(*, *) "inner post x loop: ", x, p, n_true
           call update_s(s, ata, atb, p, n_true, s_p_min)
-          where (p.eqv..false.) s = 0
+          where (p.eqv..false._c_bool) s = 0
           iter = iter + 1
           
         end do

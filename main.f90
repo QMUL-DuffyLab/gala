@@ -10,9 +10,10 @@ program main
   call random_init(.true., .true.)
   do i = 1, 1000
     call random_number(r)
-    n = 1 + floor(20 * r) 
+    ! at least 2 x 2 matrices
+    n = 2 + floor(20 * r) 
     call random_number(r)
-    m = 1 + floor(20 * r) 
+    m = 2 + floor(20 * r) 
     mode = 0
     res = 0.0_c_double
     maxiter = 3 * n
@@ -27,9 +28,7 @@ program main
     b = matmul(a, x_ref)
     call nnls(a, b, x, mode, res, maxiter, tol)
     diff = sum(abs(x - x_ref))
-    if (diff.gt.tol) then
-      write(*, *) i, diff
-    end if
+    write(*, *) i, diff
     deallocate(b)
     deallocate(x)
     deallocate(x_ref)
