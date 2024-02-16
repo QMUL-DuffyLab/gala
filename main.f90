@@ -1,11 +1,10 @@
 program main
-  use iso_c_binding
   use nnls_solver
   implicit none
-  integer(kind=c_int) :: i, n, m, mode, maxiter
-  real(kind=c_double) :: r, res, tol, diff
-  real(kind=c_double), dimension(:), allocatable :: b, x, x_ref
-  real(kind=c_double), dimension(:, :), allocatable :: a
+  integer :: i, n, m, mode, maxiter
+  real :: r, res, tol, diff
+  real, dimension(:), allocatable :: b, x, x_ref
+  real, dimension(:, :), allocatable :: a
 
   call random_init(.true., .true.)
   do i = 1, 1000
@@ -15,12 +14,12 @@ program main
     call random_number(r)
     m = 2 + floor(20 * r) 
     mode = 0
-    res = 0.0_c_double
+    res = 0.0
     maxiter = 3 * n
-    tol = 1.0e-6_c_double
+    tol = 1.0e-6
 
-    allocate(b(m), source=0.0_c_double)
-    allocate(x(n), source=0.0_c_double)
+    allocate(b(m), source=0.0)
+    allocate(x(n), source=0.0)
     allocate(x_ref(n))
     allocate(a(m, n))
     call random_number(a)
