@@ -15,13 +15,12 @@ module nnls_solver
       real, dimension(:, :) :: ata
       real, dimension(:) :: atb, s
       logical, dimension(:) :: p
-      integer :: p_i_c, n_true, i, ldb, info, lwork, lwmax
+      integer :: p_i_c, n_true, i, ldb, info, lwork
       real :: s_p_min
       integer, dimension(n_true) :: p_i, ipiv
       real, dimension(n_true, n_true) :: atap
       real, dimension(n_true) :: atbp
       real, dimension(:), allocatable :: work
-      lwmax = 100
 
       if (size(ata, 1).ne.size(ata, 2)) then
         write (*,*) "ata not square"
@@ -48,20 +47,12 @@ module nnls_solver
       ! write(*, *) "before first dsysv call", work, info, n_true
       call ssysv("U", n_true, 1, atap, n_true,&
                  ipiv, atbp, n_true, work, -1, info)
-      ! write(*, *) "after first dsysv call:", work, info, n_true
-      ! write(*, *) atap
-      ! write(*, *) atbp
-      ! this shouldn't be necessary
       lwork = int(work(1))
       deallocate(work)
       allocate(work(lwork))
-      ! write(*, *) "before second dsysv call", lwork, n_true
       call ssysv("U", n_true, 1, atap, n_true,&
                  ipiv, atbp, ldb, work, lwork, info)
-      ! write(*, *) "after second dsysv call:", work, info, n_true
-      ! write(*, *) atap
-      ! write(*, *) atbp
-      ! atbp is now essentially s[p]
+      ! atbp is now s[p]
       s_p_min = huge(0.0)
       do i = 1, n_true
         s(p_i(i)) = atbp(i)
@@ -116,15 +107,7 @@ module nnls_solver
       p = .false.
       allocate(s(n), source=0.0)
 
-      ! will have to do this in python - can't have
-      ! optional variables in a c bound function
-      ! if (.not.present(maxiter)) then
-      !   maxiter = 3 * n
-      ! end if
-      ! if (.not.present(tol)) then
-      !   tol = 10.0 * max(m, n) * tiny(0.0)
-      ! end if
-
+      mode = 1
       iter = 0
       do while ((.not.all(p)).and.&
         (any(merge(resid, 0.0, (p.eqv..false.)) > tol)))
@@ -134,25 +117,15 @@ module nnls_solver
             resid(i) = -huge(0.0)
           end if 
         end do
-        ! k = 1
         resid_max = -1.0 * huge(0.0) + 1.0
-        ! do i = 1, size(p)
-        !   if (resid(k).gt.resid_max) then
-
-        !     k = i
-        !     resid_max = resid(k)
-        !   end if
-        ! end do
         k = maxloc(resid, 1) ! you have to specify dim to get a scalar
         ! this line doesn't work properly. the code hangs because
         ! not all p's are true when they should be; one element of the
         ! array will still be false, but p(k) will return true. why?
         p(k) = .true.
-        ! write(*, *) "after setting constraint true", i, n, k, resid(k), p(k), p
 
         s = 0.0
         n_true = count(p)
-        ! write(*, *) "before call update_s", resid, p, k, p(k)
 
         call update_s(s, ata, atb, p, n_true, s_p_min)
 
@@ -169,18 +142,12 @@ module nnls_solver
           end do
           x = x * (1.0 - alpha)
           x = x + alpha * s
-          ! write(*, *) "inner pre x loop: ", x, p, n_true, tol
-          ! do i = 1, size(x)
-          !   write(*, *) "inner x loop: ", i, x(i), p(i)
-          ! end do
           do i = 1, n
             if (x(i).lt.tol) then
-              ! write(*, *) "inner in x loop: ", i, x(i), p(i)
               p(i) = .false.
             end if
           end do
           n_true = count(p)
-          ! write(*, *) "inner post x loop: ", x, p, n_true
           call update_s(s, ata, atb, p, n_true, s_p_min)
           where (p.eqv..false.) s = 0
           iter = iter + 1
@@ -190,13 +157,6 @@ module nnls_solver
         x = s
         resid = atb - matmul(ata, x)
 
-        if (iter.eq.maxiter) then
-          ! do something
-          x = 0.0
-          res = 0.0
-          mode = -1
-        end if
-
       end do
 
       res = norm2(matmul(A, x) - b)
@@ -205,6 +165,7 @@ module nnls_solver
       deallocate(resid)
       deallocate(p)
       deallocate(s)
+      if (all(x.eq.0.0)) mode = -1
 
     end subroutine nnls
 
