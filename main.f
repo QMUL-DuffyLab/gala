@@ -1,35 +1,37 @@
 program main
+  use iso_c_binding
   use nnls_solver
   implicit none
-  integer :: i, j, k, n, m, mode, maxiter, nmax
-  real :: r, res, tol, diff
-  real, dimension(:), allocatable :: b, x, x_ref
-  real, dimension(:, :), allocatable :: a
+  integer(kind=c_int) :: i, j, k, n, m, mode, maxiter, nmax
+  real(kind=c_double) :: r, res, tol, diff, xdiff
+  real(kind=c_double), dimension(:), allocatable :: b, x, x_ref
+  real(kind=c_double), dimension(:, :), allocatable :: a
   character(len=100) :: outfile
 
-  nmax = 0
+  nmax = 0_c_int
   call random_init(.true., .true.)
   do i = 1, 1000
     call random_number(r)
     ! at least 2 x 2 matrices
-    n = 2 + floor(20 * r) 
+    n = 2_c_int + floor(20 * r) 
     call random_number(r)
-    m = 2 + floor(20 * r) 
-    mode = 0
-    res = 0.0
+    m = 2_c_int + floor(20 * r) 
+    mode = 0_c_int
+    res = 0.0_c_double
     maxiter = 3 * n
-    tol = 1.0e-6
+    tol = 1.0e-6_c_double
 
-    allocate(b(m), source=0.0)
-    allocate(x(n), source=0.0)
+    allocate(b(m), source=0.0_c_double)
+    allocate(x(n), source=0.0_c_double)
     allocate(x_ref(n))
     allocate(a(m, n))
     call random_number(a)
     call random_number(x_ref)
     b = matmul(a, x_ref)
     call nnls(a, b, x, mode, res, maxiter, tol)
-    diff = sum(abs(matmul(A, x) - b))
-    if ((mode.eq.-1).or.(diff.gt.1.0)) then
+    diff = norm2(matmul(A, x) - b)
+    xdiff = norm2(x_ref - x)
+    if ((mode.eq.-1_c_int).or.(diff.gt.1.0_c_double)) then
       write(outfile, '(a, i0.4, a)') "out/info_", i, ".txt"
       open(unit=20, file=outfile)
       nmax = nmax + 1
@@ -47,7 +49,8 @@ program main
       write(20, *) "diff = ", diff
       close(20)
     else
-      write(*, '(a, i4, a, G10.3)') "i = ", i, " diff = ", diff
+      write(*, '(a, i4, a, G10.3, a, G10.3)') "i = ", i,&
+        " diff = ", diff, " xdiff = ", xdiff
     end if
     deallocate(b)
     deallocate(x)
