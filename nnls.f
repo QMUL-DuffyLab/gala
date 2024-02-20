@@ -13,7 +13,7 @@ module nnls_solver
       real, dimension(:, :) :: ata
       real, dimension(:) :: atb, s
       logical, dimension(:) :: p
-      integer :: p_i_c, n_true, i, info, lwork
+      integer :: n_true, i, info, lwork
       real :: s_p_min
       integer, dimension(n_true) :: p_i, ipiv
       real, dimension(n_true, n_true) :: atap
@@ -29,14 +29,8 @@ module nnls_solver
         stop
       end if
 
-      p_i_c = 1
-      do i = 1, size(p)
-        if (p(i).eqv..true.) then
-          p_i(p_i_c) = i
-          p_i_c = p_i_c + 1
-        end if
-      end do
-
+      ! indices where p is true
+      p_i = pack([(i, i = 1, size(p))], p)
       atap = ata(p_i, p_i)
       atbp = atb(p_i)
 
