@@ -4,18 +4,16 @@
 module nnls_solver
   use iso_fortran_env
   implicit none
-  ! private :: update_s
   public :: update_s, nnls
 
   contains
 
     subroutine update_s(s, ata, atb, p, n_true, s_p_min)
       implicit none
-      external :: dsysv
       real, dimension(:, :) :: ata
       real, dimension(:) :: atb, s
       logical, dimension(:) :: p
-      integer :: p_i_c, n_true, i, ldb, info, lwork
+      integer :: p_i_c, n_true, i, info, lwork
       real :: s_p_min
       integer, dimension(n_true) :: p_i, ipiv
       real, dimension(n_true, n_true) :: atap
@@ -24,10 +22,13 @@ module nnls_solver
 
       if (size(ata, 1).ne.size(ata, 2)) then
         write (*,*) "ata not square"
+        stop
       end if
       if (size(ata, 1).ne.size(p)) then
         write (*,*) "ata and p not same size"
+        stop
       end if
+
       p_i_c = 1
       do i = 1, size(p)
         if (p(i).eqv..true.) then
@@ -35,23 +36,18 @@ module nnls_solver
           p_i_c = p_i_c + 1
         end if
       end do
-      ldb = n_true
 
       atap = ata(p_i, p_i)
       atbp = atb(p_i)
 
-      ! now solve
-      ! scipy nnls assumes a symmetric matrix
-      ! i guess this is true by construction? so dsysv
       allocate(work(1))
-      ! write(*, *) "before first dsysv call", work, info, n_true
       call ssysv("U", n_true, 1, atap, n_true,&
                  ipiv, atbp, n_true, work, -1, info)
       lwork = int(work(1))
       deallocate(work)
       allocate(work(lwork))
       call ssysv("U", n_true, 1, atap, n_true,&
-                 ipiv, atbp, ldb, work, lwork, info)
+                 ipiv, atbp, n_true, work, lwork, info)
       ! atbp is now s[p]
       s_p_min = huge(0.0)
       do i = 1, n_true
@@ -63,19 +59,6 @@ module nnls_solver
       deallocate(work)
 
     end subroutine update_s
-
-    ! subroutine antenna(n_p, lp, pigments, k_p, n_s, n_b)&
-    !     bind(c, name="antenna")
-    !   ! note - n_s should be n_s + 1 i.e. including rc
-    !   implicit none
-    !   integer :: n_s, n_b
-    !   integer, dimension(n_s) :: n_p
-    !   real, dimension(n_s) :: lp
-    !   character, dimension(n_s) :: pigments
-    !   real, dimension(5) :: k_p
-
-
-    ! end subroutine antenna
 
     subroutine nnls(A, b, x, mode, res, maxiter, tol)
       implicit none
@@ -94,6 +77,7 @@ module nnls_solver
       n = size(A, 2)
       if (size(b).ne.m) then
         write(*, *) "A and b dimensions incorrect"
+        stop
       end if
 
       allocate(ata(n, n), source=0.0)
