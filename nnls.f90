@@ -88,8 +88,8 @@ module nnls_solver
       real, dimension(:), allocatable :: atb, resid, s
       real, dimension(size(A, 1)) :: b
       real, dimension(size(A, 2)) :: x
-      integer :: m, n, iter, k, n_true, i, mode
-      real :: s_p_min, alpha, alpha_min, res, resid_max
+      integer :: m, n, iter, n_true, i, mode
+      real :: s_p_min, alpha, alpha_min, res
       m = size(A, 1)
       n = size(A, 2)
       if (size(b).ne.m) then
@@ -110,24 +110,26 @@ module nnls_solver
       mode = 1
       iter = 0
       do while ((.not.all(p)).and.&
-        (any(merge(resid, 0.0, (p.eqv..false.)) > tol)))
+        ! (any(merge(resid, 0.0, (p.eqv..false.)) > tol)))
+        (any(merge(resid, 0.0, (p.eqv..false.)).gt.tol)))
 
-        do i = 1, n
-          if (p(i).eqv..true.) then
-            resid(i) = -huge(0.0)
-          end if 
-        end do
-        resid_max = -1.0 * huge(0.0) + 1.0
-        k = maxloc(resid, 1) ! you have to specify dim to get a scalar
-        ! this line doesn't work properly. the code hangs because
-        ! not all p's are true when they should be; one element of the
-        ! array will still be false, but p(k) will return true. why?
-        p(k) = .true.
+        where (p) resid = -huge(0.0)
+        ! do i = 1, n
+        !   if (p(i).eqv..true.) then
+        !     resid(i) = -huge(0.0)
+        !   end if 
+        ! end do
+        ! resid_max = -1.0 * huge(0.0) + 1.0
+        ! k = maxloc(resid, 1) ! you have to specify dim to get a scalar
+        ! p(k) = .true.
+        p(maxloc(resid, 1)) = .true. ! must specify dim to get scalar
+
 
         s = 0.0
         n_true = count(p)
 
-        call update_s(s, ata, atb, p, n_true, s_p_min)
+        ! call update_s(s, ata, atb, p, n_true, s_p_min)
+        call update_s(s, ata, atb, p, count(p), s_p_min)
 
         do while ((iter.lt.maxiter).and.(s_p_min.le.tol))
 
@@ -148,8 +150,15 @@ module nnls_solver
             end if
           end do
           n_true = count(p)
-          call update_s(s, ata, atb, p, n_true, s_p_min)
-          where (p.eqv..false.) s = 0
+          ! call update_s(s, ata, atb, p, n_true, s_p_min)
+          call update_s(s, ata, atb, p, count(p), s_p_min)
+          ! do i = 1, n
+          !   if (p(i).eqv..false.) then
+          !     s(i) = 0.0
+          !   end if
+          ! end do
+          where (.not.p) s = 0.0
+          ! where (p.eqv..false.) s = 0
           iter = iter + 1
           
         end do
