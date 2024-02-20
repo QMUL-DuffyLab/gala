@@ -26,8 +26,17 @@ program main
     call random_number(x_ref)
     b = matmul(a, x_ref)
     call nnls(a, b, x, mode, res, maxiter, tol)
-    diff = sum(abs(x - x_ref))
-    write(*, *) i, diff
+    diff = sum(abs(matmul(A, x) - b))
+    if (mode.eq.-1) then
+      write(*, *) "iteration ", i
+      write(*, *) "x_ref = ", x_ref
+      write(*, *) "x = ", x
+      write(*, *) "Ax = ", matmul(A, x)
+      write(*, *) "b = ", b
+      write(*, *) "diff = ", diff
+    else
+      write(*, '(a, i4, a, G10.3)') "i = ", i, " diff = ", diff
+    end if
     deallocate(b)
     deallocate(x)
     deallocate(x_ref)

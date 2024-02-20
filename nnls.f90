@@ -15,12 +15,13 @@ module nnls_solver
       real, dimension(:, :) :: ata
       real, dimension(:) :: atb, s
       logical, dimension(:) :: p
-      integer :: p_i_c, n_true, i, ldb, info, lwork
+      integer :: p_i_c, n_true, i, ldb, info, lwork, lwmax
       real :: s_p_min
       integer, dimension(n_true) :: p_i, ipiv
       real, dimension(n_true, n_true) :: atap
       real, dimension(n_true) :: atbp
       real, dimension(:), allocatable :: work
+      lwmax = 100
 
       if (size(ata, 1).ne.size(ata, 2)) then
         write (*,*) "ata not square"
@@ -40,34 +41,35 @@ module nnls_solver
       atap = ata(p_i, p_i)
       atbp = atb(p_i)
 
-      if (n_true.eq.1) then
-        s(p_i(1)) = atap(1, 1) / atb(1)
-        s_p_min = s(p_i(1))
-      else
-        ! now solve
-        ! scipy nnls assumes a symmetric matrix
-        ! i guess this is true by construction? so dsysv
-        allocate(work(1))
-        write(*, *) "before first dsysv call"
-        call dsysv("U", n_true, 1, atap, n_true,&
-                   ipiv, atbp, ldb, work, -1, info)
-        write(*, *) "after first dsysv call", work, info, n_true, atap, atbp
-        lwork = int(work(1))
-        deallocate(work)
-        allocate(work(lwork))
-        write(*, *) "before second dsysv call", lwork, n_true
-        call dsysv("U", n_true, 1, atap, n_true,&
-                   ipiv, atbp, ldb, work, lwork, info)
-        ! atbp is now essentially s[p]
-        s_p_min = huge(0.0)
-        do i = 1, n_true
-          s(p_i(i)) = atbp(i)
-          if (s(p_i(i)).lt.s_p_min) then
-            s_p_min = s(p_i(i))
-          end if
-        end do
-        deallocate(work)
-      end if
+      ! now solve
+      ! scipy nnls assumes a symmetric matrix
+      ! i guess this is true by construction? so dsysv
+      allocate(work(1))
+      ! write(*, *) "before first dsysv call", work, info, n_true
+      call ssysv("U", n_true, 1, atap, n_true,&
+                 ipiv, atbp, n_true, work, -1, info)
+      ! write(*, *) "after first dsysv call:", work, info, n_true
+      ! write(*, *) atap
+      ! write(*, *) atbp
+      ! this shouldn't be necessary
+      lwork = int(work(1))
+      deallocate(work)
+      allocate(work(lwork))
+      ! write(*, *) "before second dsysv call", lwork, n_true
+      call ssysv("U", n_true, 1, atap, n_true,&
+                 ipiv, atbp, ldb, work, lwork, info)
+      ! write(*, *) "after second dsysv call:", work, info, n_true
+      ! write(*, *) atap
+      ! write(*, *) atbp
+      ! atbp is now essentially s[p]
+      s_p_min = huge(0.0)
+      do i = 1, n_true
+        s(p_i(i)) = atbp(i)
+        if (s(p_i(i)).lt.s_p_min) then
+          s_p_min = s(p_i(i))
+        end if
+      end do
+      deallocate(work)
 
     end subroutine update_s
 
@@ -146,11 +148,11 @@ module nnls_solver
         ! not all p's are true when they should be; one element of the
         ! array will still be false, but p(k) will return true. why?
         p(k) = .true.
-        write(*, *) "alkdfhsakleh", i, n, k, resid(k), p(k), p
+        ! write(*, *) "after setting constraint true", i, n, k, resid(k), p(k), p
 
         s = 0.0
         n_true = count(p)
-        write(*, *) resid, p, k, p(k)
+        ! write(*, *) "before call update_s", resid, p, k, p(k)
 
         call update_s(s, ata, atb, p, n_true, s_p_min)
 
@@ -167,18 +169,18 @@ module nnls_solver
           end do
           x = x * (1.0 - alpha)
           x = x + alpha * s
-          write(*, *) "inner pre x loop: ", x, p, n_true, tol
+          ! write(*, *) "inner pre x loop: ", x, p, n_true, tol
           ! do i = 1, size(x)
           !   write(*, *) "inner x loop: ", i, x(i), p(i)
           ! end do
           do i = 1, n
             if (x(i).lt.tol) then
-              write(*, *) "inner in x loop: ", i, x(i), p(i)
+              ! write(*, *) "inner in x loop: ", i, x(i), p(i)
               p(i) = .false.
             end if
           end do
           n_true = count(p)
-          write(*, *) "inner post x loop: ", x, p, n_true
+          ! write(*, *) "inner post x loop: ", x, p, n_true
           call update_s(s, ata, atb, p, n_true, s_p_min)
           where (p.eqv..false.) s = 0
           iter = iter + 1
