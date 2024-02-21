@@ -30,7 +30,7 @@ program main
     call random_number(a)
     call random_number(x_ref)
     b = matmul(a, x_ref)
-    call nnls(a, b, x, mode, res, maxiter, tol)
+    call nnls(a, b, x, m, n, mode, res, maxiter, tol)
     diff = norm2(matmul(A, x) - b)
     xdiff = norm2(x_ref - x)
     if ((mode.eq.-1_c_int).or.(diff.gt.1.0_c_double)) then
