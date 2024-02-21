@@ -17,17 +17,17 @@ if __name__ == "__main__":
         doubleptr = ctypes.POINTER(ctypes.c_double)
         intptr = ctypes.POINTER(ctypes.c_int)
         libnnls = ctypes.CDLL("./libnnls.so")
-        libnnls.nnls.argtypes = [doubleptr, doubleptr, doubleptr,
+        libnnls.solve.argtypes = [doubleptr, doubleptr, doubleptr,
                                  intptr, intptr,
                                  intptr, doubleptr,
                                  intptr, doubleptr]
-        libnnls.nnls.restype = None
+        libnnls.solve.restype = None
         mode = ctypes.c_int(0)
         res_f = ctypes.c_double(0.0)
         maxiter = ctypes.c_int(3 * n)
         tol = ctypes.c_double(1e-6)
         x_f = np.zeros(n, dtype=ctypes.c_double)
-        libnnls.nnls(a.ctypes.data_as(doubleptr),
+        libnnls.solve(a.ctypes.data_as(doubleptr),
                      b.ctypes.data_as(doubleptr),
                      x_f.ctypes.data_as(doubleptr),
                      ctypes.c_int(m),
@@ -46,4 +46,3 @@ if __name__ == "__main__":
         fp_diff = np.linalg.norm(x_f - x_py)
         if (fp_diff > 1e-6):
             print("i = {:4d}: res_f = {:10.6e}, res_py = {:10.6e}, |f-ref| = {:10.6e}, |py-ref| = {:10.6e}, |f-py| = {:10.6e}".format(i, res_f.value, res_py, rf_diff, rp_diff, fp_diff))
-            print(x_f, x_ref, mode)
