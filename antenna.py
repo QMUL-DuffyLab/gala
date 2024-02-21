@@ -18,7 +18,7 @@ hcnm = (h * c) / (1.0E-9)
 
 def get_lineshape(l, pigment, lp_offset):
     '''
-    return lineshape of pigment shifted to lp
+    return lineshape of pigment shifted by lp
     '''
     params = constants.pigment_data[pigment]
     lp = [x + lp_offset for x in params['lp']]
