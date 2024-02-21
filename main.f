@@ -3,6 +3,7 @@ program main
   use nnls_solver
   implicit none
   integer(kind=c_int) :: i, j, k, n, m, mode, maxiter, nmax
+  integer(kind=c_long) ::  start_time, end_time, count_rate
   real(kind=c_double) :: r, res, tol, diff, xdiff
   real(kind=c_double), dimension(:), allocatable :: b, x, x_ref
   real(kind=c_double), dimension(:, :), allocatable :: a
@@ -10,6 +11,7 @@ program main
 
   nmax = 0_c_int
   call random_init(.true., .true.)
+  call system_clock(start_time, count_rate)
   do i = 1, 1000
     call random_number(r)
     ! at least 2 x 2 matrices
@@ -57,6 +59,9 @@ program main
     deallocate(x_ref)
     deallocate(a)
   end do
+  call system_clock(end_time)
   write(*, *) "nmax = ", nmax
+  write(*, '(a, f10.6)') "time elapsed = ",&
+    real(end_time - start_time) / real(count_rate)
 
 end program main
