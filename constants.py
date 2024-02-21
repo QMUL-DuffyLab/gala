@@ -72,9 +72,6 @@ class genome:
 # the strings here *must match* the names in genome definition above
 subunit_params = ['n_p', 'lp', 'pigment']
 
-# radiative genome
-rg = genome(1, 1, np.array([1]), np.array([680.0]), np.array(['chl_a\x00']))
-
 '''
 Gaussian fits to pigment data, done by me.
 details in pigments directory.

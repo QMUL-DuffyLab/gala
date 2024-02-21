@@ -67,14 +67,20 @@ module nnls_solver
       real(kind=c_double), dimension(:), allocatable :: atb, resid, s
       real(kind=c_double), dimension(size(A, 1)) :: b
       real(kind=c_double), dimension(size(A, 2)) :: x
-      integer(kind=c_int) :: m, n, iter, i, mode
+      integer(kind=c_int) :: m, n, iter, i, mode, j, k
       real(kind=c_double) :: s_p_min, alpha, alpha_min, res
       m = size(A, 1)
       n = size(A, 2)
       if (size(b).ne.m) then
+        write(*, *) size(A, 1), size(A, 2), size(b)
         write(*, *) "A and b dimensions incorrect"
         stop
       end if
+
+      write(*,*) size(A)
+      do j = 1, m
+        write(20, *) (A(j, k), k = 1, n)
+      end do
 
       allocate(ata(n, n), source=0.0_c_double)
       ata = matmul(transpose(A), A)

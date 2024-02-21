@@ -22,7 +22,7 @@ if __name__ == "__main__":
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
     for ts in reversed(temps):
         print("T = ", ts)
-        init_type = 'random' # can be radiative or random
+        init_type = 'radiative' # can be radiative or random
         names = ["avg", "avgsq", "np", "npsq", "lp",
                 "lpsq", "w", "wsq", "best", "neg"]
         prefs = ["out/{}_{:4d}K".format(p, ts) for p in names]

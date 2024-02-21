@@ -63,19 +63,17 @@ def initialise_individual(rng, init_type):
     '''
     Initialise one individual from our population.
     There are two ways to do this - either assume they all
-    have identical prototypical antennae, or they're all
+    have tiny prototypical antennae, or they're all
     completely random. Option controlled by changing init_type.
     '''
     if init_type == 'radiative':
         '''
         Assumes every individual at the start is an
-        identical kind of prototypical antenna with
-        one branch, one subunit, one Chl-like pigment.
-        NB: if we do this we can just calculate nu_e for this
-        setup once - they'll all have the same nu_e so we'll
-        need to think of an alternative fitness strategy here
+        identically structured prototypical antenna with
+        one branch and one subunit, random pigment
         '''
-        return constants.rg
+        nb = 1
+        ns = 1
     else: # random initialisation
         '''
         Each branch is (currently) assumed to be identical!
@@ -84,14 +82,14 @@ def initialise_individual(rng, init_type):
         '''
         nb = get_rand('n_b', rng)
         ns = get_rand('n_s', rng)
-        n_p = np.zeros(ns, dtype=np.int)
-        lp = np.zeros(ns, dtype=np.float64)
-        pigment = np.empty(ns, dtype='U10')
-        for i in range(ns):
-            n_p[i] = get_rand('n_p', rng)
-            lp[i]  = get_rand('lp', rng)
-            pigment[i]  = get_rand('pigment', rng)
-        return constants.genome(nb, ns, n_p, lp, pigment)
+    n_p = np.zeros(ns, dtype=np.int)
+    lp = np.zeros(ns, dtype=np.float64)
+    pigment = np.empty(ns, dtype='U10')
+    for i in range(ns):
+        n_p[i] = get_rand('n_p', rng)
+        lp[i]  = get_rand('lp', rng)
+        pigment[i]  = get_rand('pigment', rng)
+    return constants.genome(nb, ns, n_p, lp, pigment)
 
 def fitness(individual):
     '''

@@ -134,21 +134,21 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         p_eq_lstsq = None
         p_eq_res_lstsq = None
 
-    doubleptr = ctypes.POINTER(ctypes.c_double)
-    libnnls = ctypes.CDLL("./libnnls.so")
-    libnnls.nnls.argtypes = []
-    libnnls.nnls.restype = None
-    mode = ctypes.c_int(0)
-    res = ctypes.c_double(0.0)
-    maxiter = ctypes.c_int(3 * (2 * side))
-    tol = ctypes.c_double(1e-6)
-    p_eq_f = np.zeros(2 * side, dtype=ctypes.c_double)
-    print("testing fortran")
-    libnnls.nnls(k.ctypes.data_as(doubleptr),
-                 b.ctypes.data_as(doubleptr),
-                 p_eq_f.ctypes.data_as(doubleptr),
-                 mode, res, maxiter, tol)
-    print("fortran returned")
+    # doubleptr = ctypes.POINTER(ctypes.c_double)
+    # libnnls = ctypes.CDLL("./libnnls.so")
+    # libnnls.nnls.argtypes = []
+    # libnnls.nnls.restype = None
+    # mode = ctypes.c_int(0)
+    # res = ctypes.c_double(0.0)
+    # maxiter = ctypes.c_int(3 * (2 * side))
+    # tol = ctypes.c_double(1e-6)
+    # p_eq_f = np.zeros(2 * side, dtype=ctypes.c_double)
+    # print("testing fortran")
+    # libnnls.nnls(k.ctypes.data_as(doubleptr),
+    #              b.ctypes.data_as(doubleptr),
+    #              p_eq_f.ctypes.data_as(doubleptr),
+    #              mode, res, maxiter, tol)
+    # print("fortran returned")
 
     try:
         p_eq, p_eq_res = nnls(k, b)
@@ -162,8 +162,8 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
             print("RuntimeError - nnls reached iteration limit. high intensity")
         return np.array([nu_e, phi_e_g, phi_e])
 
-    print("sum of difference between python and fortran: ", 
-          np.sum(p_eq - p_eq_f))
+    # print("sum of difference between python and fortran: ", 
+    #       np.sum(p_eq - p_eq_f))
     # print("Scipy nnls:")
     # print(p_eq, k @ p_eq, (k @ p_eq) - b)
 

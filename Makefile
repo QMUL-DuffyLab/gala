@@ -9,7 +9,7 @@ SOURCES = nnls.f
 
 # if SHARED = 1 compile nnls module as a shared library
 # if SHARED = 0 compile standalone program to debug
-SHARED = 0
+SHARED = 1
 ifeq ($(SHARED), 1)
 	CFLAGS += -fPIC
 	LDFLAGS += -shared
@@ -18,14 +18,14 @@ else
 	SOURCES += main.f
 	TARGET = nnls
 endif
-OBJECTS = $(SOURCES:.c=.o)
+OBJECTS = $(SOURCES)
 
 .PHONY: clean
 
 all: $(TARGET)
 
-clean:
-	rm -f $(OBJECTS) $(TARGET)
+# clean:
+# 	rm -f $(OBJECTS) $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(FLAGS) $(CFLAGS) $(RFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
