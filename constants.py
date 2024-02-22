@@ -18,6 +18,7 @@ gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc
 population_size = 1000
 max_gen = 1000
 n_runs = 3
+antenna_size_weight = 0.1
 fitness_cutoff = 0.2 # fraction of individuals kept
 d_recomb = 0.25 # random perturbation of values during crossover
 mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
@@ -50,13 +51,13 @@ Spectral parameters - I think these will change
 '''
 sig_chl = 9E-20 # (approximate!) cross-section of one chlorophyll
 np_rc = 1 # number of pigments in reaction centre
-lp_rc = 680.0 # reaction centre
-w_rc  = 9.0 # reaction centre peak width
-lp2_rc = 640.0 # reaction centre
-w2_rc  = 15.0 # reaction centre peak width
-a12_rc = 0.2
+# lp_rc = 680.0 # reaction centre
+# w_rc  = 9.0 # reaction centre peak width
+# lp2_rc = 640.0 # reaction centre
+# w2_rc  = 15.0 # reaction centre peak width
+# a12_rc = 0.2
 
-rc_params = (1, lp_rc, w_rc, lp2_rc, w2_rc, a12_rc)
+# rc_params = (1, lp_rc, w_rc, lp2_rc, w2_rc, a12_rc)
 
 @dataclass()
 class genome:
@@ -97,7 +98,8 @@ pigment_data = {
     'n_gauss': 2,
     'amp': [8.724538e-01, 2.245409e-01],
     'lp': [6.661618e+02, 6.250687e+02],
-    'w': [8.878352e+00, 3.685004e+01],
+    # 'w': [8.878352e+00, 3.685004e+01],
+    'w': [10.0, 3.685004e+01],
     },
 'chl_b': {
     'n_gauss': 3,

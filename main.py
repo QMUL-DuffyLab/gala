@@ -91,8 +91,8 @@ if __name__ == "__main__":
                     avgsq[1] += nu_phi[1]**2
                     avgs[2]  += nu_phi[2]
                     avgsq[2] += nu_phi[2]**2
-                    avgs[3]  += nu_phi[0] * nu_phi[2]
-                    avgsq[3] += (nu_phi[0] * nu_phi[2])**2
+                    avgs[3]  += ga.fitness(p)
+                    avgsq[3] += (ga.fitness(p))**2
                     avgs[4]  += np.sum(p.n_p) / (p.n_s) # don't count RC
                     avgsq[4] += np.sum(np.square(p.n_p)) / (p.n_s)
                     avgs[5]  += np.sum(p.lp) / (p.n_s)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
                 print(f"<ν_e>     = {avgs[0]:10.4n}\t<ν_e^2>       = {avgsq[0]:10.4n}\tσ = {std_dev[0]:10.4n}")
                 print(f"<φ_e(γ)>  = {avgs[1]:10.4n}\t<φ_e(γ)^2>    = {avgsq[1]:10.4n}\tσ = {std_dev[1]:10.4n}")
                 print(f"<φ_e>     = {avgs[2]:10.4n}\t<φ_e^2>       = {avgsq[2]:10.4n}\tσ = {std_dev[2]:10.4n}")
-                print(f"<φ_e ν_e> = {avgs[3]:10.4n}\t<φ_e ν_e^2>   = {avgsq[3]:10.4n}\tσ = {std_dev[3]:10.4n}")
+                print(f"f(p)      = {avgs[3]:10.4n}\tf(p)^2        = {avgsq[3]:10.4n}\tσ = {std_dev[3]:10.4n}")
                 print(f"<n_p>     = {avgs[4]:10.4n}\t<n_p^2>       = {avgsq[4]:10.4n}\tσ = {std_dev[4]:10.4n}")
                 print(f"<λ_p>     = {avgs[5]:10.4n}\t<λ_p^2>       = {avgsq[5]:10.4n}\tσ = {std_dev[5]:10.4n}")
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")

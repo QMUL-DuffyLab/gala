@@ -98,7 +98,9 @@ def fitness(individual):
     have to be used building and maintaining the antenna, so
     we use electron output per pigment as our proxy for fitness
     '''
-    return (individual.nu_e / np.sum(individual.n_p))
+    return (individual.nu_e /
+            (constants.antenna_size_weight *
+             individual.n_b * np.sum(individual.n_p)))
 
 def tournament(population, k, rng):
     fit_max = 0.0
