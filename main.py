@@ -20,7 +20,8 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
-    for ts in reversed(temps):
+    # for ts in reversed(temps):
+    for ts in temps:
         print("T = ", ts)
         init_type = 'radiative' # can be radiative or random
         names = ["avg", "avgsq", "np", "npsq", "lp",
@@ -73,6 +74,8 @@ if __name__ == "__main__":
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
                 fit_max = 0.0
+                # initialise in case they all have 0 fitness
+                best = population[0]
                 for j, p in enumerate(population):
                     nu_phi = la.antenna(l, ip_y, p, False, False)
                     p.nu_e  = nu_phi[0]

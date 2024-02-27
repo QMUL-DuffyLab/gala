@@ -106,6 +106,7 @@ def tournament(population, k, rng):
     fit_max = 0.0
     for i in range(k):
         ind = rng.integers(constants.population_size)
+        winner = ind # if they all have 0 fitness, just take the first
         p = population[ind]
         if (fitness(p) > fit_max):
             fit_max = fitness(p)

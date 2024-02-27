@@ -103,7 +103,7 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
 
     side = (p.n_b * p.n_s) + 2
     twa = np.zeros((2 * side, 2 * side), dtype=np.longdouble)
-    k = np.zeros(((2 * side) + 1, 2 * side), dtype=ctypes.c_double, 
+    k = np.zeros(((2 * side) + 1, 2 * side), dtype=ctypes.c_double,
                  order='F')
     twa[1][0] = constants.k_con # 1e+2
     twa[2][0] = constants.k_diss # 2.5e+8
@@ -147,20 +147,34 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         p_eq_res_lstsq = None
 
     # doubleptr = ctypes.POINTER(ctypes.c_double)
+    # intptr = ctypes.POINTER(ctypes.c_int)
     # libnnls = ctypes.CDLL("./libnnls.so")
-    # libnnls.nnls.argtypes = []
-    # libnnls.nnls.restype = None
+    # libnnls.solve.argtypes = [doubleptr, doubleptr, doubleptr,
+    #                          intptr, intptr,
+    #                          intptr, doubleptr,
+    #                          intptr, doubleptr]
+    # libnnls.solve.restype = None
     # mode = ctypes.c_int(0)
-    # res = ctypes.c_double(0.0)
     # maxiter = ctypes.c_int(3 * (2 * side))
     # tol = ctypes.c_double(1e-6)
-    # p_eq_f = np.zeros(2 * side, dtype=ctypes.c_double)
-    # print("testing fortran")
-    # libnnls.nnls(k.ctypes.data_as(doubleptr),
+    # p_eq_res = ctypes.c_double(0.0)
+    # p_eq = np.zeros((2 * side), dtype=ctypes.c_double)
+    # libnnls.solve(k.ctypes.data_as(doubleptr),
     #              b.ctypes.data_as(doubleptr),
-    #              p_eq_f.ctypes.data_as(doubleptr),
-    #              mode, res, maxiter, tol)
-    # print("fortran returned")
+    #              p_eq.ctypes.data_as(doubleptr),
+    #              ctypes.c_int((2 * side) + 1),
+    #              ctypes.c_int(2 * side),
+    #              ctypes.byref(mode),
+    #              ctypes.byref(p_eq_res),
+    #              ctypes.byref(maxiter),
+    #              ctypes.byref(tol))
+    # if (mode.value < 0):
+    #     nu_e = 0.0
+    #     phi_e_g = 0.0
+    #     phi_e = 0.0
+    #     if debug:
+    #         print("Fortran reached max iterations")
+    #     return np.array([nu_e, phi_e_g, phi_e])
 
     try:
         p_eq, p_eq_res = nnls(k, b)
@@ -215,6 +229,25 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
         p_eq_lstsq_low = None
         p_eq_res_lstsq_low = None
 
+    # p_eq_low = np.zeros_like(p_eq)
+    # p_eq_res_low = ctypes.c_double(0.0)
+    # libnnls.solve(k.ctypes.data_as(doubleptr),
+    #              b.ctypes.data_as(doubleptr),
+    #              p_eq_low.ctypes.data_as(doubleptr),
+    #              ctypes.c_int((2 * side) + 1),
+    #              ctypes.c_int(2 * side),
+    #              ctypes.byref(mode),
+    #              ctypes.byref(p_eq_res_low),
+    #              ctypes.byref(maxiter),
+    #              ctypes.byref(tol))
+    # if (mode.value < 0):
+    #     nu_e = 0.0
+    #     phi_e_g = 0.0
+    #     phi_e = 0.0
+    #     if debug:
+    #         print("Fortran reached max iterations")
+    #     return np.array([nu_e, phi_e_g, phi_e])
+
     try:
         p_eq_low, p_eq_res_low = nnls(k_phi, b)
     except RuntimeError:
@@ -227,9 +260,9 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
             print("RuntimeError - nnls reached iteration limit. low intensity")
         return np.array([nu_e, phi_e_g, phi_e])
 
-    if np.any(p_eq_low < 0.0):
-        print("negative probabilities in p_eq_low!")
-        print(p_eq_low)
+#     if np.any(p_eq_low < 0.0):
+#         print("negative probabilities in p_eq_low!")
+#         print(p_eq_low)
 
     n_eq_low = np.zeros(side, dtype=np.float64)
     for i in range(side):
