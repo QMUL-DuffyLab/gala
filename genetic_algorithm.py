@@ -96,11 +96,11 @@ def fitness(individual):
     obviously higher electron output is what's primarily wanted,
     but the bigger the antenna is, the more of those electrons
     have to be used building and maintaining the antenna, so
-    we use electron output per pigment as our proxy for fitness
+    we subtract a certain amount per pigment as our proxy for fitness
     '''
-    return (individual.nu_e /
-            (constants.antenna_size_weight *
+    f = (individual.nu_e - (constants.cost_per_pigment *
              individual.n_b * np.sum(individual.n_p)))
+    return f if f > 0.0 else 0.0
 
 def tournament(population, k, rng):
     fit_max = 0.0
