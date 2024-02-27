@@ -67,6 +67,8 @@ if __name__ == "__main__":
                 population[j] = ga.initialise_individual(rng, init_type)
 
             while gen < constants.max_gen:
+                old_survivors = ([None] *
+                int(constants.fitness_cutoff * constants.population_size))
                 avgs.fill(0.0)
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
@@ -132,12 +134,19 @@ if __name__ == "__main__":
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")
                 print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
 
-                survivors = ga.selection(rng, population)
+                survivors, n_changes = ga.selection(rng, 
+                                       population, old_survivors)
+                old_survivors = survivors.copy()
+
                 avg_nb_surv = np.sum(np.array([s.n_b
                                         for s in survivors]) / len(survivors))
                 avg_ns_surv = np.sum(np.array([s.n_s
                                         for s in survivors]) / len(survivors))
-                print("Average n_b, n_s of survivors: ", avg_nb_surv, avg_ns_surv)
+                avg_fit_surv = np.sum(np.array([ga.fitness(s)
+                                        for s in survivors]) / len(survivors))
+                print("Average n_b, n_s, fitness of survivors: ",
+                      avg_nb_surv, avg_ns_surv, avg_fit_surv)
+                print("n_changes = ", n_changes)
                 print("\n")
 
                 with open(filenames['best'], "a") as f:

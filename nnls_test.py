@@ -46,3 +46,5 @@ if __name__ == "__main__":
         fp_diff = np.linalg.norm(x_f - x_py)
         if (fp_diff > 1e-6):
             print("i = {:4d}: res_f = {:10.6e}, res_py = {:10.6e}, |f-ref| = {:10.6e}, |py-ref| = {:10.6e}, |f-py| = {:10.6e}".format(i, res_f.value, res_py, rf_diff, rp_diff, fp_diff))
+        else:
+            print(i, fp_diff)

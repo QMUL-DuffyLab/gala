@@ -112,17 +112,21 @@ def tournament(population, k, rng):
             winner = ind
     return population[winner]
 
-def selection(rng, population):
+def selection(rng, population, old_survivors):
     '''
     run tournaments with tournament size given by constants.tourney_k
     to determine which members of the population survive.
     we do this without replacement to build up a "mating pool".
+    check how many of the survivors are replaced as we do this.
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     survivors = []
+    n_changes = 0
     for i in range(n_survivors):
         survivors.append(tournament(population, constants.tourney_k, rng))
-    return survivors
+        if survivors[i] != old_survivors[i]:
+            n_changes += 1
+    return survivors, n_changes
 
 def recombine(vals, parameter, rng):
     '''

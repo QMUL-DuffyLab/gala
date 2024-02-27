@@ -6,7 +6,7 @@
 
 import numpy as np
 import numpy.typing as npt
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, astuple
 
 '''
 General stuff
@@ -59,7 +59,28 @@ np_rc = 1 # number of pigments in reaction centre
 
 # rc_params = (1, lp_rc, w_rc, lp2_rc, w2_rc, a12_rc)
 
-@dataclass()
+def array_safe_eq(a, b) -> bool:
+    """Check equality of a and b"""
+    if a is b:
+        return True
+    if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+        return a.shape == b.shape and (a == b).all()
+    try:
+        return a == b
+    except TypeError:
+        return NotImplemented
+
+def dc_eq(dc1, dc2) -> bool:
+    """check equality of dataclasses"""
+    if dc1 is dc2:
+        return True
+    if dc1.__class__ is not dc2.__class__:
+        return NotImplemented
+    t1 = astuple(dc1)
+    t2 = astuple(dc2)
+    return all(array_safe_eq(a1, a2) for a1, a2 in zip(t1, t2))
+
+@dataclass(eq=False)
 class genome:
     n_b: int = 0
     n_s: int = 0
@@ -68,6 +89,8 @@ class genome:
     pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     nu_e: float = np.nan
     phi_f: float = np.nan
+    def __eq__(self, other):
+        return dc_eq(self, other)
 
 # list of parameters defined per subunit rather than per genome
 # the strings here *must match* the names in genome definition above
