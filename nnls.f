@@ -11,6 +11,8 @@ module nnls
   use iso_c_binding
   implicit none
   public :: update_s, solve
+  ! note that changing CF in particular might require changing
+  ! the dsysv calls; if going to single precision, use ssysv
   integer, parameter :: CF = c_double
   integer, parameter :: CI = c_int
   integer, parameter :: CB = c_bool
@@ -133,17 +135,17 @@ module nnls
 
         x = s
         resid = atb - matmul(ata, x)
-        if (iter.ge.maxiter) then
-          x = 0.0_CF
-          res = 0.0_CF
-          mode = -1_CI
-          deallocate(ata)
-          deallocate(atb)
-          deallocate(resid)
-          deallocate(pr)
-          deallocate(s)
-          return
-        end if
+        ! if (iter.ge.maxiter) then
+        !   x = 0.0_CF
+        !   res = 0.0_CF
+        !   mode = -1_CI
+        !   deallocate(ata)
+        !   deallocate(atb)
+        !   deallocate(resid)
+        !   deallocate(pr)
+        !   deallocate(s)
+        !   return
+        ! end if
 
       end do
 

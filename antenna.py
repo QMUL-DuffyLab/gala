@@ -57,7 +57,62 @@ def peak(lp_offset, pigment):
     params = constants.pigment_data[pigment]
     return lp_offset + params['lp'][0]
 
-def antenna(l, ip_y, p, debug=False, test_lstsq=False):
+def solve(k, method='fortran', debug=False):
+    '''
+    solve the nnls problem using the given method.
+    default's fortran, otherwise it'll use scipy.
+    note that k should be given fortran-ordered if using
+    the fortran solver; it's constructed that way below
+    '''
+    m = k.shape[0]
+    n = k.shape[1]
+    b = np.zeros(m, dtype=ctypes.c_double)
+    b[-1] = 1.0
+    if method == 'fortran':
+        doubleptr = ctypes.POINTER(ctypes.c_double)
+        intptr = ctypes.POINTER(ctypes.c_int)
+        libnnls = ctypes.CDLL("./libnnls.so")
+        libnnls.solve.argtypes = [doubleptr, doubleptr, doubleptr,
+                                 intptr, intptr,
+                                 intptr, doubleptr,
+                                 intptr, doubleptr]
+        libnnls.solve.restype = None
+        mode = ctypes.c_int(0)
+        maxiter = ctypes.c_int(3 * n)
+        tol = ctypes.c_double(1e-6)
+
+        b = np.zeros(k.shape[0], dtype=ctypes.c_double)
+        b[-1] = 1.0
+        p_eq_res = ctypes.c_double(0.0)
+        p_eq = np.zeros(n, dtype=ctypes.c_double)
+        libnnls.solve(k.ctypes.data_as(doubleptr),
+                     b.ctypes.data_as(doubleptr),
+                     p_eq.ctypes.data_as(doubleptr),
+                     ctypes.c_int(m),
+                     ctypes.c_int(n),
+                     ctypes.byref(mode),
+                     ctypes.byref(p_eq_res),
+                     ctypes.byref(maxiter),
+                     ctypes.byref(tol))
+        print(mode.value)
+        if (mode.value < 0):
+            p_eq = None
+            p_eq_res = None
+            if debug:
+                print("Fortran reached max iterations")
+
+    elif method == 'scipy':
+        try:
+            p_eq, p_eq_res = nnls(k, b)
+        except RuntimeError:
+            p_eq = None
+            p_eq_res = None
+            if debug:
+                print("RuntimeError - nnls reached iteration limit")
+
+    return p_eq, p_eq_res
+
+def antenna(l, ip_y, p, debug=False):
     '''
     branched antenna, saturating RC
     p should be a genome either as defined above or as defined
@@ -140,58 +195,10 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
 
     b = np.zeros((2 * side) + 1, dtype=np.float64)
     b[-1] = 1.0
-    if test_lstsq:
-        p_eq_lstsq, p_eq_res_lstsq, rank, s = np.linalg.lstsq(k, b, rcond=None)
-    else:
-        p_eq_lstsq = None
-        p_eq_res_lstsq = None
-
-    # doubleptr = ctypes.POINTER(ctypes.c_double)
-    # intptr = ctypes.POINTER(ctypes.c_int)
-    # libnnls = ctypes.CDLL("./libnnls.so")
-    # libnnls.solve.argtypes = [doubleptr, doubleptr, doubleptr,
-    #                          intptr, intptr,
-    #                          intptr, doubleptr,
-    #                          intptr, doubleptr]
-    # libnnls.solve.restype = None
-    # mode = ctypes.c_int(0)
-    # maxiter = ctypes.c_int(3 * (2 * side))
-    # tol = ctypes.c_double(1e-6)
-    # p_eq_res = ctypes.c_double(0.0)
-    # p_eq = np.zeros((2 * side), dtype=ctypes.c_double)
-    # libnnls.solve(k.ctypes.data_as(doubleptr),
-    #              b.ctypes.data_as(doubleptr),
-    #              p_eq.ctypes.data_as(doubleptr),
-    #              ctypes.c_int((2 * side) + 1),
-    #              ctypes.c_int(2 * side),
-    #              ctypes.byref(mode),
-    #              ctypes.byref(p_eq_res),
-    #              ctypes.byref(maxiter),
-    #              ctypes.byref(tol))
-    # if (mode.value < 0):
-    #     nu_e = 0.0
-    #     phi_e_g = 0.0
-    #     phi_e = 0.0
-    #     if debug:
-    #         print("Fortran reached max iterations")
-    #     return np.array([nu_e, phi_e_g, phi_e])
-
-    try:
-        p_eq, p_eq_res = nnls(k, b)
-    except RuntimeError:
-        p_eq = None
-        p_eq_res = None
-        nu_e = 0.0
-        phi_e_g = 0.0
-        phi_e = 0.0
-        if debug:
-            print("RuntimeError - nnls reached iteration limit. high intensity")
-        return np.array([nu_e, phi_e_g, phi_e])
-
-    # print("sum of difference between python and fortran: ", 
-    #       np.sum(p_eq - p_eq_f))
-    # print("Scipy nnls:")
-    # print(p_eq, k @ p_eq, (k @ p_eq) - b)
+    p_eq, p_eq_res = solve(k, method='scipy')
+    if p_eq is None:
+        # couldn't find a solution - return fitness/efficiency of 0
+        return np.array([0.0, 0.0, 0.0])
 
     n_eq = np.zeros(side, dtype=np.float64)
     for i in range(side):
@@ -222,47 +229,10 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
     b[:] = 0.0
     b[-1] = 1.0
 
-    if test_lstsq:
-        p_eq_lstsq_low, p_eq_res_lstsq_low, rank, s = np.linalg.lstsq(k_phi,
-                                                            b, rcond=None)
-    else:
-        p_eq_lstsq_low = None
-        p_eq_res_lstsq_low = None
-
-    # p_eq_low = np.zeros_like(p_eq)
-    # p_eq_res_low = ctypes.c_double(0.0)
-    # libnnls.solve(k.ctypes.data_as(doubleptr),
-    #              b.ctypes.data_as(doubleptr),
-    #              p_eq_low.ctypes.data_as(doubleptr),
-    #              ctypes.c_int((2 * side) + 1),
-    #              ctypes.c_int(2 * side),
-    #              ctypes.byref(mode),
-    #              ctypes.byref(p_eq_res_low),
-    #              ctypes.byref(maxiter),
-    #              ctypes.byref(tol))
-    # if (mode.value < 0):
-    #     nu_e = 0.0
-    #     phi_e_g = 0.0
-    #     phi_e = 0.0
-    #     if debug:
-    #         print("Fortran reached max iterations")
-    #     return np.array([nu_e, phi_e_g, phi_e])
-
-    try:
-        p_eq_low, p_eq_res_low = nnls(k_phi, b)
-    except RuntimeError:
-        p_eq_low = None
-        p_eq_res_low = None
-        nu_e = 0.0
-        phi_e_g = 0.0
-        phi_e = 0.0
-        if debug:
-            print("RuntimeError - nnls reached iteration limit. low intensity")
-        return np.array([nu_e, phi_e_g, phi_e])
-
-#     if np.any(p_eq_low < 0.0):
-#         print("negative probabilities in p_eq_low!")
-#         print(p_eq_low)
+    p_eq_low, p_eq_res_low = solve(k_phi, method='scipy')
+    if p_eq_low is None:
+        # couldn't find a solution - return fitness/efficiency of 0
+        return np.array([0.0, 0.0, 0.0])
 
     n_eq_low = np.zeros(side, dtype=np.float64)
     for i in range(side):
@@ -282,10 +252,8 @@ def antenna(l, ip_y, p, debug=False, test_lstsq=False):
                 'N_eq_low': n_eq_low,
                 'P_eq': p_eq,
                 'P_eq_residuals': p_eq_res,
-                'P_eq_lstsq': p_eq_lstsq,
                 'P_eq_low': p_eq_low,
                 'P_eq_residuals_low': p_eq_res_low,
-                'P_eq_low_lstsq': p_eq_lstsq_low,
                 'gamma': gamma,
                 'gamma_total': np.sum(gamma),
                 'K_mat': k,
@@ -309,5 +277,5 @@ if __name__ == '__main__':
     pigments = ['chl_a']
     test = constants.genome(n_b, n_s, n_p, lp, pigments)
 
-    od = antenna(d[:, 0], d[:, 1], test, True, True)
+    od = antenna(d[:, 0], d[:, 1], test, True)
     print(od)
