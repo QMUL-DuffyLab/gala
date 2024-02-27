@@ -134,7 +134,7 @@ if __name__ == "__main__":
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")
                 print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
 
-                survivors, n_changes = ga.selection(rng, 
+                survivors, n_changes = ga.selection(rng,
                                        population, old_survivors)
                 old_survivors = survivors.copy()
 

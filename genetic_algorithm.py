@@ -126,6 +126,10 @@ def selection(rng, population, old_survivors):
         survivors.append(tournament(population, constants.tourney_k, rng))
         if survivors[i] != old_survivors[i]:
             n_changes += 1
+    # surv_sort = sorted([(i, fitness(r))
+    #                      for i, r in enumerate(survivors)],
+    #                    key=itemgetter(1), reverse=True)
+    survivors.sort(key=lambda p: fitness(p), reverse=True)
     return survivors, n_changes
 
 def recombine(vals, parameter, rng):

@@ -50,7 +50,7 @@ k_params  = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
 Spectral parameters - I think these will change
 '''
 sig_chl = 9E-20 # (approximate!) cross-section of one chlorophyll
-np_rc = 1 # number of pigments in reaction centre
+np_rc = 10 # number of pigments in reaction centre
 # lp_rc = 680.0 # reaction centre
 # w_rc  = 9.0 # reaction centre peak width
 # lp2_rc = 640.0 # reaction centre
