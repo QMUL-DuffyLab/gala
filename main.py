@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
             avgs  = np.zeros(9)
             avgsq = np.zeros(9)
-            recent_fit_max = deque(maxlen=constants.conv_gen)
+            rfm = deque(maxlen=constants.conv_gen)
             np_avg   = np.zeros(constants.bounds['n_s'][1])
             lp_avg   = np.zeros(constants.bounds['n_s'][1])
             w_avg    = np.zeros(constants.bounds['n_s'][1])
@@ -140,10 +140,11 @@ if __name__ == "__main__":
                 print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
 
                 # check convergence
-                recent_fit_max.append(fit_max)
+                rfm.append(fit_max)
+                qs = np.array([np.abs((rfm[i] / rfm[i + 1]) - 1.00)
+                      for i in range(len(rfm)- 1)])
                 if (gen > constants.conv_gen and
-                    (recent_fit_max[-1] / recent_fit_max[0])
-                    < 1.00 + constants.conv_per):
+                    (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
                     break
 
