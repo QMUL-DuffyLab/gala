@@ -6,6 +6,7 @@
 
 import ctypes
 from datetime import datetime
+from collections import deque
 import pandas as pd
 import numpy as np
 import constants
@@ -20,8 +21,8 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
-    # for ts in reversed(temps):
-    for ts in temps:
+    for ts in reversed(temps):
+    # for ts in temps:
         print("T = ", ts)
         init_type = 'radiative' # can be radiative or random
         names = ["avg", "avgsq", "np", "npsq", "lp",
@@ -52,6 +53,7 @@ if __name__ == "__main__":
 
             avgs  = np.zeros(9)
             avgsq = np.zeros(9)
+            recent_fit_max = deque(maxlen=constants.conv_gen)
             np_avg   = np.zeros(constants.bounds['n_s'][1])
             lp_avg   = np.zeros(constants.bounds['n_s'][1])
             w_avg    = np.zeros(constants.bounds['n_s'][1])
@@ -77,7 +79,7 @@ if __name__ == "__main__":
                 # initialise in case they all have 0 fitness
                 best = population[0]
                 for j, p in enumerate(population):
-                    nu_phi = la.antenna(l, ip_y, p, False, False)
+                    nu_phi = la.antenna(l, ip_y, p, False)
                     p.nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity
@@ -136,6 +138,14 @@ if __name__ == "__main__":
                 print(f"<λ_p>     = {avgs[5]:10.4n}\t<λ_p^2>       = {avgsq[5]:10.4n}\tσ = {std_dev[5]:10.4n}")
                 print(f"<n_b>     = {avgs[6]:10.4n}\t<n_b^2>       = {avgsq[6]:10.4n}\tσ = {std_dev[6]:10.4n}")
                 print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
+
+                # check convergence
+                recent_fit_max.append(fit_max)
+                if (gen > constants.conv_gen and
+                    (recent_fit_max[-1] / recent_fit_max[0])
+                    < 1.00 + constants.conv_per):
+                    print("Fitness converged at gen {}".format(gen))
+                    break
 
                 survivors, n_changes = ga.selection(rng,
                                        population, old_survivors)
