@@ -115,23 +115,42 @@ def tournament(population, k, rng):
 
 def selection(rng, population, old_survivors):
     '''
-    run tournaments with tournament size given by constants.tourney_k
-    to determine which members of the population survive.
-    we do this without replacement to build up a "mating pool".
-    check how many of the survivors are replaced as we do this.
+    build up a 'mating pool' for recombination. i've implemented
+    a few different strategies here - the highest (too high) selection
+    pressure is to keep the n_survivors fittest individuals; after that
+    there's ranked (where the probability of each individual being chosen
+    is proportional to its fitness) or tournament selection, where we
+    choose tourney_k members at random and choose the fittest of those.
+    i found tournament selection didn't seem to work very well
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
-    survivors = []
-    n_changes = 0
-    for i in range(n_survivors):
-        survivors.append(tournament(population, constants.tourney_k, rng))
-        if survivors[i] != old_survivors[i]:
-            n_changes += 1
+    strategy = 'fittest'
+    psort = sorted(population, key=fitness, reverse=True)
+    if (strategy == 'fittest'):
+        survivors = [psort[i] for i in range(n_survivors)]
+    elif (strategy == 'ranked'):
+        survivors = []
+        ps = np.array([1.0 - np.exp(fitness(p)) for p in population])
+        pc = np.cumsum(ps / np.sum(ps))
+        # stochastic universal sampling to pick pool
+        i = 0
+        c = 0
+        r = rng.random(0.0, 1.0 / n_survivors)
+        while c < n_survivors:
+            while r < pc[i]:
+                survivors.append(psort[i])
+                r += 1.0 / n_survivors
+                c += 1
+            i += 1
+    elif (strategy == 'tournament'):
+        survivors = []
+        for i in range(n_survivors):
+            survivors.append(tournament(population, constants.tourney_k, rng))
     # surv_sort = sorted([(i, fitness(r))
     #                      for i, r in enumerate(survivors)],
     #                    key=itemgetter(1), reverse=True)
-    survivors.sort(key=lambda p: fitness(p), reverse=True)
-    return survivors, n_changes
+    # survivors.sort(key=lambda p: fitness(p), reverse=True)
+    return survivors
 
 def recombine(vals, parameter, rng):
     '''

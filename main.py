@@ -141,16 +141,17 @@ if __name__ == "__main__":
 
                 # check convergence
                 rfm.append(fit_max)
-                qs = np.array([np.abs((rfm[i] / rfm[i + 1]) - 1.00)
+                qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
+                print(rfm, qs, (qs < constants.conv_per))
                 if (gen > constants.conv_gen and
                     (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
+                    stats.hist(population, gen, run, ts)
                     break
 
-                survivors, n_changes = ga.selection(rng,
+                survivors = ga.selection(rng,
                                        population, old_survivors)
-                old_survivors = survivors.copy()
 
                 avg_nb_surv = np.sum(np.array([s.n_b
                                         for s in survivors]) / len(survivors))
@@ -160,7 +161,6 @@ if __name__ == "__main__":
                                         for s in survivors]) / len(survivors))
                 print("Average n_b, n_s, fitness of survivors: ",
                       avg_nb_surv, avg_ns_surv, avg_fit_surv)
-                print("n_changes = ", n_changes)
                 print("\n")
 
                 with open(filenames['best'], "a") as f:

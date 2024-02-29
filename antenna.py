@@ -94,7 +94,6 @@ def solve(k, method='fortran', debug=False):
                      ctypes.byref(p_eq_res),
                      ctypes.byref(maxiter),
                      ctypes.byref(tol))
-        print(mode.value)
         if (mode.value < 0):
             p_eq = None
             p_eq_res = None
