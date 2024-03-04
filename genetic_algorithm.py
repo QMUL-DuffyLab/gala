@@ -113,7 +113,7 @@ def tournament(population, k, rng):
             winner = ind
     return population[winner]
 
-def selection(rng, population, old_survivors):
+def selection(rng, population):
     '''
     build up a 'mating pool' for recombination. i've implemented
     a few different strategies here - the highest (too high) selection
@@ -124,18 +124,18 @@ def selection(rng, population, old_survivors):
     i found tournament selection didn't seem to work very well
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
-    strategy = 'fittest'
+    strategy = 'ranked'
     psort = sorted(population, key=fitness, reverse=True)
     if (strategy == 'fittest'):
         survivors = [psort[i] for i in range(n_survivors)]
     elif (strategy == 'ranked'):
         survivors = []
-        ps = np.array([1.0 - np.exp(fitness(p)) for p in population])
+        ps = np.array([1.0 - np.exp(fitness(p)) for p in psort])
         pc = np.cumsum(ps / np.sum(ps))
         # stochastic universal sampling to pick pool
         i = 0
         c = 0
-        r = rng.random(0.0, 1.0 / n_survivors)
+        r = rng.uniform(low=0.0, high=(1.0 / n_survivors))
         while c < n_survivors:
             while r < pc[i]:
                 survivors.append(psort[i])

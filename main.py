@@ -51,6 +51,7 @@ if __name__ == "__main__":
                 pass # start a new file
             f.close()
 
+            fitnesses = np.zeros(constants.population_size, dtype=np.float64)
             avgs  = np.zeros(9)
             avgsq = np.zeros(9)
             rfm = deque(maxlen=constants.conv_gen)
@@ -75,6 +76,7 @@ if __name__ == "__main__":
                 avgs.fill(0.0)
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
+                fitnesses.fill(0.0)
                 fit_max = 0.0
                 # initialise in case they all have 0 fitness
                 best = population[0]
@@ -84,8 +86,9 @@ if __name__ == "__main__":
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity
                     p.phi_f = nu_phi[2]
-                    if (ga.fitness(p) > fit_max):
-                        fit_max = ga.fitness(p)
+                    fitnesses[j] = ga.fitness(p)
+                    if (fitnesses[j] > fit_max):
+                        fit_max = fitnesses[j]
                         best = population[j]
                     if nu_phi[2] < 0.0:
                         with open(filenames['neg'], "a") as f:
@@ -98,8 +101,8 @@ if __name__ == "__main__":
                     avgsq[1] += nu_phi[1]**2
                     avgs[2]  += nu_phi[2]
                     avgsq[2] += nu_phi[2]**2
-                    avgs[3]  += ga.fitness(p)
-                    avgsq[3] += (ga.fitness(p))**2
+                    avgs[3]  += fitnesses[j]
+                    avgsq[3] += (fitnesses[j])**2
                     avgs[4]  += np.sum(p.n_p) / (p.n_s) # don't count RC
                     avgsq[4] += np.sum(np.square(p.n_p)) / (p.n_s)
                     avgs[5]  += np.sum(p.lp) / (p.n_s)
@@ -150,9 +153,7 @@ if __name__ == "__main__":
                     stats.hist(population, gen, run, ts)
                     break
 
-                survivors = ga.selection(rng,
-                                       population, old_survivors)
-
+                survivors = ga.selection(rng, population)
                 avg_nb_surv = np.sum(np.array([s.n_b
                                         for s in survivors]) / len(survivors))
                 avg_ns_surv = np.sum(np.array([s.n_s
