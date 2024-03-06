@@ -137,8 +137,8 @@ if __name__ == "__main__":
                 rfm.append(fit_max)
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
-                # print(rfm, qs, (qs < constants.conv_per))
-                print("convergence trues: {:d}".format(np.count_nonzero(qs)))
+                print("convergence trues: {:d}".format(
+                    np.count_nonzero((qs < constants.conv_per))))
                 if (gen > constants.conv_gen and
                     (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
