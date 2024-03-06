@@ -89,7 +89,7 @@ def initialise_individual(rng, init_type):
         n_p[i] = get_rand('n_p', rng)
         lp[i]  = get_rand('lp', rng)
         pigment[i]  = get_rand('pigment', rng)
-    return constants.genome(nb, ns, n_p, lp, pigment)
+    return constants.Genome(nb, ns, n_p, lp, pigment)
 
 def fitness(individual):
     '''
@@ -126,9 +126,9 @@ def selection(rng, population):
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     strategy = 'ranked'
     psort = sorted(population, key=fitness, reverse=True)
-    if (strategy == 'fittest'):
+    if strategy == 'fittest':
         survivors = [psort[i] for i in range(n_survivors)]
-    elif (strategy == 'ranked'):
+    elif strategy == 'ranked':
         survivors = []
         ps = np.array([1.0 - np.exp(fitness(p)) for p in psort])
         pc = np.cumsum(ps / np.sum(ps))
@@ -137,7 +137,7 @@ def selection(rng, population):
         c = 0
         r = rng.uniform(low=0.0, high=(1.0 / n_survivors))
         while c < n_survivors:
-            while r < pc[i]:
+            while r <= pc[i]:
                 survivors.append(psort[i])
                 r += 1.0 / n_survivors
                 c += 1

@@ -56,5 +56,5 @@ def hist(population, gen, run, temp):
                fmt="%s" + s_max * " %.18e")
     return
 
-def hist_plot(pigment_hist, lp_hist):
+# def hist_plot(pigment_hist, lp_hist):
 

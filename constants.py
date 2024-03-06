@@ -84,7 +84,7 @@ def dc_eq(dc1, dc2) -> bool:
     return all(array_safe_eq(a1, a2) for a1, a2 in zip(t1, t2))
 
 @dataclass(eq=False)
-class genome:
+class Genome:
     n_b: int = 0
     n_s: int = 0
     n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))

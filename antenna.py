@@ -274,7 +274,7 @@ if __name__ == '__main__':
     n_s = len(n_p)
     # pigments = ['chl_a', 'chl_b', 'r_pe']
     pigments = ['chl_a']
-    test = constants.genome(n_b, n_s, n_p, lp, pigments)
+    test = constants.Genome(n_b, n_s, n_p, lp, pigments)
 
     od = antenna(d[:, 0], d[:, 1], test, True)
     print(od)
