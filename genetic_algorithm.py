@@ -209,13 +209,21 @@ def reproduction(rng, survivors, population):
     Given the survivors of a previous iteration, generate the necessary
     number of children and return the new population.
     Characteristics are taken randomly from each parent as much as possible.
+    Generational strategy replaces the whole population, otherwise
+    use a steady-state model where the survivors are carried forward
     '''
-    n_children = constants.population_size - len(survivors)
-    for i in range(len(survivors)):
+    strategy = 'generational'
+    if strategy == 'generational':
+        n_carried = 0
+    else:
+        n_carried = len(survivors)
+
+    n_children = constants.population_size - n_carried
+    for i in range(n_carried):
         population[i] = survivors[i]
 
     for i in range(n_children):
-        child = population[i + len(survivors)]
+        child = population[i + n_carried]
         # pick two different parents from the survivors
         p_i = rng.choice(len(survivors), 2, replace=False)
         parents = [survivors[p_i[i]] for i in range(2)]

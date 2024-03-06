@@ -57,22 +57,18 @@ if __name__ == "__main__":
             rfm = deque(maxlen=constants.conv_gen)
             np_avg   = np.zeros(constants.bounds['n_s'][1])
             lp_avg   = np.zeros(constants.bounds['n_s'][1])
-            w_avg    = np.zeros(constants.bounds['n_s'][1])
             np_avgsq = np.zeros(constants.bounds['n_s'][1])
             lp_avgsq = np.zeros(constants.bounds['n_s'][1])
-            w_avgsq = np.zeros(constants.bounds['n_s'][1])
             nlw_pop   = np.zeros(constants.bounds['n_s'][1])
-            running_avgs  = np.zeros((constants.max_gen, 9))
-            running_avgsq = np.zeros((constants.max_gen, 9))
             n_s_changes = np.zeros(2)
+            running_avgs = []
+            running_avgsq = []
             gen = 0
             # initialise population
             for j in range(constants.population_size):
                 population[j] = ga.initialise_individual(rng, init_type)
 
             while gen < constants.max_gen:
-                old_survivors = ([None] *
-                int(constants.fitness_cutoff * constants.population_size))
                 avgs.fill(0.0)
                 avgsq.fill(0.0)
                 nlw_pop.fill(0.0)
@@ -90,11 +86,6 @@ if __name__ == "__main__":
                     if (fitnesses[j] > fit_max):
                         fit_max = fitnesses[j]
                         best = population[j]
-                    if nu_phi[2] < 0.0:
-                        with open(filenames['neg'], "a") as f:
-                            f.write(str(population[j]))
-                            f.write("\n")
-                        f.close()
                     avgs[0]  += nu_phi[0]
                     avgsq[0] += nu_phi[0]**2
                     avgs[1]  += nu_phi[1]
@@ -121,8 +112,8 @@ if __name__ == "__main__":
                 avgs /= constants.population_size
                 avgsq /= constants.population_size
                 std_dev = np.sqrt(avgsq - np.square(avgs))
-                running_avgs[gen] = avgs
-                running_avgsq[gen] = avgsq
+                running_avgs.append(avgs)
+                running_avgsq.append(avgsq)
                 np_avg = np.divide(np_avg, nlw_pop, where=nlw_pop > 0.0)
                 lp_avg = np.divide(lp_avg, nlw_pop, where=nlw_pop > 0.0)
                 np_avgsq = np.divide(np_avgsq, nlw_pop, where=nlw_pop > 0.0)
@@ -146,7 +137,8 @@ if __name__ == "__main__":
                 rfm.append(fit_max)
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
-                print(rfm, qs, (qs < constants.conv_per))
+                # print(rfm, qs, (qs < constants.conv_per))
+                print("convergence trues: {:d}".format(np.count_nonzero(qs)))
                 if (gen > constants.conv_gen and
                     (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
@@ -175,14 +167,14 @@ if __name__ == "__main__":
                         population[j] = ga.mutation(rng, population[j], n_s_changes)
                 gen += 1
 
-            np.savetxt(filenames['avg'], np.array(running_avgs))
-            np.savetxt(filenames['avgsq'], np.array(running_avgsq))
+            running_avgs = np.array(running_avgs)
+            running_avgsq = np.array(running_avgsq)
+            np.savetxt(filenames['avg'], running_avgs)
+            np.savetxt(filenames['avgsq'], running_avgsq)
             np.savetxt(filenames['np'], np_avg)
             np.savetxt(filenames['npsq'], np_avgsq)
             np.savetxt(filenames['lp'], lp_avg)
             np.savetxt(filenames['lpsq'], lp_avgsq)
-            np.savetxt(filenames['w'], w_avg)
-            np.savetxt(filenames['wsq'], w_avgsq)
             plot_final_best_2d_file = prefs[-2] + "_r{:1d}_2d.pdf".format(run)
             plot_final_best_3d_file = prefs[-2] + "_r{:1d}_3d.pdf".format(run)
             plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
