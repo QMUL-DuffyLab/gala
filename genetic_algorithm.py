@@ -124,11 +124,11 @@ def selection(rng, population):
     i found tournament selection didn't seem to work very well
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
-    strategy = 'ranked'
+    strategy = constants.selection_strategy
     psort = sorted(population, key=fitness, reverse=True)
-    if strategy == 'fittest':
+    if constants.selection_strategy == 'fittest':
         survivors = [psort[i] for i in range(n_survivors)]
-    elif strategy == 'ranked':
+    elif constants.selection_strategy == 'ranked':
         survivors = []
         ps = np.array([1.0 - np.exp(fitness(p)) for p in psort])
         pc = np.cumsum(ps / np.sum(ps))
@@ -142,14 +142,12 @@ def selection(rng, population):
                 r += 1.0 / n_survivors
                 c += 1
             i += 1
-    elif (strategy == 'tournament'):
+    elif constants.selection_strategy == 'tournament':
         survivors = []
         for i in range(n_survivors):
             survivors.append(tournament(population, constants.tourney_k, rng))
-    # surv_sort = sorted([(i, fitness(r))
-    #                      for i, r in enumerate(survivors)],
-    #                    key=itemgetter(1), reverse=True)
-    # survivors.sort(key=lambda p: fitness(p), reverse=True)
+    else:
+        raise ValueError("Invalid selection strategy")
     return survivors
 
 def recombine(vals, parameter, rng):
@@ -212,11 +210,12 @@ def reproduction(rng, survivors, population):
     Generational strategy replaces the whole population, otherwise
     use a steady-state model where the survivors are carried forward
     '''
-    strategy = 'generational'
-    if strategy == 'generational':
+    if constants.reproduction_strategy == 'nads':
         n_carried = 0
-    else:
+    elif constants.reproduction_strategy == 'steady':
         n_carried = len(survivors)
+    else:
+        raise ValueError("Invalid reproduction strategy")
 
     n_children = constants.population_size - n_carried
     for i in range(n_carried):
