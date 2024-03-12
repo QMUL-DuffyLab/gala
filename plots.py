@@ -5,6 +5,7 @@
 
 polygon_under_graph and the 3d plot generally stolen from matplotlib
 """
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import constants
@@ -128,3 +129,47 @@ def draw_antenna(p, outfile):
     lambdas = [p.lp[i] + constants.pigment_data[p.pigment[i]]['lp'][0] for i in range(p.n_s)]
     names = [constants.pigment_data[pig]['name'] for pig in p.pigment]
     # DrawAntennae.plot(p.n_b, p.n_s, lambdas, p.n_p, names, outfile)
+
+
+def hist_plot(pigment_file, lp_file):
+    n_s = constants.hist_sub_max
+
+    lh = np.loadtxt(lp_file)
+    pnames = np.loadtxt(pigment_file, usecols=0, dtype=str)
+    pprops = np.loadtxt(pigment_file,
+            usecols=tuple(range(1, n_s + 1)), dtype=float)
+    pigment_strings = [constants.pigment_data[p]['name'] for p in pnames]
+    n_pigments = len(pigment_strings)
+    fig = plt.figure(figsize=(20, 20))
+    ax = fig.add_subplot(projection='3d')
+
+    for k in reversed(range(n_s)):
+        ys = pprops[:, k]
+        xs = np.arange(n_pigments)
+        color = 'C{:1d}'.format(k)
+        ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
+        
+        #fig, ax = plt.subplots(figsize=(12,8))
+        #ax.bar(xs, ys, color=color)
+        #ax.set_ylabel("Proportion")
+        #ax.xaxis.set_major_locator(ticker.IndexLocator(base=1, offset=0))
+        #ax.set_ylim([0.0, 1.0])
+        #ax.set_xticklabels(yticklabels)
+     
+    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
+        #axis._axinfo['label']['space_factor'] = 2.5
+        axis.labelpad = 20
+
+    ax.set_xlabel("Pigment")
+    ax.set_ylabel("Subunit")
+    ax.set_zlabel("Proportion")
+    ax.set_zlim([0.0, 1.0])
+    ax.set_xticks(np.arange(n_pigments))
+    ax.set_yticks(np.arange(n_s))
+    ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
+    ax.set_xticklabels(pigment_strings)
+
+    fig.tight_layout()
+    fig.savefig(os.path.splitext(pigment_file)[0] + ".pdf")
+    plt.close()
+

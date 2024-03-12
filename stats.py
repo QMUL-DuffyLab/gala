@@ -57,5 +57,3 @@ def hist(population, gen, run, out_name):
                np.transpose(np.array(ph, dtype=object)),
                fmt="%s" + s_max * " %.18e")
     return
-
-# def hist_plot(pigment_hist, lp_hist):
