@@ -15,8 +15,7 @@ using ArgParse
 
 #=
 to do: 
-  - figure out the best way to show n_p
-  - python bridge doesn't work; make into a script, i guess
+  - maybe think of a better way to display n_p?
   - ideally, move everything up and reduce the size - doesn't need the top and side borders
 =#
 
@@ -122,7 +121,8 @@ function plot(n_b, n_s, λs, n_ps, names,
             luminance = 0.2126 * cols[i].r^gamma + 0.7152 * cols[i].g^gamma + 0.0722 * cols[i].b^gamma
             (luminance > 0.5^gamma ? setcolor("black") : setcolor("white"))
             text(names[i], loc, halign=:center, valign=:bottom)
-            text(string(n_ps[i]), Point(r, 25), halign=:center, valign=:bottom)
+            θ_np = θ_start + (2π / n_b) + θpad / 2
+            text(string(n_ps[i]), polar(r, θ_np), halign=:center, valign=:bottom, angle=θ_np - θpad)
         end
     sethue("black")
     colourbar_left = Point(-size/3, (n_s * (dr + rpad) + rcr + 20))
