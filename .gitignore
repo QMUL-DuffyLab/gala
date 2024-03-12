@@ -6,5 +6,6 @@
 *.ods
 *.o
 *.so
+@*
 __pycache__/*
 out/*

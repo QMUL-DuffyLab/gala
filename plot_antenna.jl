@@ -2,6 +2,12 @@
 08/03/24
 author: @callum
 =#
+
+import Pkg
+Pkg.add("Luxor")
+Pkg.add("Colors")
+Pkg.add("MathTeXEngine")
+Pkg.add("ArgParse")
 using Luxor
 using Colors
 using MathTeXEngine
@@ -29,13 +35,17 @@ function parse_cmds()
             help = "List of peak wavelengths λ"
             nargs = '+'
             required = true
-        "--n_p"
+        "--n_ps"
             help = "List of numbers of pigments n_p"
             nargs = '+'
             required = true
         "--names"
             help = "List of pigment names for each subunit"
             nargs = '+'
+            required = true
+        "--file"
+            help = "Output filename"
+            arg_type = String
             required = true
     end
     return parse_args(s)
@@ -136,24 +146,19 @@ end
 
 function main()
     args = parse_cmds()
-    println("Parsed args:")
-    for (arg, val) in args
-        println("$arg => $val")
-    end
+    # replace passed strings with latex versions
     keys = ["chl_a", "chl_b", "chl_d", "chl_f", 
-            "APC", "PC", "PE", "bchl_a"]
+            "r_apc", "r_pc", "r_pe", "bchl_a"]
     strings = [L"$ \text{Chl}_{a} $", L"$ \text{Chl}_{b} $",
                L"$ \text{Chl}_{d} $", L"$ \text{Chl}_{f} $",
                L"$ \text{APC} $", L"$ \text{PC} $",
                L"$ \text{PE} $", L"$ \text{BChl}_{a} $"]
     name_dict = Dict(zip(keys, strings))
-    n_ps = map(x -> parse(Int, x), args["n_p"]) 
+    n_ps = map(x -> parse(Int, x), args["n_ps"]) 
     λs = map(x -> parse(Float64, x), args["lambdas"]) 
-    println(n_ps)
-    println(λs)
-    # replace passed strings with latex versions
     names = [name_dict[n] for n in args["names"]]
-    plot(args["n_b"], args["n_s"], λs, n_ps, names)
+    plot(args["n_b"], args["n_s"], λs, n_ps, names,
+         "horizontal", args["file"])
 end
 
 main()

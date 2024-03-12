@@ -6,6 +6,7 @@
 polygon_under_graph and the 3d plot generally stolen from matplotlib
 """
 import os
+import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 import constants
@@ -173,3 +174,22 @@ def hist_plot(pigment_file, lp_file):
     fig.savefig(os.path.splitext(pigment_file)[0] + ".pdf")
     plt.close()
 
+def plot_antenna(p, output_file):
+    '''
+    this is *incredibly* ugly but don't judge pls
+    i couldn't find a package to draw an antenna easily in python,
+    but turns out getting python and julia to play well together
+    on ubuntu isn't trivial, and then importing your own module
+    doesn't seem to work and i couldn't find any docs explaining
+    why, and it kept throwing errors, so now i'm just doing this
+    '''
+    lps = [p.lp[i] +
+           constants.pigment_data[p.pigment[i]]['lp'][0]
+           for i in range(p.n_s)]
+    cmd = "julia plot_antenna.jl --n_b {:d} --n_s {:d} ".format(p.n_b, p.n_s)\
+    + "--lambdas " + " ".join(str(l) for l in lps)\
+    + " --n_ps " + " ".join(str(n) for n in p.n_p)\
+    + " --names " + " ".join(p for p in p.pigment)\
+    + " --file " + output_file
+    print(cmd)
+    subprocess.run(cmd.split())
