@@ -132,7 +132,7 @@ def hist_plot(pigment_file, lp_file):
     pnames = np.loadtxt(pigment_file, usecols=0, dtype=str)
     pprops = np.loadtxt(pigment_file,
             usecols=tuple(range(1, n_s + 1)), dtype=float)
-    pigment_strings = [constants.pigment_data[p]['name'] for p in pnames]
+    pigment_strings = [constants.pigment_data[p]['text'] for p in pnames]
     n_pigments = len(pigment_strings)
     fig = plt.figure(figsize=(20, 20))
     ax = fig.add_subplot(projection='3d')

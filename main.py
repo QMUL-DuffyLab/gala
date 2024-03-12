@@ -59,6 +59,7 @@ if __name__ == "__main__":
             running_avgs = []
             running_avgsq = []
             gen = 0
+            gens_since_improvement = 0
             # initialise population
             for j in range(constants.population_size):
                 population[j] = ga.initialise_individual(rng, init_type)
@@ -81,6 +82,7 @@ if __name__ == "__main__":
                     if (fitnesses[j] > fit_max):
                         fit_max = fitnesses[j]
                         best = population[j]
+                        gens_since_improvement = 0
                     avgs[0]  += nu_phi[0]
                     avgsq[0] += nu_phi[0]**2
                     avgs[1]  += nu_phi[1]
@@ -135,8 +137,11 @@ if __name__ == "__main__":
                       for i in range(len(rfm)- 1)])
                 print("convergence trues: {:d}".format(
                     np.count_nonzero((qs < constants.conv_per))))
-                if (gen > constants.conv_gen and
-                    (qs < constants.conv_per).all()):
+                print("gens since improvement: {:d}".format(
+                    gens_since_improvement))
+                if ((gen > constants.conv_gen and
+                    (qs < constants.conv_per).all())
+                    or gens_since_improvement > constants.conv_gen):
                     print("Fitness converged at gen {}".format(gen))
                     pf, lf = stats.hist(population, gen, run, out_name)
                     plots.hist_plot(pf, lf)
@@ -164,6 +169,7 @@ if __name__ == "__main__":
                     if p < constants.mu_rate:
                         population[j] = ga.mutation(rng, population[j], n_s_changes)
                 gen += 1
+                gens_since_improvement += 1
 
             running_avgs = np.array(running_avgs)
             running_avgsq = np.array(running_avgsq)
