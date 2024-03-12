@@ -5,6 +5,7 @@
 """
 
 from collections import deque
+import os
 import numpy as np
 import constants
 import genetic_algorithm as ga
@@ -114,7 +115,8 @@ if __name__ == "__main__":
                 lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
 
                 if (gen % constants.hist_snapshot == 0):
-                    stats.hist(population, gen, run, out_name)
+                    pf, lf = stats.hist(population, gen, run, out_name)
+                    plots.hist_plot(pf, lf)
 
                 print("Generation {:4d}: ".format(gen))
                 print("================")
@@ -136,7 +138,8 @@ if __name__ == "__main__":
                 if (gen > constants.conv_gen and
                     (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
-                    stats.hist(population, gen, run, out_name)
+                    pf, lf = stats.hist(population, gen, run, out_name)
+                    plots.hist_plot(pf, lf)
                     break
 
                 survivors = ga.selection(rng, population)
@@ -175,3 +178,5 @@ if __name__ == "__main__":
             plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
+            plots.plot_antenna(best,
+                    os.path.splitext(filenames['best'])[0] + ".pdf")

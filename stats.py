@@ -52,8 +52,10 @@ def hist(population, gen, run, out_name):
             if p_arr[i][j] != '':
                 pcount[pigment_to_index(p_arr[i][j])] += 1
         ph.append(pcount / n_pop)
-    np.savetxt(path + "lp_" + suffix, np.transpose(np.array(lh)))
-    np.savetxt(path + "pigment_" + suffix,
+    lfile = path + "lp_" + suffix
+    pfile = path + "pigment_" + suffix
+    np.savetxt(lfile, np.transpose(np.array(lh)))
+    np.savetxt(pfile,
                np.transpose(np.array(ph, dtype=object)),
                fmt="%s" + s_max * " %.18e")
-    return
+    return pfile, lfile
