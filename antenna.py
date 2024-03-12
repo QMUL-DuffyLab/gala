@@ -13,6 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import constants
 import ctypes
+import plots
 
 hcnm = (h * c) / (1.0E-9)
 
@@ -263,18 +264,19 @@ def antenna(l, ip_y, p, debug=False):
 if __name__ == '__main__':
 
     ts = "5800K"
-    file = "PHOENIX/Scaled_Spectrum_PHOENIX_" + ts + ".dat"
-    d = np.loadtxt(file)
+    f = "spectra/PHOENIX/Scaled_Spectrum_PHOENIX_" + ts + ".dat"
+    d = np.loadtxt(f)
 
     # changed behaviour - now the RC's added inside antenna
-    n_b = 1
-    n_p = [200]
-    lp = [-6.0]
+    n_b = 5
+    n_p = [90, 60, 80, 20, 50]
+    lp = [-6.0, -8.0, -5.0, 5.0, -1.0]
     # w = [10.0, 10.0, 10.0]
     n_s = len(n_p)
     # pigments = ['chl_a', 'chl_b', 'r_pe']
-    pigments = ['chl_a']
+    pigments = ['chl_a', 'chl_b', 'r_apc', 'r_pc', 'r_pe']
     test = constants.Genome(n_b, n_s, n_p, lp, pigments)
+    plots.draw_antenna(test, "test_from_python.svg")
 
     od = antenna(d[:, 0], d[:, 1], test, True)
     print(od)

@@ -1,6 +1,8 @@
 import numpy as np
 import constants
 import genetic_algorithm as ga
+import pyjulia
+from julia import DrawAntennae
 
 def pigment_to_index(pigment):
     ''' 
@@ -16,7 +18,7 @@ def pigment_to_index(pigment):
 
 def hist(population, gen, run, temp):
     path = "out/"
-    suffix = "hist_{:4d}K_{:04d}_{:1d}.dat".format(temp, gen, run)
+    suffix = "hist_{}K_{:04d}_{:1d}.dat".format(temp, gen, run)
     l_bin_size = 1.0
     s_max = constants.hist_sub_max
     n_pop = constants.population_size
@@ -57,4 +59,3 @@ def hist(population, gen, run, temp):
     return
 
 # def hist_plot(pigment_hist, lp_hist):
-

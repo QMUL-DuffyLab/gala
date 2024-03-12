@@ -21,6 +21,10 @@ if __name__ == "__main__":
 
     # these will be args eventually i guess
     temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
+    files = [constants.spectrum_prefix
+             + '{:4d}K'.format(ts)
+             + constants.spectrum_suffix for ts in reversed(temps)]
+    temps = [5800]
     for ts in reversed(temps):
     # for ts in temps:
         print("T = ", ts)
@@ -32,6 +36,11 @@ if __name__ == "__main__":
         spectrum_file = constants.spectrum_prefix \
                         + '{:4d}K'.format(ts) \
                         + constants.spectrum_suffix
+
+        # note - this needs separating out into a separate function
+        # that generates input filenames, output filenames, etc
+        spectrum_file = "spectra/anderson_2003_cool_white_fluo.csv"
+        prefs = ["out/{}_fluo".format(p) for p in names]
         # instead of unpacking and pulling both arrays, pull once
         # and split by column. this stops the arrays being strided,
         # so we can use them in the C code below without messing around
@@ -120,7 +129,8 @@ if __name__ == "__main__":
                 lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
 
                 if (gen % constants.hist_snapshot == 0):
-                    stats.hist(population, gen, run, ts)
+                    # stats.hist(population, gen, run, ts)
+                    stats.hist(population, gen, run, "fluo")
 
                 print("Generation {:4d}: ".format(gen))
                 print("================")
@@ -142,7 +152,8 @@ if __name__ == "__main__":
                 if (gen > constants.conv_gen and
                     (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
-                    stats.hist(population, gen, run, ts)
+                    # stats.hist(population, gen, run, ts)
+                    stats.hist(population, gen, run, "fluo")
                     break
 
                 survivors = ga.selection(rng, population)
@@ -152,7 +163,7 @@ if __name__ == "__main__":
                                         for s in survivors]) / len(survivors))
                 avg_fit_surv = np.sum(np.array([ga.fitness(s)
                                         for s in survivors]) / len(survivors))
-                print("Average n_b, n_s, fitness of survivors: ",
+                print("Survivor <n_b, n_s, fitness>: {6.3f}, {:6.3f}, {:6.3f}",
                       avg_nb_surv, avg_ns_surv, avg_fit_surv)
                 print("\n")
 
