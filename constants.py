@@ -11,7 +11,9 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-spectrum_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
+output_dir = "out/"
+spectrum_prefix = 'spectra/'
+phoenix_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
 T=300.0 # temperature (Kelvin)
 gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc

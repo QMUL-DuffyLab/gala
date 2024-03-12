@@ -9,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import constants
 from matplotlib.collections import PolyCollection
-from julia.api import Julia
-jl = Julia(compiled_modules=False)
-from julia import Main
+# from julia.api import Julia
+# jl = Julia(compiled_modules=False)
+# from julia import Main
 # from julia.Main import DrawAntennae
 
 def polygon_under_graph(x, y):
@@ -124,7 +124,7 @@ def plot_nu_phi_2(nu_e, phi_f, n_s, filename):
     plt.close()
 
 def draw_antenna(p, outfile):
-    Main.eval('include("DrawAntennae.jl")')
+    # Main.eval('include("DrawAntennae.jl")')
     lambdas = [p.lp[i] + constants.pigment_data[p.pigment[i]]['lp'][0] for i in range(p.n_s)]
     names = [constants.pigment_data[pig]['name'] for pig in p.pigment]
-    DrawAntennae.plot(p.n_b, p.n_s, lambdas, p.n_p, names, outfile)
+    # DrawAntennae.plot(p.n_b, p.n_s, lambdas, p.n_p, names, outfile)

@@ -4,10 +4,7 @@
 @author: callum
 """
 
-import ctypes
-from datetime import datetime
 from collections import deque
-import pandas as pd
 import numpy as np
 import constants
 import genetic_algorithm as ga
