@@ -6,6 +6,7 @@
 polygon_under_graph and the 3d plot generally stolen from matplotlib
 """
 import os
+import re
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
@@ -186,3 +187,36 @@ def plot_antenna(p, output_file):
     + " --file " + output_file
     print(cmd)
     subprocess.run(cmd.split())
+
+def plot_best_from_file(input_file):
+    '''
+    wrapper to just pick the final best antenna from a given run
+    and plot it. again, this is incredibly ugly - i've been just
+    printing out str(genome) to keep track of the best ones, and
+    i figured i could eval them back in or something, but that
+    does not work, so read in the final best antenna as a string
+    and then parse with regular expressions lol
+    '''
+    output_file = os.path.splitext(input_file)[0] + ".pdf"
+    with open(input_file) as f:
+        for line in f:
+            pass
+        best = line
+    n_b = int(re.search(r'n_b=(\d+)', best).group(1))
+    n_s = int(re.search(r'n_s=(\d+)', best).group(1))
+    lpm = re.search(r"lp=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
+    lpa = re.search(r"\[(.*)\]", lpm).group(0)
+    lp = np.fromstring(lpa[1:-1], sep=',')
+    print(lp)
+    n_pm = re.search(r"n_p=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
+    n_pa = re.search(r"\[(.*)\]", n_pm).group(0)
+    n_p = np.fromstring(n_pa[1:-1], sep=',', dtype=int)
+    print(n_p)
+    pigm = re.search(r"pigment=array\(\[\s*([a-z_']+[,\s\]]+)+", best).group(0)
+    piga = re.search(r"\[(.*)\]", pigm).group(0)
+    # numpy doesn't know how to fromstring() this so do it manually
+    pigment = np.array(piga[1:-1].replace("'", "").replace(" ", "").split(","), dtype='U10')
+    print(pigment)
+    g = constants.Genome(n_b, n_s, n_p, lp, pigment)
+    plot_antenna(g, output_file)
+
