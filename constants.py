@@ -37,9 +37,9 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 100], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
           'lp': np.array([-max_lp_offset, max_lp_offset]),
-          'pigment': np.array(["bchl_a\x00", "chl_a\x00", "chl_b\x00",
-                            "chl_d\x00", "chl_f\x00", "r_apc\x00",
-                            "r_pc\x00", "r_pe\x00"])}
+          'pigment': np.array(["bchl_a", "chl_a", "chl_b",
+                            "chl_d", "chl_f", "r_apc",
+                            "r_pc", "r_pe"])}
 
 '''
 some rates that I think are going to be fixed
