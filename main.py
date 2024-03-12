@@ -11,42 +11,55 @@ import genetic_algorithm as ga
 import antenna as la
 import plots
 import stats
+import light
 
 if __name__ == "__main__":
     rng = np.random.default_rng()
-    df = {}
 
-    # these will be args eventually i guess
-    temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
-    files = [constants.spectrum_prefix
-             + '{:4d}K'.format(ts)
-             + constants.spectrum_suffix for ts in reversed(temps)]
-    temps = [5800]
-    for ts in reversed(temps):
+    # temps = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800]
+    # files = [constants.spectrum_prefix
+    #          + '{:4d}K'.format(ts)
+    #          + constants.spectrum_suffix for ts in reversed(temps)]
+    # temps = [5800]
+
+    spectra_dicts = [
+          # various examples here - see light.py for details
+          # {'type': "phoenix", 'kwargs': {'temperature': 5800}},
+          # {'type': "fluo", 'kwargs': {'mu_e': 10.0}},
+          # {'type': "phoenix", 'kwargs': {'temperature': 2300}},
+          {'type': "fluo", 'kwargs': {'mu_e': 1.0}},
+          # {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
+          # {'type': "phoenix", 'kwargs': {'temperature': 4800}},
+          # {'type': "gauss", 'kwargs': {'lmin': 200.0, 'lmax': 1000.0, 'lp': [600.0, 500.0], 'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
+          ]
+    spectra_zip = light.build(spectra_dicts)
+    for spectrum, out_name in spectra_zip:
     # for ts in temps:
-        print("T = ", ts)
+        print("Spectrum output name: ", out_name)
         init_type = 'radiative' # can be radiative or random
         names = ["avg", "avgsq", "np", "npsq", "lp",
                 "lpsq", "w", "wsq", "best", "neg"]
-        prefs = ["out/{}_{:4d}K".format(p, ts) for p in names]
+        prefs = ["{}/{}_{}".format(constants.output_dir,
+            p, out_name) for p in names]
 
-        spectrum_file = constants.spectrum_prefix \
-                        + '{:4d}K'.format(ts) \
-                        + constants.spectrum_suffix
+        # spectrum_file = constants.spectrum_prefix \
+        #                 + '{:4d}K'.format(ts) \
+        #                 + constants.spectrum_suffix
 
         # note - this needs separating out into a separate function
         # that generates input filenames, output filenames, etc
-        spectrum_file = "spectra/anderson_2003_cool_white_fluo.csv"
-        prefs = ["out/{}_fluo".format(p) for p in names]
+        # spectrum_file = "spectra/anderson_2003_cool_white_fluo.csv"
+        # prefs = ["out/{}_fluo".format(p) for p in names]
         # instead of unpacking and pulling both arrays, pull once
         # and split by column. this stops the arrays being strided,
         # so we can use them in the C code below without messing around
-        phoenix_data = np.loadtxt(spectrum_file)
-        l    = phoenix_data[:, 0]
-        ip_y = phoenix_data[:, 1]
+        # phoenix_data = np.loadtxt(spectrum_file)
+        # l    = phoenix_data[:, 0]
+        # ip_y = phoenix_data[:, 1]
+        l    = spectrum[:, 0]
+        ip_y = spectrum[:, 1]
 
         for run in range(constants.n_runs):
-            df['input_file'] = spectrum_file
             population = [None for _ in range(constants.population_size)]
             filenames = {name: pref + "_r{:1d}.dat".format(run)
                     for (name, pref) in zip(names, prefs)}
@@ -126,8 +139,7 @@ if __name__ == "__main__":
                 lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
 
                 if (gen % constants.hist_snapshot == 0):
-                    # stats.hist(population, gen, run, ts)
-                    stats.hist(population, gen, run, "fluo")
+                    stats.hist(population, gen, run, out_name)
 
                 print("Generation {:4d}: ".format(gen))
                 print("================")
@@ -150,7 +162,7 @@ if __name__ == "__main__":
                     (qs < constants.conv_per).all()):
                     print("Fitness converged at gen {}".format(gen))
                     # stats.hist(population, gen, run, ts)
-                    stats.hist(population, gen, run, "fluo")
+                    stats.hist(population, gen, run, out_name)
                     break
 
                 survivors = ga.selection(rng, population)
@@ -160,8 +172,9 @@ if __name__ == "__main__":
                                         for s in survivors]) / len(survivors))
                 avg_fit_surv = np.sum(np.array([ga.fitness(s)
                                         for s in survivors]) / len(survivors))
-                print("Survivor <n_b, n_s, fitness>: {6.3f}, {:6.3f}, {:6.3f}",
-                      avg_nb_surv, avg_ns_surv, avg_fit_surv)
+                print("Survivor <n_b, n_s, fitness>: {:6.3f}, {:6.3f},"
+                "{:6.3f}".format(avg_nb_surv,
+                    avg_ns_surv, avg_fit_surv))
                 print("\n")
 
                 with open(filenames['best'], "a") as f:

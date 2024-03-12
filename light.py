@@ -32,22 +32,23 @@ def get_gaussian(l, lp, w, a):
     '''
     return a normalised lineshape made up of Gaussians.
     TO DO: figure out micro einstein normalisation
-    and how it should format its output
+    and how it should format its output files - should probably
+    also make a plot of the incident spectra to go with output
     '''
     return la.gauss(l, lp, w, a)
 
 def spectrum_setup(spectrum_type, **kwargs):
     if spectrum_type == "phoenix":
         s = get_phoenix_spectrum(kwargs['temperature'])
-        out_pref = constants.output_dir + "{:4d}K".format(kwargs['temperature'])
+        out_pref = "{:4d}K".format(kwargs['temperature'])
     elif spectrum_type == "fluo":
         s = get_cwf(kwargs['mu_e'])
-        out_pref = constants.output_dir + "cwf_{:8.3e}_mu_ein".format(kwargs['mu_e'])
+        out_pref = "cwf_{:8.3e}_mu_ein".format(kwargs['mu_e'])
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])
         s = np.column_stack((l, intensity))
-        out_pref = constants.output_dir + "gauss_lp_{:6.2f}".format(kwargs['lp'][0])
+        out_pref = "gauss_lp0_{:6.2f}".format(kwargs['lp'][0])
     else:
         raise ValueError("Invalid call to spectrum_setup.")
     return s, out_pref

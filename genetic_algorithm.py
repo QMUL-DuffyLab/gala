@@ -15,7 +15,7 @@ def get_type(parameter):
     test = constants.bounds[parameter][0]
     if (isinstance(test, (int, np.integer))):
         dt = np.int32
-    elif (isinstance(test, (float, np.float))):
+    elif (isinstance(test, (float, np.float64))):
         dt = np.float64
     elif (isinstance(test, (str, np.str_))):
         dt = 'U10'
@@ -28,7 +28,7 @@ def get_rand(parameter, rng):
     bounds = constants.bounds[parameter]
     if (isinstance(bounds[0], (int, np.integer))):
         r = rng.integers(*bounds)
-    elif (isinstance(bounds[0], (float, np.float))):
+    elif (isinstance(bounds[0], (float, np.float64))):
         r = rng.uniform(*bounds)
     elif (isinstance(bounds[0], (str, np.str_))):
         r = rng.choice(bounds)
@@ -82,7 +82,7 @@ def initialise_individual(rng, init_type):
         '''
         nb = get_rand('n_b', rng)
         ns = get_rand('n_s', rng)
-    n_p = np.zeros(ns, dtype=np.int)
+    n_p = np.zeros(ns, dtype=np.int32)
     lp = np.zeros(ns, dtype=np.float64)
     pigment = np.empty(ns, dtype='U10')
     for i in range(ns):

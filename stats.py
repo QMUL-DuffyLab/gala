@@ -1,8 +1,8 @@
 import numpy as np
 import constants
 import genetic_algorithm as ga
-import pyjulia
-from julia import DrawAntennae
+# import pyjulia
+# from julia import DrawAntennae
 
 def pigment_to_index(pigment):
     ''' 
@@ -16,9 +16,9 @@ def pigment_to_index(pigment):
     '''
     return np.where(constants.bounds['pigment'] == pigment)[0][0]
 
-def hist(population, gen, run, temp):
+def hist(population, gen, run, out_name):
     path = "out/"
-    suffix = "hist_{}K_{:04d}_{:1d}.dat".format(temp, gen, run)
+    suffix = "hist_{}_{:04d}_{:1d}.dat".format(out_name, gen, run)
     l_bin_size = 1.0
     s_max = constants.hist_sub_max
     n_pop = constants.population_size
@@ -27,7 +27,7 @@ def hist(population, gen, run, temp):
     lbins = np.linspace(*l_b,
             num=np.round(((l_b[1] - l_b[0]) / l_bin_size)).astype(int))
     pvals = constants.bounds['pigment']
-    l_arr = np.zeros((s_max, n_pop), dtype=np.float)
+    l_arr = np.zeros((s_max, n_pop), dtype=np.float64)
     p_arr = np.zeros((s_max, n_pop), dtype='U10')
     '''
     for the first hist_sub_max subunits, make a histogram
@@ -47,7 +47,7 @@ def hist(population, gen, run, temp):
         # [0] is the histogram, otherwise it adds the bins too
         hist = np.histogram(l_arr[i], bins=lbins)[0]
         lh.append(hist / n_pop)
-        pcount = np.zeros(len(pvals), dtype=np.float)
+        pcount = np.zeros(len(pvals), dtype=np.float64)
         for j in range(n_pop):
             if p_arr[i][j] != '':
                 pcount[pigment_to_index(p_arr[i][j])] += 1
