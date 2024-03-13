@@ -37,6 +37,19 @@ def get_gaussian(l, lp, w, a):
     '''
     return la.gauss(l, lp, w, a)
 
+def get_am15(dataset="tilt"):
+    d = np.loadtxt(constants.spectrum_prefix + "ASTMG173.csv",
+                   skiprows=2, delimiter=",")
+    if dataset == "tilt":
+        am15 = np.column_stack((d[:, 0], d[:, 2]))
+    elif dataset == "ext":
+        am15 = np.column_stack((d[:, 0], d[:, 1]))
+    elif dataset == "circum":
+        am15 = np.column_stack((d[:, 0], d[:, 3]))
+    else:
+        raise KeyError("Invalid column key provided to get_am15")
+    return am15
+
 def spectrum_setup(spectrum_type, **kwargs):
     if spectrum_type == "phoenix":
         s = get_phoenix_spectrum(kwargs['temperature'])
@@ -44,6 +57,9 @@ def spectrum_setup(spectrum_type, **kwargs):
     elif spectrum_type == "fluo":
         s = get_cwf(kwargs['mu_e'])
         out_pref = "cwf_{:8.3e}_mu_ein".format(kwargs['mu_e'])
+    elif spectrum_type == "am15":
+        s = get_am15(kwargs['dataset'])
+        out_pref = "am15_{}".format(kwargs['dataset'])
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])

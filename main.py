@@ -21,6 +21,7 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     spectra_dicts = [
+            {'type': "phoenix", 'kwargs': {'temperature': 5800}},
             {'type': "fluo", 'kwargs': {'mu_e': 1.0}},
           ]
     spectra_zip = light.build(spectra_dicts)
