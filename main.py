@@ -21,8 +21,9 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     spectra_dicts = [
-            {'type': "phoenix", 'kwargs': {'temperature': 5800}},
-            {'type': "fluo", 'kwargs': {'mu_e': 1.0}},
+            {'type': "phoenix", 'kwargs': {'temperature': 2300}},
+            {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
+            {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           ]
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
@@ -185,5 +186,7 @@ if __name__ == "__main__":
             plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
-            plots.plot_antenna(best,
-                    os.path.splitext(filenames['best'])[0] + ".pdf")
+            best_pref = os.path.splitext(filenames['best'])[0] 
+            plots.plot_antenna(filenames['best'], best_pref + "_antenna.pdf")
+            plots.plot_antenna_spectra(best, l, ip_y,
+                  best_pref + "_lines.pdf", best_pref + "_total.pdf")

@@ -39,28 +39,20 @@ def two_gauss(l, lp1, w1, lp2, w2, a12):
     y += a12 * np.exp(-1.0*((l - lp2)**2)/(2.0*w2**2))
     return y
 
-def antenna_plot_2d(genome, spectrum, filename):
-    '''
-    take a genome and plot the corresponding set of Gaussians,
-    one for each subunit, along with the stellar spectrum.
-    spectrum should be given as np.loadtxt(phoenix_data) i.e. two columns
-    '''
-    fig, ax = plt.subplots(figsize=(12,8))
-    ax.set_xlabel(r'$ \lambda (nm) $')
-    ax.set_ylabel(r'$ I $')
-    plt.plot(spectrum[:, 0], spectrum[:, 1], color='k',
-             label=r'$ I_p $')
-    cm = plt.colormaps['jet_r'](np.linspace(0, 1, genome.n_s))
-    for i in range(genome.n_s):
-        a = two_gauss(spectrum[:, 0], genome.lp1[i], genome.w1[i],
-                genome.lp2[i], genome.w2[i], genome.a12[i])
-        plt.plot(spectrum[:, 0], a * 0.8 * np.max(spectrum[:, 1]),
-                 color=cm[i])
-    xlim = (0.5 * np.min(genome.lp1), 1.5 * np.max(genome.lp1))
-    ax.set_xlim(xlim)
-    plt.legend()
-    plt.savefig(filename)
-    plt.close()
+def antenna_lines(p, l):
+    pd = constants.pigment_data
+    lines = np.zeros((p.n_s, len(l)))
+    total = np.zeros_like(l)
+    for i in range(p.n_s):
+        pigment = pd[p.pigment[i]]
+        for j in range(pigment['n_gauss']):
+            lines[i] += pigment['amp'][j] * np.exp(-1.0
+                    * (l - (pigment['lp'][j] + p.lp[i]))**2
+                    / (2.0 * (pigment['w'][j]**2)))
+        lines[i] /= np.sum(lines[i])
+        lines[i] /= np.max(lines[i])
+        total += lines[i] * p.n_p[i]
+    return lines, total
 
 def antenna_plot_3d(genome, spectrum, filename):
     '''
@@ -143,16 +135,8 @@ def hist_plot(pigment_file, lp_file):
         xs = np.arange(n_pigments)
         color = 'C{:1d}'.format(k)
         ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
-        
-        #fig, ax = plt.subplots(figsize=(12,8))
-        #ax.bar(xs, ys, color=color)
-        #ax.set_ylabel("Proportion")
-        #ax.xaxis.set_major_locator(ticker.IndexLocator(base=1, offset=0))
-        #ax.set_ylim([0.0, 1.0])
-        #ax.set_xticklabels(yticklabels)
      
     for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
-        #axis._axinfo['label']['space_factor'] = 2.5
         axis.labelpad = 20
 
     ax.set_xlabel("Pigment")
@@ -188,16 +172,46 @@ def plot_antenna(p, output_file):
     print(cmd)
     subprocess.run(cmd.split())
 
-def plot_best_from_file(input_file):
+def plot_antenna_spectra(p, l, ip_y, lines_file, total_file):
+    pd = constants.pigment_data
+    lines, total = antenna_lines(p, l)
+    lps = [pd[p.pigment[i]]['lp'][0] for i in range(p.n_s)]
+    fig, ax = plt.subplots(figsize=(12,8))
+    for i in range(p.n_s):
+        # generate Gaussian lineshape for given pigment
+        # and draw dotted vline at normal peak wavelength?
+        color = 'C{:1d}'.format(i)
+        ax.axvline(x=lps[i], color=color, ls='--')
+        label = "Subunit {:1d}: ".format(i + 1) + pd[p.pigment[i]]['text']
+        plt.plot(l, lines[i], label=label)
+    plt.plot(l, ip_y, label="Incident")
+    ax.set_xlabel(r'$ \lambda (\text{nm}) $')
+    ax.set_ylabel("Intensity (arb. for antenna)")
+    ax.legend()
+    fig.savefig(lines_file)
+    plt.close()
+
+    fig, ax = plt.subplots(figsize=(12,8))
+    plt.plot(l, ip_y, label="Incident")
+    # set the peak height of the total antenna spectrum
+    # to the same height as the incident spectrum
+    norm_total = total / (np.max(total) / np.max(ip_y))
+    plt.plot(l, norm_total, label="Total antenna")
+    ax.set_xlabel(r'$ \lambda (\text{nm}) $')
+    ax.set_ylabel("Intensity (arb. for antenna)")
+    ax.legend()
+    fig.savefig(total_file)
+    plt.close()
+
+def get_best_from_file(input_file):
     '''
-    wrapper to just pick the final best antenna from a given run
-    and plot it. again, this is incredibly ugly - i've been just
+    get parameters for the best antenna and instantiate.
+    again, this is incredibly ugly - i've been just
     printing out str(genome) to keep track of the best ones, and
     i figured i could eval them back in or something, but that
     does not work, so read in the final best antenna as a string
     and then parse with regular expressions lol
     '''
-    output_file = os.path.splitext(input_file)[0] + ".pdf"
     with open(input_file) as f:
         for line in f:
             pass
@@ -207,16 +221,25 @@ def plot_best_from_file(input_file):
     lpm = re.search(r"lp=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
     lpa = re.search(r"\[(.*)\]", lpm).group(0)
     lp = np.fromstring(lpa[1:-1], sep=',')
-    print(lp)
     n_pm = re.search(r"n_p=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
     n_pa = re.search(r"\[(.*)\]", n_pm).group(0)
     n_p = np.fromstring(n_pa[1:-1], sep=',', dtype=int)
-    print(n_p)
     pigm = re.search(r"pigment=array\(\[\s*([a-z_']+[,\s\]]+)+", best).group(0)
     piga = re.search(r"\[(.*)\]", pigm).group(0)
     # numpy doesn't know how to fromstring() this so do it manually
-    pigment = np.array(piga[1:-1].replace("'", "").replace(" ", "").split(","), dtype='U10')
-    print(pigment)
-    g = constants.Genome(n_b, n_s, n_p, lp, pigment)
-    plot_antenna(g, output_file)
+    pigment = np.array(piga[1:-1]
+                       .replace("'", "")
+                       .replace(" ", "")
+                       .split(","), dtype='U10')
+    return constants.Genome(n_b, n_s, n_p, lp, pigment)
 
+def plot_best(best_file, spectrum_file):
+    p = get_best_from_file(best_file)
+    prefix = os.path.splitext(best_file)[0]
+    output_file = prefix + "_antenna.pdf"
+    lines_file = prefix + "_lines.pdf"
+    total_file = prefix + "_total.pdf"
+
+    plot_antenna(p, output_file)
+    l, ip_y = np.loadtxt(spectrum_file, unpack=True)
+    plot_antenna_spectra(p, l, ip_y, lines_file, total_file)
