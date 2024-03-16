@@ -76,7 +76,7 @@ program main
     write(*, '(a, *(a, 1X))') "ps = ", ps
     call fitness_calc(n_b, n_s, n_p, offset, ps,&
         k_params, temp, gamma_fac, l, ip_y, lsize, output)
-    write(*, '(a, *(G10.3, 1X))') "output = ", output
+    write(*, '(a, *(F10.3, 1X))') "output = ", output
     deallocate(offset)
     deallocate(n_p)
     deallocate(ps)
