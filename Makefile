@@ -1,10 +1,10 @@
 SHELL = /bin/sh
-HOME = $(shell echo $$HOME)
-$(info $(HOME))
-CC    = gfortran
+PREFIX = $(shell echo $$CONDA_PREFIX)
+$(info $(PREFIX))
+FC    = gfortran
 FLAGS = -std=f2018 -ffree-form
-CFLAGS = -Wall -Werror -pedantic -fcheck=all -I$(HOME)/anaconda3/include
-LDFLAGS = -L$(HOME)/anaconda3/lib -llapack -lblas -ljsonfortran
+FFLAGS = -Wall -Werror -pedantic -fcheck=all -I$(PREFIX)/include
+LDFLAGS = -L$(PREFIX)/lib -llapack -lblas -ljsonfortran
 DFLAGS = -g -g3 -O0 -ggdb3
 RFLAGS = -O2
 SOURCES = nnls.f antenna.f
@@ -20,14 +20,23 @@ else
 	SOURCES += main.f
 	TARGET = antenna_f_test
 endif
-OBJECTS = $(SOURCES)
+OBJECTS = $(patsubst %.f, %.o, $(SOURCES))
 
-.PHONY: clean
+$(OBJECTS): %.o : %.f
+	$(FC) $(FLAGS) $(FFLAGS) -c -o $@ $<
+
+$(TARGET): $(OBJECTS)
+	$(FC) $(FLAGS) $(FFLAGS) $(DFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
+
+.PHONY: all clean check
 
 all: $(TARGET)
 
-# clean:
-# 	rm -f $(OBJECTS) $(TARGET)
+check:
+	@echo "SOURCES = $(SOURCES)"
+	@echo "OBJECTS = $(OBJECTS)"
+	@echo "$(FC) $(FLAGS) $(FFLAGS) -o $@ $<"
 
-$(TARGET): $(OBJECTS)
-	$(CC) $(FLAGS) $(CFLAGS) $(DFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
+
+clean:
+	rm -f $(OBJECTS) $(TARGET) $(patsubst %.o, %.mod, $(OBJECTS))
