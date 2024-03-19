@@ -91,6 +91,10 @@ def build(spectra_dicts):
     '''
     pass a list of dicts to this function to get back
     a tuple of the spectra and output file prefixes.
+    note that where there are required parameters for the spectrum,
+    e.g. temperature for the PHOENIX or depth for a marine spectrum,
+    you can't pass them as an array, at least not yet. use one line for
+    each value and just copy-paste.
     '''
     spectra = []
     out_prefs = []
@@ -101,6 +105,12 @@ def build(spectra_dicts):
     return zip(spectra, out_prefs)
 
 def check(spectra_dicts):
+    '''
+    take a list of dicts and plot the spectrum that would be used in
+    simulations - cuts off at 200 and 1000nm since that's really what
+    we're interested, but only for the plot; the whole spectrum's kept.
+    outputs the plots using the output prefix that'll be generated as well.
+    '''
     z = build(spectra_dicts)
     for spectrum, out_pref in z:
         fig, ax = plt.subplots(figsize=(12, 8))
@@ -121,10 +131,10 @@ if __name__ == "__main__":
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
           {'type': "marine", 'kwargs': {'depth': 0.0}},
-          {'type': "marine", 'kwargs': {'depth': 0.5}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
+          {'type': "marine", 'kwargs': {'depth': 100.0}},
           {'type': "gauss", 'kwargs': {'lmin': 200.0, 'lmax': 1000.0, 'lp': [600.0, 500.0], 'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
           ]
     check(sd)
