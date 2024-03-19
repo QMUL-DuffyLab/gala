@@ -54,33 +54,6 @@ def antenna_lines(p, l):
         total += lines[i] * p.n_p[i]
     return lines, total
 
-def antenna_plot_3d(genome, spectrum, filename):
-    '''
-    take a genome and plot the corresponding set of Gaussians,
-    one for each subunit, along with the stellar spectrum.
-    spectrum should be given as np.loadtxt(phoenix_data) i.e. two columns
-    '''
-    ax = plt.figure().add_subplot(projection='3d')
-    zs = range(1, genome.n_s + 2)
-    xlim = (np.min(spectrum[:, 0]), np.max(spectrum[:, 0]))
-    # need to cut off the actual spectrum array to use the next line
-    # xlim = (0.5 * np.min(genome.lp), 1.5 * np.max(genome.lp))
-    cm = plt.colormaps['jet_r'](np.linspace(0, 1, genome.n_s))
-    verts = []
-    for i in range(genome.n_s):
-        verts.append(polygon_under_graph(spectrum[:, 0],
-            two_gauss(spectrum[:, 0], genome.lp1[i], genome.w1[i],
-                genome.lp2[i], genome.w2[i], genome.a12[i])))
-    verts.append(polygon_under_graph(spectrum[:, 0], spectrum[:, 1]))
-    cm = np.append(cm, [[0., 0., 0., 1.]], axis=0) # black
-    p = PolyCollection(verts, facecolors=cm, alpha=.7)
-    ax.add_collection3d(p, zs=zs, zdir='y')
-    ax.set(xlim=xlim, ylim=(1, genome.n_s + 1), zlim=(0.0, 5.0),
-           xlabel=r'$ \lambda (nm) $', zlabel=r'$ I $')
-    # plt.legend()
-    plt.savefig(filename)
-    plt.close()
-
 def plot_nu_phi_4(nu_e, phi_f, n_s, filename):
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(12,12), sharex=True)
     ax[0, 0].plot(np.arange(len(nu_e)), nu_e, label=r'$ \left<\nu_e\right> $')
