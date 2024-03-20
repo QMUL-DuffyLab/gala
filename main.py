@@ -82,8 +82,10 @@ if __name__ == "__main__":
                     p.nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity
+                    p.phi_f_g = nu_phi[1]
                     p.phi_f = nu_phi[2]
-                    fitnesses[j] = ga.fitness(p)
+                    p.fitness = ga.fitness(p)
+                    fitnesses[j] = p.fitness
                     if (fitnesses[j] > fit_max):
                         fit_max = fitnesses[j]
                         best = population[j]
@@ -125,7 +127,7 @@ if __name__ == "__main__":
                     pf, lf = stats.hist(population, gen, run, out_name)
                     plots.hist_plot(pf, lf)
                     plots.plot_antenna(best,
-                        best_pref + "_r{:04d}_best".format(gen))
+                        best_pref + "_{:04d}_best".format(gen))
 
                 print("Generation {:4d}: ".format(gen))
                 print("================")

@@ -95,7 +95,9 @@ class Genome:
     lp: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
     pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     nu_e: float = np.nan
+    phi_f_g: float = np.nan
     phi_f: float = np.nan
+    fitness: float = np.nan
     def __eq__(self, other):
         return dc_eq(self, other)
 

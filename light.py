@@ -13,6 +13,9 @@ various helper functions to import or generate spectra
 '''
 
 def get_phoenix_spectrum(ts):
+    '''
+    return scaled PHOENIX spectrum representing star of given temperature
+    '''
     return np.loadtxt(constants.spectrum_prefix
             + constants.phoenix_prefix
             + '{:4d}K'.format(ts)
@@ -38,6 +41,7 @@ def get_gaussian(l, lp, w, a):
     return la.gauss(l, lp, w, a)
 
 def get_am15(dataset="tilt"):
+    # return relevant am15 dataset. standard spectrum
     d = np.loadtxt(constants.spectrum_prefix + "ASTMG173.csv",
                    skiprows=2, delimiter=",")
     if dataset == "tilt":
@@ -51,6 +55,13 @@ def get_am15(dataset="tilt"):
     return am15
 
 def get_marine(**kwargs):
+    '''
+    simple function to take am1.5 spectrum and approximate
+    light attenuation as a function of wavelength in water.
+    taken from doi:10.1038/ismej.2007.59
+    note that we ignore the gilvin/tripton/phytoplankton terms
+    since we're not trying to model any specific ocean precisely.
+    '''
     if 'dataset' in kwargs.keys():
         am15 = get_am15(kwargs['dataset'])
     else:
@@ -66,26 +77,31 @@ def get_marine(**kwargs):
     return np.column_stack((am15[:, 0], ilz))
 
 def spectrum_setup(spectrum_type, **kwargs):
+    '''
+    wrap the above functions and return a consistent tuple.
+    the actual function call could maybe be streamlined a bit
+    but the output prefix is dependent on specific kwargs
+    '''
     if spectrum_type == "phoenix":
         s = get_phoenix_spectrum(kwargs['temperature'])
-        out_pref = "{:4d}K".format(kwargs['temperature'])
+        output_prefix = "{:4d}K".format(kwargs['temperature'])
     elif spectrum_type == "fluo":
         s = get_cwf(kwargs['mu_e'])
-        out_pref = "cwf_{:8.3e}_mu_ein".format(kwargs['mu_e'])
+        output_prefix = "cwf_{:8.3e}_mu_ein".format(kwargs['mu_e'])
     elif spectrum_type == "am15":
         s = get_am15(kwargs['dataset'])
-        out_pref = "am15_{}".format(kwargs['dataset'])
+        output_prefix = "am15_{}".format(kwargs['dataset'])
     elif spectrum_type == "marine":
         s = get_marine(**kwargs)
-        out_pref = "marine_z_{}".format(kwargs['depth'])
+        output_prefix = "marine_z_{}".format(kwargs['depth'])
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])
         s = np.column_stack((l, intensity))
-        out_pref = "gauss_lp0_{:6.2f}".format(kwargs['lp'][0])
+        output_prefix = "gauss_lp0_{:6.2f}".format(kwargs['lp'][0])
     else:
         raise ValueError("Invalid call to spectrum_setup.")
-    return s, out_pref
+    return s, output_prefix
 
 def build(spectra_dicts):
     '''
@@ -94,7 +110,7 @@ def build(spectra_dicts):
     note that where there are required parameters for the spectrum,
     e.g. temperature for the PHOENIX or depth for a marine spectrum,
     you can't pass them as an array, at least not yet. use one line for
-    each value and just copy-paste.
+    each value you want to simulate and just copy-paste.
     '''
     spectra = []
     out_prefs = []
@@ -128,6 +144,9 @@ def check(spectra_dicts):
         plt.close()
 
 if __name__ == "__main__":
+    '''
+    examples of dicts - run `python light.py` to get spectra/plots
+    '''
     sd = [
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
