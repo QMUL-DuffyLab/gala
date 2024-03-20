@@ -49,9 +49,6 @@ if __name__ == "__main__":
             with open(filenames['best'], "w") as f:
                 pass # start a new file
             f.close()
-            with open(filenames['neg'], "w") as f:
-                pass # start a new file
-            f.close()
 
             fitnesses = np.zeros(constants.population_size, dtype=np.float64)
             avgs  = np.zeros(9)
@@ -79,6 +76,7 @@ if __name__ == "__main__":
                 fit_max = 0.0
                 # initialise in case they all have 0 fitness
                 best = population[0]
+                best_pref = os.path.splitext(filenames['best'])[0] 
                 for j, p in enumerate(population):
                     nu_phi = la.antenna(l, ip_y, p, False)
                     p.nu_e  = nu_phi[0]
@@ -126,6 +124,8 @@ if __name__ == "__main__":
                 if (gen % constants.hist_snapshot == 0):
                     pf, lf = stats.hist(population, gen, run, out_name)
                     plots.hist_plot(pf, lf)
+                    plots.plot_antenna(best,
+                        best_pref + "_r{:04d}_best".format(gen))
 
                 print("Generation {:4d}: ".format(gen))
                 print("================")
@@ -192,6 +192,6 @@ if __name__ == "__main__":
             plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                               running_avgs[:, 7], plot_nu_phi_file)
             best_pref = os.path.splitext(filenames['best'])[0] 
-            plots.plot_antenna(filenames['best'], best_pref + "_antenna.pdf")
+            plots.plot_antenna(best, best_pref + "_antenna.pdf")
             plots.plot_antenna_spectra(best, l, ip_y,
                   best_pref + "_lines.pdf", best_pref + "_total.pdf")

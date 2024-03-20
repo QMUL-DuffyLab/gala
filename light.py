@@ -108,11 +108,12 @@ def check(spectra_dicts):
     '''
     take a list of dicts and plot the spectrum that would be used in
     simulations - cuts off at 200 and 1000nm since that's really what
-    we're interested, but only for the plot; the whole spectrum's kept.
+    we're interested in, but only for the plot; the whole spectrum's kept.
     outputs the plots using the output prefix that'll be generated as well.
     '''
     z = build(spectra_dicts)
     for spectrum, out_pref in z:
+        np.savetxt("out/" + out_pref + "_spectrum.dat", spectrum)
         fig, ax = plt.subplots(figsize=(12, 8))
         plt.plot(spectrum[:, 0], spectrum[:, 1])
         smin = np.min(spectrum[:, 0])
@@ -130,6 +131,7 @@ if __name__ == "__main__":
     sd = [
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
+          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 0.0}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
