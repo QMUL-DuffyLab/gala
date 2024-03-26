@@ -65,7 +65,7 @@ module antenna
       do i = 1, n_gauss
         line = line + amp(i) * exp(-(l - lp(i))**2/(2.0 * width(i)**2))
       end do
-    end function lineshape
+    end subroutine lineshape
 
     function overlap(line1, line2, l, lsize) result(res)
       real, dimension(lsize), intent(in) :: line1, line2, l
@@ -83,8 +83,8 @@ module antenna
       res = h12 - (s12 * T)
     end function gibbs
     
-    function construct_k(n_b, n_s, n_p, peak_offset, pigment,&
-        k_params, temp, l, ip_y, lsize) result(k)
+    subroutine fitness_calc(n_b, n_s, n_p, peak_offset, pigment,&
+        k_params, temp, gamma_fac, l, ip_y, lsize, output)
     ! k_params = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
     integer, intent(in) :: n_b, n_s, lsize
     real, intent(in) :: temp
@@ -97,11 +97,12 @@ module antenna
     real, dimension(:), allocatable :: b, p_eq
     real, dimension(n_s + 1, lsize) :: lines
     real, dimension(n_s + 1) :: lps
-    real, dimension(n_s) :: g
+    real, dimension(n_s) :: g, gnorm
+    real, dimension(3) :: output
     real, dimension(2 * n_s) :: k_b
     real, dimension(lsize) :: fp_y
     integer :: i, j, pen
-    real :: de, n, dg
+    real :: de, n, dg, nu_e_full, nu_e_low, phi_e_full, phi_e_low
 
     fp_y = (ip_y * l) / hcnm
 
@@ -117,11 +118,9 @@ module antenna
       ! overlap and dG calc, fill k_b
       de = overlap(lines(i), lines(i + 1), l, lsize)
       n = 1.0 * n_p(i) / n_p(i + 1)
-      ! need temperature argument as well
-      dg = gibbs(lps(i), lps(i + 1), n, T)
-      ! and need k_params argument for this
+      dg = gibbs(lps(i), lps(i + 1), n, temp)
       if (i.eq.1) then
-        ! in practice these two are the same number
+        ! currently these two are identical but in principle not
         rate = k_params(5)
       else
         rate = k_params(4)
@@ -129,6 +128,7 @@ module antenna
       rate = rate * de
       k_b(2 * i) = rate
       k_b((2 * i) + 1) = rate
+      ! penalise whichever rate corresponds to increasing free energy
       pen = merge(2 * i, (2 * i) + 1, dg > 0.0)
       k_b(pen) = k_b(pen) * exp((-1.0 * sign(dg)) * dg / (T * kb))
     end do
@@ -143,27 +143,27 @@ module antenna
     twa(4, 2) = k_params(1)
     twa(4, 3) = k_params(3)
     do j = 5, 2 * side + 1, 2 * n_s
-    ! outer loop - fill RC - branch rates
-    twa(3, j)     = k_b(1)
-    twa(j, 3)     = k_b(2)
-    twa(4, j + 1) = k_b(1)
-    twa(j + 1, 4) = k_b(2)
-    do i = 1, n_s
-    ! inner loop - decay and transfer rates along branch
-    ind = j + (2 * i)
-    twa(ind, 1)       = k_params(1)
-    twa(ind + 1, 2)   = k_params(1)
-    twa(ind + 1, ind) = k_params(3)
-    if (i.gt.1) then
-      twa(ind, ind - 2)     = k_b((2 * i) + 1)
-      twa(ind + 1, ind - 1) = k_b((2 * i) + 1)
-    end if
-    if (i.lt.n_s) then
-      twa(ind, ind + 2)     = k_b(2 * (i + 1))
-      twa(ind + 1, ind + 3) = k_b(2 * (i + 1))
-    end if
-    twa(1, ind)     = g(i)
-        twa(2, ind + 1) = g(i)
+      ! outer loop - fill RC <-> branch rates
+      twa(3, j)     = k_b(1) ! 0 1 0   -> 1_i 0 0
+      twa(j, 3)     = k_b(2) ! 1_i 0 0 -> 0 1 0
+      twa(4, j + 1) = k_b(1) ! 0 1 1   -> 1_i 0 1
+      twa(j + 1, 4) = k_b(2) ! 1_i 0 1 -> 0 1 1
+      do i = 1, n_s
+        ! inner loop - decay and transfer rates along branch
+        ind = j + (2 * i)
+        twa(ind, 1)       = k_params(1) ! k_diss
+        twa(ind + 1, 2)   = k_params(1)
+        twa(ind + 1, ind) = k_params(3) ! k_con
+        if (i.gt.1) then
+          twa(ind, ind - 2)     = k_b((2 * i) + 1) ! empty trap
+          twa(ind + 1, ind - 1) = k_b((2 * i) + 1) ! full trap
+        end if
+        if (i.lt.n_s) then
+          twa(ind, ind + 2)     = k_b(2 * (i + 1)) ! empty
+          twa(ind + 1, ind + 3) = k_b(2 * (i + 1)) ! full
+        end if
+        twa(1, ind)     = g(i) ! 0 0 0 -> 1_i 0 0
+        twa(2, ind + 1) = g(i) ! 0 0 1 -> 1_i 0 1
       end do
     end do
 
@@ -178,25 +178,59 @@ module antenna
     allocate(b((2 * side) + 1), source = 0.0)
     allocate(p_eq((2 * side) + 1), source = 0.0)
     b((2 * side) + 1) = 1.0
+    ! check mode!
     p_eq = nnls(k, b)
 
     ! check indexing here - 1-based vs 0-based
     do i = 1, side
-      n_eq(1) = n_eq(1) + p_eq((2 * i) + 1)
+      n_eq(1) = n_eq(1) + p_eq((2 * i) + 1) ! P(1_i , 1)
       if (i.gt.1) then
-        n_eq(i) = p_eq(2 * i) + p_eq((2 * i) + 1)
+        n_eq(i) = p_eq(2 * i) + p_eq((2 * i) + 1) ! P(1_i, 0) + P(1_i, 1)
       end if
     end do
-    nu_e = k_params() * n_eq(1)
-    phi_e_g = nu_e / (nu_e + (k_params() * sum(n_eq(2:))))
+    nu_e_full  = k_params(3) * n_eq(1)
+    phi_e_full = nu_e / (nu_e + (k_params(1) * sum(n_eq(2:))))
 
     ! now do the low gamma one
+    g = gamma_fac * g / sum(g)
     do j = 5, 2 * side + 1, 2 * n_s
-      ! outer loop - fill RC - branch rates
       do i = 1, n_s
-        ! inner loop - decay and transfer rates along branch
+        ind = j + (2 * i)
+        twa(1, ind) = g(i)
+        twa(2, ind + 1) = g(i)
       end do
     end do
 
-    end function construct_k
+    ! zero out k, otherwise the diagonal elements will be wrong
+    k = 0.0
+
+    ! check indexing
+    do i = 1, 2 * side
+      do j = 1, 2 * side
+        ! assign k from twa
+        k(i, j) = twa(j, i)
+        k(i, i) = k(i, i) - twa(i, j)
+      end do
+      k(2 * side + 1, i) = 1.0
+    end do
+    b = 0.0
+    b((2 * side) + 1) = 1.0
+    p_eq = nnls(k, b)
+
+    n_eq = 0.0
+    ! check indexing
+    do i = 1, side
+      n_eq(1) = n_eq(1) + p_eq((2 * i) + 1) ! P(1_i , 1)
+      if (i.gt.1) then
+        n_eq(i) = p_eq(2 * i) + p_eq((2 * i) + 1) ! P(1_i, 0) + P(1_i, 1)
+      end if
+    end do
+    nu_e_low = k_params(3) * n_eq(1)
+    phi_e_low = nu_e_low / (nu_e_low + (k_params(1) * sum(n_eq(2:))))
+
+    output(1) = nu_e_high
+    output(2) = phi_e_high
+    output(3) = phi_e_low
+
+    end subroutine fitness_calc
 end module antenna

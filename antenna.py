@@ -80,7 +80,7 @@ def solve(k, method='fortran', debug=False):
         libnnls.solve.restype = None
         mode = ctypes.c_int(0)
         maxiter = ctypes.c_int(3 * n)
-        tol = ctypes.c_double(1e-6)
+        tol = ctypes.c_double(1e-13)
 
         b = np.zeros(k.shape[0], dtype=ctypes.c_double)
         b[-1] = 1.0
@@ -136,8 +136,6 @@ def antenna(l, ip_y, p, debug=False):
         if i > 0:
             gamma[i - 1] = (n_p[i] * constants.sig_chl *
                             overlap(l, fp_y, lines[i]))
-            # print("i, gamma[i], overlap", i, gamma[i - 1],
-            #       overlap(l, fp_y, lines[i]))
 
     for i in range(p.n_s):
         de = overlap(l, lines[i], lines[i + 1])
