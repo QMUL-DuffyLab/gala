@@ -1,67 +1,77 @@
 program main
+  use antenna, only: fitness_calc
+  use iso_fortran_env
   use iso_c_binding
-  use nnls
   implicit none
-  integer(kind=CI) :: i, j, k, n, m, mode, maxiter, nmax
-  integer(kind=c_long) ::  start_time, end_time, count_rate
-  real(kind=CF) :: r, res, tol, diff, xdiff
-  real(kind=CF), dimension(:), allocatable :: b, x, x_ref
-  real(kind=CF), dimension(:, :), allocatable :: a
-  character(len=100) :: outfile
+  integer, parameter :: CF = c_double
+  integer, parameter :: CI = c_int
+  integer, parameter :: CB = c_bool
 
-  nmax = 0_CI
+  integer(kind=CI) :: n_max, i, j, n_b, n_s, io, ios,&
+    lsize, start_time, count_rate
+  real(kind=CF), dimension(:), allocatable :: offset
+  integer(kind=CI), dimension(:), allocatable :: n_p
+  character(len=10), dimension(:), allocatable :: ps
+  character(len=10), dimension(9) :: pigments
+  real(kind=CF) :: r, temp, gamma_fac, k_params(5), output(3)
+  real(kind=CF), dimension(:), allocatable :: l, ip_y
+
+  write(*, *) "Starting"
+  n_max = 1000_CI
   call random_init(.true., .true.)
   call system_clock(start_time, count_rate)
-  do i = 1, 1000
-    call random_number(r)
-    ! at least 2 x 2 matrices
-    n = 2_CI + floor(20 * r) 
-    call random_number(r)
-    m = 2_CI + floor(20 * r) 
-    mode = 0_CI
-    res = 0.0_CF
-    maxiter = 3 * n
-    tol = 1.0e-6_CF
+  write(*, *) "random_init done, clock started"
 
-    allocate(b(m), source=0.0_CF)
-    allocate(x(n), source=0.0_CF)
-    allocate(x_ref(n))
-    allocate(a(m, n))
-    call random_number(a)
-    call random_number(x_ref)
-    b = matmul(a, x_ref)
-    call solve(a, b, x, m, n, mode, res, maxiter, tol)
-    diff = norm2(matmul(A, x) - b)
-    xdiff = norm2(x_ref - x)
-    if ((mode.eq.-1_CI).or.(diff.gt.1.0_CF)) then
-      write(outfile, '(a, i0.4, a)') "out/info_", i, ".txt"
-      open(unit=20, file=outfile)
-      nmax = nmax + 1
-      write(20, *) "iteration ", i
-      write(20, *) "x_ref = ", x_ref
-      write(20, *) "x = ", x
-      write(20, *) "shape(A) = ", shape(A)
-      write(20, *) "A = "
-      do j = 1, m
-        write(20, *) (A(j, k), k = 1, n)
-      end do
-      write(20, *)
-      write(20, *) "Ax = ", matmul(A, x)
-      write(20, *) "b = ", b
-      write(20, *) "diff = ", diff
-      close(20)
-    else
-      write(*, '(a, i4, a, G10.3, a, G10.3)') "i = ", i,&
-        ": |Ax - b| = ", diff, ", |x_ref - x| = ", xdiff
-    end if
-    deallocate(b)
-    deallocate(x)
-    deallocate(x_ref)
-    deallocate(a)
+  open(newunit=io, file='spectra/PHOENIX/Scaled_Spectrum_PHOENIX_5800K.dat')
+  ios = 0
+  lsize = 0
+  do while (ios.ne.iostat_end)
+    read(io, *, iostat=ios)
+    lsize = lsize + 1
   end do
-  call system_clock(end_time)
-  write(*, *) "nmax = ", nmax
-  write(*, '(a, f10.6)') "time elapsed = ",&
-    real(end_time - start_time) / real(count_rate)
+  close(io)
+  allocate(l(lsize), source=0.0_CF)
+  allocate(ip_y(lsize), source=0.0_CF)
+  open(newunit=io, file='spectra/PHOENIX/Scaled_Spectrum_PHOENIX_5800K.dat')
+  do i = 1, lsize
+    read(io, *, iostat=ios) l(i), ip_y(i)
+  end do
+  close(io)
+  write(*, *) "spectrum file read in"
+
+  pigments = [character(len=10) :: "rc", "chl_a", "chl_b", "chl_d",&
+    "chl_f", "r_apc", "r_pc", "r_pe", "bchl_a"]
+  k_params = [1.0/4.0e-9, 1.0/5.0e-12, 1.0/1.0e-2, 1.0/1.0e-11, 1.0/1.0e-11]
+  gamma_fac = 1.0e-4
+  temp = 300.0
+
+  do i = 1, n_max
+    write(*, *)
+    write(*, *) "-------------------------"
+    write(*, *)
+    write(*, *) "i = ", i
+    call random_number(r)
+    n_b = 1 + floor(12.0 * r)
+    n_s = 1 + floor(6.0 * r)
+    write(*, '(a, I2, 1X, a, I2)') "n_b = ", n_b, "n_s = ", n_s
+    allocate(offset(n_s))
+    allocate(n_p(n_s))
+    allocate(ps(n_s))
+    do j = 1, n_s
+      call random_number(r)
+      offset(j) = -10.0_CF + 20.0_CF * r
+      call random_number(r)
+      n_p(j) = 1_CI + floor(100_CI * r)
+      call random_number(r)
+      ps(j) = pigments(1_CI + floor(8_CI * r))
+    end do
+    write(*, '(a, *(F8.3, 1X))') "offset = ", offset
+    write(*, '(a, *(I3, 1X))') "n_p = ", n_p
+    write(*, '(a, *(a, 1X))') "ps = ", ps
+    call fitness_calc(n_b, n_s, n_p, offset, ps,&
+        k_params, temp, gamma_fac, l, ip_y, lsize, output)
+    write(*, '(a, *(F8.3, 1X))') "output = ", output
+
+  end do
 
 end program main

@@ -1,8 +1,10 @@
 SHELL = /bin/sh
+HOME = $(shell echo $$HOME)
+$(info $(HOME))
 CC    = gfortran
 FLAGS = -std=f2018 -ffree-form
-CFLAGS = -Wall -Werror -pedantic
-LDFLAGS = -llapack -lblas -ljsonfortran
+CFLAGS = -Wall -Werror -pedantic -I$(HOME)/anaconda3/include
+LDFLAGS = -L$(HOME)/anaconda3/lib -llapack -lblas -ljsonfortran
 DFLAGS = -g -g3 -O0 -ggdb3
 RFLAGS = -O2
 SOURCES = nnls.f antenna.f
@@ -16,7 +18,7 @@ ifeq ($(SHARED), 1)
 	TARGET = libnnls.so
 else
 	SOURCES += main.f
-	TARGET = nnls
+	TARGET = antenna_f_test
 endif
 OBJECTS = $(SOURCES)
 
@@ -28,4 +30,4 @@ all: $(TARGET)
 # 	rm -f $(OBJECTS) $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(FLAGS) $(CFLAGS) $(RFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
+	$(CC) $(FLAGS) $(CFLAGS) $(DFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
