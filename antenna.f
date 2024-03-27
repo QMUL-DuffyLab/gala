@@ -182,13 +182,13 @@ module antenna
         twa(ind, 1)       = k_params(1) ! k_diss
         twa(ind + 1, 2)   = k_params(1)
         twa(ind + 1, ind) = k_params(3) ! k_con
-        if (i.gt.1) then
-          twa(ind, ind - 2)     = k_b((2 * i) + 1) ! empty trap
-          twa(ind + 1, ind - 1) = k_b((2 * i) + 1) ! full trap
+        if (i.gt.0) then
+          twa(ind, ind - 2)     = k_b(2 * (i + 1)) ! empty trap
+          twa(ind + 1, ind - 1) = k_b(2 * (i + 1)) ! full trap
         end if
         if (i.lt.(n_s - 1)) then
-          twa(ind, ind + 2)     = k_b(2 * (i + 1)) ! empty
-          twa(ind + 1, ind + 3) = k_b(2 * (i + 1)) ! full
+          twa(ind, ind + 2)     = k_b(2 * (i + 1) + 1) ! empty
+          twa(ind + 1, ind + 3) = k_b(2 * (i + 1) + 1) ! full
         end if
         twa(1, ind)     = g(i + 1) ! 0 0 0 -> 1_i 0 0
         twa(2, ind + 1) = g(i + 1) ! 0 0 1 -> 1_i 0 1
