@@ -24,8 +24,7 @@ def get_phoenix_spectrum(ts):
 def get_cwf(mu_e = 1.0):
     '''
     get cool white fluorescent spectrum with given intensity
-    in micro Einsteins. assumes it's currently normalised to 1,
-    which it is not yet!
+    in micro Einsteins - the spectrum in the file's normalised to 1μE
     '''
     l, fluo = np.loadtxt(constants.spectrum_prefix
             + 'anderson_2003_cool_white_fluo.csv', unpack=True)
@@ -59,7 +58,7 @@ def get_marine(**kwargs):
     simple function to take am1.5 spectrum and approximate
     light attenuation as a function of wavelength in water.
     taken from doi:10.1038/ismej.2007.59
-    note that we ignore the gilvin/tripton/phytoplankton terms
+    note that we (currently) ignore gilvin/tripton/phytoplankton terms
     since we're not trying to model any specific ocean precisely.
     '''
     if 'dataset' in kwargs.keys():
@@ -151,12 +150,10 @@ if __name__ == "__main__":
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          {'type': "marine", 'kwargs': {'depth': 0.0}},
-          {'type': "marine", 'kwargs': {'depth': 1.0}},
-          {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
-          {'type': "marine", 'kwargs': {'depth': 100.0}},
-          {'type': "gauss", 'kwargs': {'lmin': 200.0, 'lmax': 1000.0, 'lp': [600.0, 500.0], 'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
+          {'type': "gauss", 'kwargs':
+           {'lmin': 200.0, 'lmax': 1000.0, 'lp': [600.0, 500.0],
+            'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
           ]
     check(sd)
 

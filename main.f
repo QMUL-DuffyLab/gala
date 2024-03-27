@@ -12,7 +12,7 @@ program main
   real(kind=CF), dimension(:), allocatable :: offset
   integer(kind=CI), dimension(:), allocatable :: n_p
   character(len=10), dimension(:), allocatable :: ps
-  character(len=10), dimension(9) :: pigments
+  character(len=10), dimension(8) :: pigments
   real(kind=CF) :: r, temp, gamma_fac, k_params(5), output(3)
   real(kind=CF), dimension(:), allocatable :: l, ip_y
 
@@ -39,11 +39,12 @@ program main
   close(io)
   write(*, *) "spectrum file read in"
 
-  pigments = [character(len=10) :: "rc", "chl_a", "chl_b", "chl_d",&
+  pigments = [character(len=10) :: "chl_a", "chl_b", "chl_d",&
     "chl_f", "r_apc", "r_pc", "r_pe", "bchl_a"]
-  k_params = [1.0/4.0e-9, 1.0/5.0e-12, 1.0/1.0e-2, 1.0/1.0e-11, 1.0/1.0e-11]
-  gamma_fac = 1.0e-4
-  temp = 300.0
+  k_params = [1.0_CF/4.0e-9_CF, 1.0_CF/5.0e-12_CF,&
+    1.0_CF/1.0e-2_CF, 1.0_CF/1.0e-11_CF, 1.0_CF/1.0e-11_CF]
+  gamma_fac = 1.0e-4_CF
+  temp = 300.0_CF
 
   do i = 1, n_max
     write(*, *)
@@ -51,26 +52,34 @@ program main
     write(*, *)
     write(*, *) "i = ", i
     call random_number(r)
-    n_b = 1 + floor(12.0 * r)
-    n_s = 1 + floor(6.0 * r)
-    write(*, '(a, I2, 1X, a, I2)') "n_b = ", n_b, "n_s = ", n_s
-    allocate(offset(n_s))
-    allocate(n_p(n_s))
-    allocate(ps(n_s))
+    n_b = 1 + floor(5.0 * r)
+    call random_number(r)
+    n_s = 1 + floor(5.0 * r)
+    ! write(*, '(a, I3, 1X, a, I3)') "n_b = ", n_b, "n_s = ", n_s
+    write(*,*) "n_b = ", n_b, "n_s = ", n_s
+    allocate(offset(n_s + 1))
+    allocate(n_p(n_s + 1))
+    allocate(ps(n_s + 1))
+    offset(1) = 0.0_CF
+    n_p(1) = 10_CI
+    ps(1) = 'rc'
     do j = 1, n_s
       call random_number(r)
-      offset(j) = -10.0_CF + 20.0_CF * r
+      offset(j + 1) = -10.0_CF + 20.0_CF * r
       call random_number(r)
-      n_p(j) = 1_CI + floor(100_CI * r)
+      n_p(j + 1) = 1_CI + floor(100_CI * r)
       call random_number(r)
-      ps(j) = pigments(1_CI + floor(8_CI * r))
+      ps(j + 1) = pigments(1_CI + floor(8_CI * r))
     end do
     write(*, '(a, *(F8.3, 1X))') "offset = ", offset
     write(*, '(a, *(I3, 1X))') "n_p = ", n_p
     write(*, '(a, *(a, 1X))') "ps = ", ps
     call fitness_calc(n_b, n_s, n_p, offset, ps,&
         k_params, temp, gamma_fac, l, ip_y, lsize, output)
-    write(*, '(a, *(F8.3, 1X))') "output = ", output
+    write(*, '(a, *(G10.3, 1X))') "output = ", output
+    deallocate(offset)
+    deallocate(n_p)
+    deallocate(ps)
 
   end do
 

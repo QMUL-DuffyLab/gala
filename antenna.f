@@ -32,6 +32,7 @@ module antenna
       real(kind=CF), intent(out) :: lp1
       real(kind=CF), dimension(:), allocatable :: lp, width, amp
       integer(kind=CI) :: n_gauss, i
+      real(kind=CF) :: r
       logical :: found
       call json%get(pigment // '.n_gauss', n_gauss, found)
       if (json%failed()) then
@@ -49,7 +50,7 @@ module antenna
         stop
       end if
       ! if (.not.found) stop 1
-      call json%get(pigment // '.width', width, found)
+      call json%get(pigment // '.w', width, found)
       if (json%failed()) then
         call json%print_error_message(error_unit)
         stop
@@ -62,12 +63,15 @@ module antenna
       end if
       ! if (.not.found) stop 1
 
-      lp = lp - peak_offset
+      lp = lp + peak_offset
       lp1 = lp(1)
-      line = 0.0
+      line = 0.0_CF
       do i = 1, n_gauss
-        line = line + amp(i) * exp(-(l - lp(i))**2/(2.0 * width(i)**2))
+        line = line + amp(i) * exp(-1.0_CF *&
+          (l - lp(i))**2/(2.0_CF * width(i)**2))
       end do
+      r = integrate(l, line, lsize)
+      line = line / r
     end subroutine lineshape
 
     function overlap(line1, line2, l, lsize) result(r)
@@ -91,10 +95,10 @@ module antenna
     ! k_params = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
     integer(kind=CI), intent(in) :: n_b, n_s, lsize
     real(kind=CF), intent(in) :: temp
-    integer(kind=CI), dimension(n_s), intent(in) :: n_p
-    real(kind=CF), dimension(n_s), intent(in) :: peak_offset
+    integer(kind=CI), dimension(n_s + 1), intent(in) :: n_p
+    real(kind=CF), dimension(n_s + 1), intent(in) :: peak_offset
     real(kind=CF), dimension(5), intent(in) :: k_params
-    character(len=10), dimension(n_s), intent(in) :: pigment
+    character(len=10), dimension(n_s + 1), intent(in) :: pigment
     real(kind=CF), dimension(lsize), intent(in) :: l, ip_y
     real(kind=CF), dimension(:, :), allocatable :: twa, k
     real(kind=CF), dimension(:), allocatable :: b, p_eq, n_eq
@@ -105,7 +109,7 @@ module antenna
     real(kind=CF), dimension(2 * n_s) :: k_b
     real(kind=CF), dimension(lsize) :: fp_y
     type(json_file) :: json
-    integer(kind=CI) :: i, j, ind, pen, mode, maxiter, side
+    integer(kind=CI) :: i, j, ind, pen, mode, maxiter, side, io
     real(kind=CF) :: de, n, dg, res, tol, gamma_fac, sigma, rate, sgn,&
       nu_e_full, nu_e_low, phi_e_full, phi_e_low
 
@@ -124,16 +128,17 @@ module antenna
       call json%print_error_message(error_unit)
     end if
 
+    ! lineshape and gamma calc
     do i = 1_CI, n_s + 1_CI
-      ! lineshape and gamma calc
       call lineshape(trim(adjustl(pigment(i))), peak_offset(i),&
         lines(i, :), lps(i), json, l, lsize)
       if (i.gt.1_CI) then
         g(i - 1) = n_p(i) * sigma * overlap(fp_y, lines(i, :), l, lsize)
       end if
     end do
+
+    ! overlap and dG calc, fill k_b
     do i = 1_CI, n_s
-      ! overlap and dG calc, fill k_b
       de = overlap(lines(i, :), lines(i + 1, :), l, lsize)
       n = 1.0_CF * n_p(i) / n_p(i + 1)
       dg = gibbs(lps(i), lps(i + 1), n, temp)
@@ -144,31 +149,34 @@ module antenna
         rate = k_params(4)
       end if
       rate = rate * de
+      k_b(2 * i - 1) = rate
       k_b(2 * i) = rate
-      k_b((2 * i) + 1) = rate
       ! penalise whichever rate corresponds to increasing free energy
       ! this covers all cases since if dg = 0.0 the exponential's 1
-      pen = merge(2 * i, (2 * i) + 1, dg > 0.0)
+      pen = merge(2 * i - 1, 2 * i, dg > 0.0)
       sgn = merge(-1.0_CF, 1.0_CF, dg > 0.0)
+      write(*, *) i, lps(i), de, rate, dg, pen, sgn
       k_b(pen) = k_b(pen) * exp(sgn * dg / (temp * kb))
     end do
+    write(*, '(*(G10.3, 1X))') k_b
 
+    ! assign transfer matrix twa and then k matrix from that
     side = (n_b * n_s) + 2_CI
-    allocate(twa(2 * side, 2 * side))
-    allocate(k((2 * side) + 1, 2 * side))
+    allocate(twa(2 * side, 2 * side), source=0.0_CF)
+    allocate(k((2 * side) + 1, 2 * side), source=0.0_CF)
     ! careful of indexing here - 1-based vs 0-based
     twa(2, 1) = k_params(3) ! k_con
     twa(3, 1) = k_params(1) ! k_diss
     twa(3, 2) = k_params(2) ! k_trap
     twa(4, 2) = k_params(1)
     twa(4, 3) = k_params(3)
-    do j = 5, 2 * side + 1, 2 * n_s
-      ! outer loop - fill RC <-> branch rates
+    ! outer loop - fill RC <-> branch rates
+    do j = 5, 2 * side, 2 * n_s
       twa(3, j)     = k_b(1) ! 0 1 0   -> 1_i 0 0
       twa(j, 3)     = k_b(2) ! 1_i 0 0 -> 0 1 0
       twa(4, j + 1) = k_b(1) ! 0 1 1   -> 1_i 0 1
       twa(j + 1, 4) = k_b(2) ! 1_i 0 1 -> 0 1 1
-      do i = 1, n_s
+      do i = 0, n_s - 1
         ! inner loop - decay and transfer rates along branch
         ind = j + (2 * i)
         twa(ind, 1)       = k_params(1) ! k_diss
@@ -178,23 +186,31 @@ module antenna
           twa(ind, ind - 2)     = k_b((2 * i) + 1) ! empty trap
           twa(ind + 1, ind - 1) = k_b((2 * i) + 1) ! full trap
         end if
-        if (i.lt.n_s) then
+        if (i.lt.(n_s - 1)) then
           twa(ind, ind + 2)     = k_b(2 * (i + 1)) ! empty
           twa(ind + 1, ind + 3) = k_b(2 * (i + 1)) ! full
         end if
-        twa(1, ind)     = g(i) ! 0 0 0 -> 1_i 0 0
-        twa(2, ind + 1) = g(i) ! 0 0 1 -> 1_i 0 1
+        twa(1, ind)     = g(i + 1) ! 0 0 0 -> 1_i 0 0
+        twa(2, ind + 1) = g(i + 1) ! 0 0 1 -> 1_i 0 1
       end do
     end do
 
+    ! assign k from twa
     do i = 1, 2 * side
       do j = 1, 2 * side
-        ! assign k from twa
-        k(i, j) = twa(j, i)
-        k(i, i) = k(i, i) - twa(i, j)
+        if (i.ne.j) then
+          k(i, j) = twa(j, i)
+          k(i, i) = k(i, i) - twa(i, j)
+        end if
       end do
       k(2 * side + 1, i) = 1.0
     end do
+    open(newunit=io, file="out/kmat.dat")
+    do i = 1, 2 * side + 1
+      write(io, '(*(G10.3, 1X))') (k(i, j), j = 1, 2 * side)
+    end do
+    close(io)
+
     allocate(b((2 * side) + 1), source = 0.0_CF)
     allocate(p_eq(2 * side), source = 0.0_CF)
     b((2 * side) + 1) = 1.0_CF
@@ -206,13 +222,14 @@ module antenna
       output = [0.0_CF, 0.0_CF, 0.0_CF]
       return
     end if
+    ! write(*, '(*(G10.3, 1X))') p_eq
 
     allocate(n_eq(side), source = 0.0_CF)
     ! check indexing here - 1-based vs 0-based
     do i = 1, side
-      n_eq(1) = n_eq(1) + p_eq((2 * i) + 1) ! P(1_i , 1)
+      n_eq(1) = n_eq(1) + p_eq(2 * i) ! P(1_i , 1)
       if (i.gt.1) then
-        n_eq(i) = p_eq(2 * i) + p_eq((2 * i) + 1) ! P(1_i, 0) + P(1_i, 1)
+        n_eq(i) = p_eq(2 * i - 1) + p_eq(2 * i) ! P(1_i, 0) + P(1_i, 1)
       end if
     end do
     nu_e_full  = k_params(3) * n_eq(1)
@@ -220,11 +237,11 @@ module antenna
 
     ! now do the low gamma one
     g = gamma_fac * g / sum(g)
-    do j = 5, 2 * side + 1, 2 * n_s
-      do i = 1, n_s
+    do j = 5, 2 * side, 2 * n_s
+      do i = 0, n_s - 1
         ind = j + (2 * i)
-        twa(1, ind) = g(i)
-        twa(2, ind + 1) = g(i)
+        twa(1, ind) = g(i + 1)
+        twa(2, ind + 1) = g(i + 1)
       end do
     end do
 
@@ -234,11 +251,12 @@ module antenna
     ! check indexing
     do i = 1, 2 * side
       do j = 1, 2 * side
-        ! assign k from twa
-        k(i, j) = twa(j, i)
-        k(i, i) = k(i, i) - twa(i, j)
+        if (i.ne.j) then
+          k(i, j) = twa(j, i)
+          k(i, i) = k(i, i) - twa(i, j)
+        end if
       end do
-      k(2 * side + 1, i) = 1.0_CF
+      k(2 * side + 1, i) = 1.0
     end do
     b = 0.0_CF
     p_eq = 0.0_CF
@@ -254,9 +272,9 @@ module antenna
     n_eq = 0.0_CF
     ! check indexing
     do i = 1, side
-      n_eq(1) = n_eq(1) + p_eq((2 * i) + 1) ! P(1_i , 1)
+      n_eq(1) = n_eq(1) + p_eq(2 * i) ! P(1_i , 1)
       if (i.gt.1) then
-        n_eq(i) = p_eq(2 * i) + p_eq((2 * i) + 1) ! P(1_i, 0) + P(1_i, 1)
+        n_eq(i) = p_eq(2 * i - 1) + p_eq(2 * i) ! P(1_i, 0) + P(1_i, 1)
       end if
     end do
     nu_e_low = k_params(3) * n_eq(1)

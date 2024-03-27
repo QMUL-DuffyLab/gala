@@ -3,7 +3,7 @@ HOME = $(shell echo $$HOME)
 $(info $(HOME))
 CC    = gfortran
 FLAGS = -std=f2018 -ffree-form
-CFLAGS = -Wall -Werror -pedantic -I$(HOME)/anaconda3/include
+CFLAGS = -Wall -Werror -pedantic -fcheck=all -I$(HOME)/anaconda3/include
 LDFLAGS = -L$(HOME)/anaconda3/lib -llapack -lblas -ljsonfortran
 DFLAGS = -g -g3 -O0 -ggdb3
 RFLAGS = -O2
