@@ -215,6 +215,7 @@ module antenna
     allocate(p_eq(2 * side), source = 0.0_CF)
     b((2 * side) + 1) = 1.0_CF
     ! check mode!
+    maxiter = 3 * (2 * side)
     call solve(k, b, p_eq, 2 * side + 1, 2 * side,&
       mode, res, maxiter, tol)
     if (mode.lt.0) then

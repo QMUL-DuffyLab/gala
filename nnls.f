@@ -100,8 +100,9 @@ module nnls
       pr = .false._CB
       allocate(s(n), source=0.0_CF)
 
-      mode = 1
-      iter = 0
+      mode = 1_CI
+      iter = 0_CI
+      s_p_min = 0.0_CF
       do while ((.not.all(pr)).and.&
         (any(merge(resid, 0.0_CF,&
         (pr.eqv..false._CB)).gt.tol)))

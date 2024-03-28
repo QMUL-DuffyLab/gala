@@ -82,5 +82,7 @@ program main
     deallocate(ps)
 
   end do
+  deallocate(l)
+  deallocate(ip_y)
 
 end program main
