@@ -5,6 +5,7 @@ module antenna
   use iso_fortran_env, only: error_unit
   implicit none
   character(len=*), parameter :: pigment_file = "pigments/pigment_data.json"
+  integer, parameter :: CC = c_char
   real(kind=CF), parameter :: h = 6.626e-34
   real(kind=CF), parameter :: c = 299792458.0
   real(kind=CF), parameter :: hcnm = (h * c) / (1.0e-9)
@@ -91,15 +92,17 @@ module antenna
     end function gibbs
     
     subroutine fitness_calc(n_b, n_s, n_p, peak_offset, pigment,&
-        k_params, temp, gamma_fac, l, ip_y, lsize, output)
+        k_params, temp, gamma_fac, l, ip_y, lsize, output)&
+        bind(C, name='fitness_calc')
     ! k_params = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
-    integer(kind=CI), intent(in) :: n_b, n_s, lsize
-    real(kind=CF), intent(in) :: temp
-    integer(kind=CI), dimension(n_s + 1), intent(in) :: n_p
-    real(kind=CF), dimension(n_s + 1), intent(in) :: peak_offset
-    real(kind=CF), dimension(5), intent(in) :: k_params
-    character(len=10), dimension(n_s + 1), intent(in) :: pigment
-    real(kind=CF), dimension(lsize), intent(in) :: l, ip_y
+    integer(kind=CI) :: n_b, n_s, lsize
+    real(kind=CF) :: temp
+    integer(kind=CI), dimension(n_s + 1) :: n_p
+    real(kind=CF), dimension(n_s + 1) :: peak_offset
+    real(kind=CF), dimension(5) :: k_params
+    character(kind=CC) :: pigment(10, n_s + 1)
+    character(len=10) :: current_pigment
+    real(kind=CF), dimension(lsize) :: l, ip_y
     real(kind=CF), dimension(:, :), allocatable :: twa, k
     real(kind=CF), dimension(:), allocatable :: b, p_eq, n_eq
     real(kind=CF), dimension(n_s + 1, lsize) :: lines
@@ -130,7 +133,8 @@ module antenna
 
     ! lineshape and gamma calc
     do i = 1_CI, n_s + 1_CI
-      call lineshape(trim(adjustl(pigment(i))), peak_offset(i),&
+      current_pigment = transfer(pigment(:, i), 'a')
+      call lineshape(trim(adjustl(current_pigment)), peak_offset(i),&
         lines(i, :), lps(i), json, l, lsize)
       if (i.gt.1_CI) then
         g(i - 1) = n_p(i) * sigma * overlap(fp_y, lines(i, :), l, lsize)

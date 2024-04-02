@@ -4,12 +4,12 @@ $(info $(PREFIX))
 FC    = gfortran
 FLAGS = -std=f2018 -ffree-form
 FFLAGS = -Wall -Werror -pedantic -fcheck=all -I$(PREFIX)/include
-LDFLAGS = -L$(PREFIX)/lib -llapack -lblas -ljsonfortran
+LDFLAGS = -L$(PREFIX)/lib -llapack -lblas -ljsonfortran -Wl,-rpath-link=$(PREFIX)/lib
 SOURCES = nnls.f antenna.f
 
 # if SHARED = 1 compile nnls module as a shared library
 # if SHARED = 0 compile standalone program to debug
-SHARED = 0
+SHARED = 1
 ifeq ($(SHARED), 1)
 	CFLAGS += -fPIC
 	LDFLAGS += -shared
@@ -19,7 +19,7 @@ else
 	TARGET = antenna_f_test
 endif
 
-DEBUG = 1
+DEBUG = 0
 ifeq ($(DEBUG), 1)
 	DFLAGS = -g -g3 -O0 -ggdb3
 else
