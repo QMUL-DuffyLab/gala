@@ -18,6 +18,8 @@ set(USE_GNU_INSTALL_CONVENTION FALSE CACHE INTERNAL "")
 FetchContent_MakeAvailable(jsonfortran)
 
 set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
+
+# testing stuff
 message(NOTE, "cmake install libdir = ${CMAKE_INSTALL_LIBDIR}")
 message(NOTE, "proj_bin_dir  = ${PROJECT_BINARY_DIR}")
 message(NOTE, "proj_src_dir  = ${PROJECT_SOURCE_DIR}")
