@@ -174,6 +174,19 @@ def antenna(l, ip_y, p, debug=False):
             twa[ind][0]       = constants.k_diss
             twa[ind + 1][1]   = constants.k_diss
             twa[ind + 1][ind] = constants.k_con
+            if p.connected:
+                prevind = ind - (2 * p.n_s)
+                nextind = ind + (2 * p.n_s)
+                if prevind < 0:
+                    prevind += 2 * side
+                if nextind > 2 * side:
+                    nextind -= 2 * side
+                # no need to consider dG: adjacent blocks are identical
+                twa[ind][nextind] = constants.k_hop
+                twa[nextind][ind] = constants.k_hop
+                twa[ind][prevind] = constants.k_hop
+                twa[prevind][ind] = constants.k_hop
+
             if i > 0:
                 twa[ind][ind - 2]     = k_b[(2 * i) + 1] # empty trap
                 twa[ind + 1][ind - 1] = k_b[(2 * i) + 1] # full trap
