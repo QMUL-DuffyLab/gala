@@ -40,7 +40,10 @@ def get_gaussian(l, lp, w, a):
     return la.gauss(l, lp, w, a)
 
 def get_am15(dataset="tilt"):
-    # return relevant am15 dataset. standard spectrum
+    '''
+    return relevant am15 dataset. standard spectrum. taken from
+    https://www.nrel.gov/grid/solar-resource/spectra-am1.5.html
+    '''
     d = np.loadtxt(constants.spectrum_prefix + "ASTMG173.csv",
                    skiprows=2, delimiter=",")
     if dataset == "tilt":
@@ -128,7 +131,7 @@ def check(spectra_dicts):
     '''
     z = build(spectra_dicts)
     for spectrum, out_pref in z:
-        np.savetxt("out/" + out_pref + "_spectrum.dat", spectrum)
+        np.savetxt(constants.output_dir + out_pref + "_spectrum.dat", spectrum)
         fig, ax = plt.subplots(figsize=(12, 8))
         plt.plot(spectrum[:, 0], spectrum[:, 1])
         smin = np.min(spectrum[:, 0])
@@ -139,7 +142,7 @@ def check(spectra_dicts):
         ax.set_xlim([xmin, xmax])
         ax.set_ylabel(r'Intensity')
         ax.set_title(out_pref)
-        fig.savefig("out/" + out_pref + "_test_plot.pdf")
+        fig.savefig(constants.output_dir + out_pref + "_test_plot.pdf")
         plt.close()
 
 if __name__ == "__main__":

@@ -13,9 +13,12 @@ import antenna as la
 import plots
 import stats
 import light
+import os
 
 if __name__ == "__main__":
     rng = np.random.default_rng()
+    print("Output dir: {}".format(constants.output_dir))
+    os.makedirs(constants.output_dir)
 
     '''
     various other examples of dicts in light.py
