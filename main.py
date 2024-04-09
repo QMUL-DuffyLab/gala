@@ -69,7 +69,7 @@ if __name__ == "__main__":
             gens_since_improvement = 0
             # initialise population
             for j in range(constants.population_size):
-                population[j] = ga.initialise_individual(rng, init_type)
+                population[j] = ga.new(rng, init_type)
 
             while gen < constants.max_gen:
                 avgs.fill(0.0)

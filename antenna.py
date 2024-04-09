@@ -14,6 +14,7 @@ import numpy.typing as npt
 import constants
 import ctypes
 import plots
+import light
 
 hcnm = (h * c) / (1.0E-9)
 
@@ -175,12 +176,15 @@ def antenna(l, ip_y, p, debug=False):
             twa[ind + 1][1]   = constants.k_diss
             twa[ind + 1][ind] = constants.k_con
             if p.connected:
-                prevind = ind - (2 * p.n_s)
-                nextind = ind + (2 * p.n_s)
-                if prevind < 0:
-                    prevind += 2 * side
-                if nextind > 2 * side:
-                    nextind -= 2 * side
+                # % returns with sign (2 * side) so these are > 0
+                prevind = ind - (2 * p.n_s) % 2 * side
+                nextind = ind + (2 * p.n_s) % 2 * side
+                # prevind = ind - (2 * p.n_s)
+                # nextind = ind + (2 * p.n_s)
+                # if prevind < 0:
+                #     prevind += 2 * side
+                # if nextind > 2 * side:
+                #     nextind -= 2 * side
                 # no need to consider dG: adjacent blocks are identical
                 twa[ind][nextind] = constants.k_hop
                 twa[nextind][ind] = constants.k_hop

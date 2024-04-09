@@ -59,12 +59,14 @@ def fill_arrays(rng, parent_values, res_length, parameter):
                 result[j][i] = parent_values[j][len(parent_values[j]) - 1]
     return result
 
-def initialise_individual(rng, init_type):
+def new(rng, init_type):
     '''
     Initialise one individual from our population.
     There are two ways to do this - either assume they all
     have tiny prototypical antennae, or they're all
     completely random. Option controlled by changing init_type.
+    NB : could have a kwargs here with a getattr call so that
+    we can make random antennae with specific properties if necessary
     '''
     if init_type == 'radiative':
         '''
@@ -90,6 +92,10 @@ def initialise_individual(rng, init_type):
         lp[i]  = get_rand('lp', rng)
         pigment[i]  = get_rand('pigment', rng)
     return constants.Genome(nb, ns, n_p, lp, pigment)
+
+def copy(g):
+    ''' return a new identical genome. useful for testing '''
+    return constants.Genome(g.n_b, g.n_s, g.n_p, g.lp, g.pigment, g.connected)
 
 def fitness(individual):
     '''
