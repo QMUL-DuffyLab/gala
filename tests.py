@@ -54,6 +54,24 @@ def test_connected_fitness(n_trials):
         u.connected = False
         cr = la.antenna(l, ip_y, c)
         ur = la.antenna(l, ip_y, u)
+        '''
+        set nu_e and phi_e values
+        this is done by hand in main.py; the reasoning is that if
+        using a non-Python kernel to do the calculations, it might
+        not be aware of the dataclass structure (doesn't need to be),
+        so it can't set the class members. might be worth writing a
+        wrapper to do it though, since i forgot about it until i ran
+        this code and expected the values to be there.
+        alternatively just change ga.fitness() to take nu_e directly
+        as an argument, but this will break if we ever change the
+        fitness criterion.
+        '''
+        c.phi_e   = cr[0]
+        c.phi_e_g = cr[1]
+        c.phi_e   = cr[2]
+        u.phi_e   = ur[0]
+        u.phi_e_g = ur[1]
+        u.phi_e   = ur[2]
         connected_res[i] = cr
         unconnected_res[i] = ur
         cf = ga.fitness(c)

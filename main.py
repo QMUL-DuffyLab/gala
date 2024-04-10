@@ -85,8 +85,8 @@ if __name__ == "__main__":
                     p.nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity
-                    p.phi_f_g = nu_phi[1]
-                    p.phi_f = nu_phi[2]
+                    p.phi_e_g = nu_phi[1]
+                    p.phi_e = nu_phi[2]
                     p.fitness = ga.fitness(p)
                     fitnesses[j] = p.fitness
                     if (fitnesses[j] > fit_max):
