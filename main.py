@@ -18,7 +18,7 @@ import os
 if __name__ == "__main__":
     rng = np.random.default_rng()
     print("Output dir: {}".format(constants.output_dir))
-    os.makedirs(constants.output_dir)
+    os.makedirs(constants.output_dir, exist_ok=True)
 
     '''
     various other examples of dicts in light.py

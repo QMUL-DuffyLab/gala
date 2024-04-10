@@ -19,13 +19,18 @@ def test_connected_kmat():
     '''
     spectrum_dict = [{'type': "am15", 'kwargs': {'dataset': "tilt"}}]
     spectrum, out_name = zip(*light.build(spectrum_dict))
+    # zip(*x) returns a 1-tuple rather than just the array
+    l = spectrum[0][:, 0]
+    ip_y = spectrum[0][:, 1]
     rng = np.random.default_rng()
+
     c = ga.new(rng, 'random')
     c.connected = True
     u = ga.copy(c)
     u.connected = False
     cd = la.antenna(l, ip_y, c, debug=True)
     ud = la.antenna(l, ip_y, u, debug=True)
+
     return [cd, ud]
 
 def test_connected_fitness(n_trials):
@@ -38,7 +43,6 @@ def test_connected_fitness(n_trials):
     unconnected_res = np.zeros((n_trials, 3), dtype=np.float64)
     spectrum_dict = [{'type': "am15", 'kwargs': {'dataset': "tilt"}}]
     spectrum, out_name = zip(*light.build(spectrum_dict))
-    # zip(*x) returns a 1-tuple rather than just the array
     l = spectrum[0][:, 0]
     ip_y = spectrum[0][:, 1]
     rng = np.random.default_rng()

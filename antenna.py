@@ -164,7 +164,8 @@ def antenna(l, ip_y, p, debug=False):
     twa[2][1] = constants.k_trap # 2e+11
     twa[3][1] = constants.k_diss
     twa[3][2] = constants.k_con
-    for j in range(4, 2 * side, 2 * p.n_s):
+    js = list(range(4, 2 * side, 2 * p.n_s))
+    for jind, j in enumerate(js):
         # two pairs of RC <-> rates at the bottom of each branch */
         twa[2][j]     = k_b[0] # 0 1 0   -> 1_i 0 0
         twa[j][2]     = k_b[1] # 1_i 0 0 -> 0 1 0
@@ -176,20 +177,39 @@ def antenna(l, ip_y, p, debug=False):
             twa[ind + 1][1]   = constants.k_diss
             twa[ind + 1][ind] = constants.k_con
             if p.connected:
-                # % returns with sign (2 * side) so these are > 0
-                prevind = ind - (2 * p.n_s) % 2 * side
-                nextind = ind + (2 * p.n_s) % 2 * side
-                # prevind = ind - (2 * p.n_s)
-                # nextind = ind + (2 * p.n_s)
-                # if prevind < 0:
-                #     prevind += 2 * side
-                # if nextind > 2 * side:
-                #     nextind -= 2 * side
-                # no need to consider dG: adjacent blocks are identical
+                prevind = ind - (2 * p.n_s)
+                nextind = ind + (2 * p.n_s)
+                '''
+                first four states are the trap and RC. if we're
+                crossing the "boundary" (first <-> last)
+                we need to take these into account
+                '''
+                if jind == 0: # first branch
+                    prevind -= 4
+                if jind == (p.n_b - 1): # final branch
+                    nextind += 4
+                # PBCs, essentially
+                if prevind < 0:
+                    prevind += 2 * side
+                if nextind >= 2 * side:
+                    nextind -= 2 * side
+                if debug:
+                    print(p.n_b, p.n_s, j, i, ind, prevind, nextind, 2 * side)
+                '''
+                8 possible transfers to consider:
+                - both forward and backward transfer,
+                - from both the clockwise and anticlockwise neighbour,
+                - with the trap either empty or full.
+                note: no need to consider dG; adjacent blocks are identical
+                '''
                 twa[ind][nextind] = constants.k_hop
                 twa[nextind][ind] = constants.k_hop
+                twa[ind + 1][nextind + 1] = constants.k_hop
+                twa[nextind + 1][ind + 1] = constants.k_hop
                 twa[ind][prevind] = constants.k_hop
                 twa[prevind][ind] = constants.k_hop
+                twa[ind + 1][prevind + 1] = constants.k_hop
+                twa[prevind + 1][ind + 1] = constants.k_hop
 
             if i > 0:
                 twa[ind][ind - 2]     = k_b[(2 * i) + 1] # empty trap
