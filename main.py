@@ -82,6 +82,13 @@ if __name__ == "__main__":
                 best_pref = os.path.splitext(filenames['best'])[0] 
                 for j, p in enumerate(population):
                     nu_phi = la.antenna(l, ip_y, p, False)
+                    '''
+                    note - these are set by hand, since if I'm using
+                    a non-Python kernel to do the calculations it might
+                    not be aware of the dataclass structure and so
+                    can't update class members. might be worth adding
+                    a function to wrap this though, i guess?
+                    '''
                     p.nu_e  = nu_phi[0]
                     # nu_phi[1] is the high intensity result,
                     # nu_phi[2] is the limit at low intensity
