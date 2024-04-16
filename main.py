@@ -24,13 +24,15 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     spectra_dicts = [
-            {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-            {'type': "marine", 'kwargs': {'depth': 1.0}},
-            {'type': "marine", 'kwargs': {'depth': 5.0}},
-            {'type': "marine", 'kwargs': {'depth': 10.0}},
-            {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
-            {'type': "fluo", 'kwargs': {'mu_e': 50.0}},
-            {'type': "fluo", 'kwargs': {'mu_e': 10.0}},
+          {'type': "filtered", 'kwargs': {'filter': "red"}},
+          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          # {'type': "marine", 'kwargs': {'depth': 1.0}},
+          # {'type': "marine", 'kwargs': {'depth': 5.0}},
+          # {'type': "marine", 'kwargs': {'depth': 10.0}},
+          # {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
+          # {'type': "fluo", 'kwargs': {'mu_e': 50.0}},
+          # {'type': "fluo", 'kwargs': {'mu_e': 10.0}},
           ]
     light.check(spectra_dicts)
     spectra_zip = light.build(spectra_dicts)

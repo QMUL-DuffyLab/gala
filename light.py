@@ -78,6 +78,28 @@ def get_marine(**kwargs):
     ilz = am15[:, 1] * np.exp(-1.0 * z * water_interp)
     return np.column_stack((am15[:, 0], ilz))
 
+def get_filtered(**kwargs):
+    '''
+    return a red or far-red filtered AM1.5 spectrum.
+    digitised from the red and far-red filters in
+    https://dx.doi.org/10.1007/s11120-016-0309-z (Fig. S1)
+    '''
+    if 'dataset' in kwargs.keys():
+        am15 = get_am15(kwargs['dataset'])
+    else:
+        am15 = get_am15()
+    if 'filter' not in kwargs.keys():
+        raise KeyError("Filtered spectrum must have filter kwarg")
+    if kwargs['filter'] == "red":
+        f = np.loadtxt(constants.spectrum_prefix + "filter_red.csv",
+                       delimiter=',')
+    if kwargs['filter'] == "far-red":
+        f = np.loadtxt(constants.spectrum_prefix + "filter_far_red.csv",
+                       delimiter=',')
+    f_interp = np.interp(am15[:, 0], f[:, 0], f[:, 1])
+    transmitted = am15[:, 1] * f_interp
+    return np.column_stack((am15[:, 0], transmitted))
+
 def spectrum_setup(spectrum_type, **kwargs):
     '''
     wrap the above functions and return a consistent tuple.
@@ -96,6 +118,9 @@ def spectrum_setup(spectrum_type, **kwargs):
     elif spectrum_type == "marine":
         s = get_marine(**kwargs)
         output_prefix = "marine_z_{}".format(kwargs['depth'])
+    elif spectrum_type == "filtered":
+        s = get_filtered(**kwargs)
+        output_prefix = kwargs['filter']
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])
@@ -151,6 +176,8 @@ if __name__ == "__main__":
     '''
     sd = [
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
+          {'type': "filtered", 'kwargs': {'filter': "red"}},
+          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
