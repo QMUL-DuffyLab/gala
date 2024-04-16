@@ -176,7 +176,6 @@ if __name__ == "__main__":
     '''
     sd = [
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
-          {'type': "filtered", 'kwargs': {'filter': "red"}},
           {'type': "filtered", 'kwargs': {'filter': "far-red"}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
