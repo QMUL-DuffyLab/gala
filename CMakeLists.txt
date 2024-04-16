@@ -3,6 +3,8 @@ enable_language(Fortran)
 project(antenna)
 # add_executable(libantenna antenna.f nnls.f)
 include(GNUInstallDirs)
+find_package(LAPACK)
+find_package(BLAS)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -30,7 +32,7 @@ set (SRCS antenna.f90 nnls.f90)
 set(CMAKE_Fortran_FLAGS "-std=f2018 -ffree-form -Wall -Werror -pedantic -fcheck=all")
 set(CMAKE_EXE_LINKER_FLAGS "-llapack -lblas")
 add_library(${PROJECT_NAME} SHARED ${SRCS})
-target_link_libraries(${PROJECT_NAME} jsonfortran)
+target_link_libraries(${PROJECT_NAME} jsonfortran LAPACK BLAS)
 
 target_include_directories(
   ${PROJECT_NAME}
