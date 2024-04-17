@@ -145,7 +145,15 @@ def plot_antenna(p, output_file):
     print(cmd)
     subprocess.run(cmd.split())
 
-def plot_antenna_spectra(p, l, ip_y, lines_file, total_file):
+def plot_antenna_spectra(p, l, ip_y,
+        lines_file, total_file, draw_00=True):
+    '''
+    Draw the total absorption spectrum and the set of subunit
+    spectra for the given antenna (usually the fittest one).
+    When drawing the individual subunit lines, by default this
+    will also plot the 0-0 line without the offset as a dashed vline;
+    set draw_00 to False to disable that
+    '''
     pd = constants.pigment_data
     lines, total = antenna_lines(p, l)
     lps = [pd[p.pigment[i]]['lp'][0] for i in range(p.n_s)]
@@ -154,7 +162,8 @@ def plot_antenna_spectra(p, l, ip_y, lines_file, total_file):
         # generate Gaussian lineshape for given pigment
         # and draw dotted vline at normal peak wavelength?
         color = 'C{:1d}'.format(i)
-        ax.axvline(x=lps[i], color=color, ls='--')
+        if draw_00:
+            ax.axvline(x=lps[i], color=color, ls='--')
         label = "Subunit {:1d}: ".format(i + 1) + pd[p.pigment[i]]['text']
         plt.plot(l, lines[i], label=label)
     plt.plot(l, ip_y, label="Incident")
