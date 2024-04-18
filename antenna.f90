@@ -120,6 +120,11 @@ module antenna
     sigma = 9e-20_CF
     rate = 0.0_CF
     fp_y = (ip_y * l) / hcnm
+    write(*, *) "n_b = ", n_b
+    write(*, *) "n_s = ", n_s
+    write(*, *) "n_p = ", n_p
+    write(*, *) "offset = ", peak_offset
+    write(*, *) "pigment = ", pigment
 
     call json%initialize()
     if (json%failed()) then

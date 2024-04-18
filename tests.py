@@ -72,28 +72,61 @@ def test_python_fortran(n_trials=1000):
     fortran_res = np.zeros((n_trials, 3), dtype=np.float64)
     spectrum_dict = [{'type': "am15", 'kwargs': {'dataset': "tilt"}}]
     spectrum, out_name = zip(*light.build(spectrum_dict))
-    l = spectrum[0][:, 0]
-    ip_y = spectrum[0][:, 1]
+    l = spectrum[0][:, 0].astype(ctypes.c_double)
+    ip_y = spectrum[0][:, 1].astype(ctypes.c_double)
     rng = np.random.default_rng()
 
     # set up fortran stuff
-    doubleptr = ctypes.POINTER(ctypes.c_double)
-    intptr = ctypes.POINTER(ctypes.c_int)
-    charptr = ctypes.POINTER(ctypes.c_char)
-    libjsonf = ctypes.CDLL("./build/lib/libjsonfortran.so")
-    libantenna = ctypes.CDLL("./build/lib/libantenna.so")
-    libantenna.fitness_calc.argtypes = [intptr, intptr, intptr,
-                  doubleptr, charptr, doubleptr, doubleptr, doubleptr,
-                  doubleptr, doubleptr, intptr, doubleptr]
+    dptr = ctypes.POINTER(ctypes.c_double)
+    iptr = ctypes.POINTER(ctypes.c_int)
+    cptr = ctypes.POINTER(ctypes.c_char)
+    # libjsonf = ctypes.CDLL("./build/lib/libjsonfortran.so")
+    libantenna = ctypes.CDLL("./lib/libantenna.so")
+    # libantenna.fitness_calc.argtypes = [ctypes.c_int, ctypes.c_int,
+    #                                     iptr,
+    #               dptr, cptr, dptr, ctypes.c_double,
+    #               ctypes.c_double, dptr, dptr, ctypes.c_int, dptr]
+    # look at this shit. why does it have to be like this. kill me
+    libantenna.fitness_calc.argtypes = [ctypes.POINTER(ctypes.c_int),
+                                        ctypes.POINTER(ctypes.c_int),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_int, ndim=1),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  np.ctypeslib.ndpointer(dtype='U10', ndim=1),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  ctypes.POINTER(ctypes.c_double),
+                  ctypes.POINTER(ctypes.c_double),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  ctypes.POINTER(ctypes.c_int),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  ]
     libantenna.fitness_calc.restype = None
 
     for i in range(n_trials):
         g = ga.new(rng, 'random')
+
+        print("Python:")
+        print("n_b = ", g.n_b)
+        print("n_s = ", g.n_s)
+        print("n_p = ", g.n_p)
+        print("offset = ", g.lp)
+        print("pigment = ", g.pigment)
+        fr = np.zeros(3).astype(ctypes.c_double)
+        n_p = np.array(g.n_p, dtype=ctypes.c_int)
+        offset = np.array(g.lp, dtype=ctypes.c_double)
+        pigment = np.array(g.pigment, dtype='U10')
+        kp = np.array(constants.k_params, dtype=ctypes.c_double)
+        n_b = ctypes.byref(ctypes.c_int(g.n_b))
+        n_s = ctypes.byref(ctypes.c_int(g.n_s))
+        temp = ctypes.byref(ctypes.c_double(constants.T))
+        gf = ctypes.byref(ctypes.c_double(constants.gamma_fac))
+        ll = ctypes.byref(ctypes.c_int(len(l)))
+        libantenna.fitness_calc(n_b, n_s,
+                                n_p, offset, pigment, kp,
+                                temp,
+                                gf, l, ip_y,
+                                ll, fr)
         pr = la.antenna(l, ip_y, g)
-        fr = np.zeros(3)
-        libantenna.fitness_calc(g.n_b, g.n_s, g.n_p, g.lp,
-                g.pigment, constants.k_params, constants.T,
-                constants.gamma_fac, l, ip_y, len(l), fr)
         python_res[i] = pr
         fortran_res[i] = fr
         diff = np.abs(pr - fr)

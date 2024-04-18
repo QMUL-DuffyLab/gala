@@ -29,10 +29,10 @@ message(NOTE, "fortran compiler  = ${CMAKE_Fortran_COMPILER_ID}")
 message(NOTE, "prefix  = ${CMAKE_INSTALL_PREFIX}")
 
 set (SRCS antenna.f90 nnls.f90)
-set(CMAKE_Fortran_FLAGS "-std=f2018 -ffree-form -Wall -Werror -pedantic -fcheck=all")
+set(CMAKE_Fortran_FLAGS "-g -ggdb3 -std=f2018 -ffree-form -Wall -Werror -pedantic -fcheck=all")
 set(CMAKE_EXE_LINKER_FLAGS "-llapack -lblas")
 add_library(${PROJECT_NAME} SHARED ${SRCS})
-target_link_libraries(${PROJECT_NAME} jsonfortran LAPACK BLAS)
+target_link_libraries(${PROJECT_NAME} jsonfortran lapack blas)
 
 target_include_directories(
   ${PROJECT_NAME}
