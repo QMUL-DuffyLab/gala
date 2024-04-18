@@ -42,8 +42,6 @@ module antenna
       end if
       ! if (.not.found) stop 1
 
-      write(*, *) pigment
-      write(*, *) n_gauss
       allocate(lp(n_gauss))
       allocate(width(n_gauss))
       allocate(amp(n_gauss))
@@ -77,21 +75,6 @@ module antenna
       line = line / r
     end subroutine lineshape
 
-    function asdfg(u) result(t)
-      character, intent(in) :: u(10)
-      character(len=:), allocatable :: t
-      integer(kind=CI) :: i, length
-      length = 0
-      ! as = 'aaaaaaaaaa' ! don't fucking ask
-      do i = 1, len(u)
-        write(*, *) i, u(i), ichar(u(i))
-        if (u(i).ne.' ') then
-          length = length + 1
-        end if
-      end do
-      t = 'aaaaaaaaaa'
-    end function asdfg
-
     function overlap(line1, line2, l, lsize) result(r)
       integer(kind=CI), intent(in) :: lsize
       real(kind=CF), dimension(lsize), intent(in) :: line1, line2, l
@@ -118,7 +101,6 @@ module antenna
     real(kind=CF), dimension(n_s + 1) :: peak_offset
     real(kind=CF), dimension(5) :: k_params
     character(len=1, kind=CC) :: pigment(10, n_s + 1)
-    character(len=10) :: pigment_scalar
     character(len=:), allocatable :: current_pigment
     real(kind=CF), dimension(lsize) :: l, ip_y
     real(kind=CF), dimension(:, :), allocatable :: twa, k
@@ -130,21 +112,14 @@ module antenna
     real(kind=CF), dimension(2 * n_s) :: k_b
     real(kind=CF), dimension(lsize) :: fp_y
     type(json_file) :: json
-    integer(kind=CI) :: i, j, ind, pen, mode, maxiter, side, io
+    integer(kind=CI) :: i, j, ind, pen, mode, maxiter, side
     real(kind=CF) :: de, n, dg, res, tol, gamma_fac, sigma, rate, sgn,&
       nu_e_full, nu_e_low, phi_e_full, phi_e_low
-    logical :: found
 
     tol = 1.0e-13_CF
     sigma = 9e-20_CF
     rate = 0.0_CF
     fp_y = (ip_y * l) / hcnm
-    write(*, *) "n_b = ", n_b
-    write(*, *) "n_s = ", n_s
-    write(*, *) "n_p = ", n_p
-    write(*, *) "offset = ", peak_offset
-    write(*, *) "pigment = ", pigment
-    write(*, *) "len(pigment)", size(pigment)
 
     call json%initialize()
     if (json%failed()) then
@@ -155,20 +130,6 @@ module antenna
     if (json%failed()) then
       call json%print_error_message(error_unit)
     end if
-    call json%print()
-    pigment_scalar = transfer(pigment(:, 1), 'aaaaaaaaaa')
-    do i = 1, n_s + 1
-      do j = 1, 10
-        write(*, *) i, j, pigment(j:j, i:i), ichar(pigment(j:j, i:i))
-      end do
-    end do
-    current_pigment = asdfg(pigment_scalar)
-    write(*, *) pigment_scalar, ", curr = ", current_pigment,&
-      ", len(scalar) = ", len(trim(adjustl(pigment_scalar))), "len(curr) = ",&
-      len(trim(adjustl(current_pigment)))
-
-    call json%get(trim(adjustl(current_pigment)) // '.n_gauss', i, found)
-    write(*, *) i
 
     ! lineshape and gamma calc
     do i = 1_CI, n_s + 1_CI
@@ -199,10 +160,10 @@ module antenna
       ! this covers all cases since if dg = 0.0 the exponential's 1
       pen = merge(2 * i - 1, 2 * i, dg > 0.0)
       sgn = merge(-1.0_CF, 1.0_CF, dg > 0.0)
-      write(*, *) i, lps(i), de, rate, dg, pen, sgn
+      ! write(*, *) i, lps(i), de, rate, dg, pen, sgn
       k_b(pen) = k_b(pen) * exp(sgn * dg / (temp * kb))
     end do
-    write(*, '(*(G10.3, 1X))') k_b
+    ! write(*, '(*(G10.3, 1X))') k_b
 
     ! assign transfer matrix twa and then k matrix from that
     side = (n_b * n_s) + 2_CI
@@ -249,11 +210,11 @@ module antenna
       end do
       k(2 * side + 1, i) = 1.0
     end do
-    open(newunit=io, file="out/kmat.dat")
-    do i = 1, 2 * side + 1
-      write(io, '(*(G10.3, 1X))') (k(i, j), j = 1, 2 * side)
-    end do
-    close(io)
+    ! open(newunit=io, file="out/kmat.dat")
+    ! do i = 1, 2 * side + 1
+    !   write(io, '(*(G10.3, 1X))') (k(i, j), j = 1, 2 * side)
+    ! end do
+    ! close(io)
 
     allocate(b((2 * side) + 1), source = 0.0_CF)
     allocate(p_eq(2 * side), source = 0.0_CF)

@@ -69,16 +69,7 @@ def test_antenna_fortran():
     l = spectrum[0][:, 0].astype(ctypes.c_double)
     ip_y = spectrum[0][:, 1].astype(ctypes.c_double)
     # set up fortran stuff
-    dptr = ctypes.POINTER(ctypes.c_double)
-    iptr = ctypes.POINTER(ctypes.c_int)
-    cptr = ctypes.POINTER(ctypes.c_char)
-    # libjsonf = ctypes.CDLL("./build/lib/libjsonfortran.so")
     libantenna = ctypes.CDLL("./lib/libantenna.so")
-    # libantenna.fitness_calc.argtypes = [ctypes.c_int, ctypes.c_int,
-    #                                     iptr,
-    #               dptr, cptr, dptr, ctypes.c_double,
-    #               ctypes.c_double, dptr, dptr, ctypes.c_int, dptr]
-    # look at this shit. why does it have to be like this. kill me
     libantenna.fitness_calc.argtypes = [ctypes.POINTER(ctypes.c_int),
                                         ctypes.POINTER(ctypes.c_int),
                   np.ctypeslib.ndpointer(dtype=ctypes.c_int, ndim=1),
@@ -144,16 +135,7 @@ def test_python_fortran(n_trials=1000):
     rng = np.random.default_rng()
 
     # set up fortran stuff
-    dptr = ctypes.POINTER(ctypes.c_double)
-    iptr = ctypes.POINTER(ctypes.c_int)
-    cptr = ctypes.POINTER(ctypes.c_char)
-    # libjsonf = ctypes.CDLL("./build/lib/libjsonfortran.so")
     libantenna = ctypes.CDLL("./lib/libantenna.so")
-    # libantenna.fitness_calc.argtypes = [ctypes.c_int, ctypes.c_int,
-    #                                     iptr,
-    #               dptr, cptr, dptr, ctypes.c_double,
-    #               ctypes.c_double, dptr, dptr, ctypes.c_int, dptr]
-    # look at this shit. why does it have to be like this. kill me
     libantenna.fitness_calc.argtypes = [ctypes.POINTER(ctypes.c_int),
                                         ctypes.POINTER(ctypes.c_int),
                   np.ctypeslib.ndpointer(dtype=ctypes.c_int, ndim=1),
@@ -171,13 +153,6 @@ def test_python_fortran(n_trials=1000):
 
     for i in range(n_trials):
         g = ga.new(rng, 'random')
-
-        print("Python:")
-        print("n_b = ", g.n_b)
-        print("n_s = ", g.n_s)
-        print("n_p = ", g.n_p)
-        print("offset = ", g.lp)
-        print("pigment = ", g.pigment)
         fr = np.zeros(3).astype(ctypes.c_double)
         n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
         offset = np.array([0., *g.lp], dtype=ctypes.c_double)
@@ -199,7 +174,8 @@ def test_python_fortran(n_trials=1000):
         python_res[i] = pr
         fortran_res[i] = fr
         diff = np.abs(pr - fr)
-        print(str.format(("Iteration {:d}: Δν_e = {:10.4e}, "
-        + "Δϕ_e(γ) = {:10.6e}, Δϕ_e = {:10.6e}"), i, *diff))
+        print(str.format(("Iteration {:d}: n_b = {:d}, n_s = {:d}, "
+        + "Δν_e = {:10.4e}, "
+        + "Δϕ_e(γ) = {:10.6e}, Δϕ_e = {:10.6e}"), i, g.n_b, g.n_s, *diff))
 
     return [python_res, fortran_res]
