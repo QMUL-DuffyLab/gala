@@ -103,6 +103,11 @@ def fitness(individual):
     but the bigger the antenna is, the more of those electrons
     have to be used building and maintaining the antenna, so
     we subtract a certain amount per pigment as our proxy for fitness
+
+    NB: we set a hard limit of zero fitness here; in principle we could
+    allow negative fitness values to allow the system to get out of a
+    bad initial place in the fitness surface, but this would mess with the
+    selection procedure below, so it's (currently) not allowed.
     '''
     f = (individual.nu_e - (constants.cost_per_pigment *
              individual.n_b * np.sum(individual.n_p)))

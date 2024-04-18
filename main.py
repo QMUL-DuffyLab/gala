@@ -99,7 +99,7 @@ if __name__ == "__main__":
                     p.fitness = ga.fitness(p)
                     fitnesses[j] = p.fitness
                     if (fitnesses[j] > fit_max):
-                        fit_max = fitnesses[j]
+                        fit_max = np.round(fitnesses[j], 2)
                         best = population[j]
                         gens_since_improvement = 0
                     avgs[0]  += nu_phi[0]

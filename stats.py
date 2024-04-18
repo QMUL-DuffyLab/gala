@@ -17,7 +17,7 @@ def pigment_to_index(pigment):
     return np.where(constants.bounds['pigment'] == pigment)[0][0]
 
 def hist(population, gen, run, out_name):
-    path = "out/"
+    path = constants.output_dir
     suffix = "hist_{}_{:04d}_{:1d}.dat".format(out_name, gen, run)
     l_bin_size = 1.0
     s_max = constants.hist_sub_max
