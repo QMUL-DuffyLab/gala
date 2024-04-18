@@ -63,6 +63,73 @@ def test_connected_fitness(n_trials=1000):
 
     return [connected_res, unconnected_res]
 
+def test_antenna_fortran():
+    spectrum_dict = [{'type': "am15", 'kwargs': {'dataset': "tilt"}}]
+    spectrum, out_name = zip(*light.build(spectrum_dict))
+    l = spectrum[0][:, 0].astype(ctypes.c_double)
+    ip_y = spectrum[0][:, 1].astype(ctypes.c_double)
+    # set up fortran stuff
+    dptr = ctypes.POINTER(ctypes.c_double)
+    iptr = ctypes.POINTER(ctypes.c_int)
+    cptr = ctypes.POINTER(ctypes.c_char)
+    # libjsonf = ctypes.CDLL("./build/lib/libjsonfortran.so")
+    libantenna = ctypes.CDLL("./lib/libantenna.so")
+    # libantenna.fitness_calc.argtypes = [ctypes.c_int, ctypes.c_int,
+    #                                     iptr,
+    #               dptr, cptr, dptr, ctypes.c_double,
+    #               ctypes.c_double, dptr, dptr, ctypes.c_int, dptr]
+    # look at this shit. why does it have to be like this. kill me
+    libantenna.fitness_calc.argtypes = [ctypes.POINTER(ctypes.c_int),
+                                        ctypes.POINTER(ctypes.c_int),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_int, ndim=1),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  np.ctypeslib.ndpointer(dtype='a10', ndim=1),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  ctypes.POINTER(ctypes.c_double),
+                  ctypes.POINTER(ctypes.c_double),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  ctypes.POINTER(ctypes.c_int),
+                  np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
+                  ]
+    libantenna.fitness_calc.restype = None
+
+    n_b = 4
+    n_s = 3
+    n_p = [80, 70, 60]
+    offset = [-5.0, 0.5, 5.0]
+    pigment = ['chl_a', 'chl_b', 'chl_f']
+    g = constants.Genome(n_b, n_s, n_p, offset, pigment)
+    print("Python:")
+    print("n_b = ", g.n_b)
+    print("n_s = ", g.n_s)
+    print("n_p = ", g.n_p)
+    print("offset = ", g.lp)
+    print("pigment = ", g.pigment)
+    fr = np.zeros(3).astype(ctypes.c_double)
+    n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
+    offset = np.array([0., *g.lp], dtype=ctypes.c_double)
+    # we have to format them like this, otherwise numpy truncates
+    pigment = np.array([f"{p:<10}" for p in ['rc', *g.pigment]],
+                       dtype='a10', order='F')
+    kp = np.array(constants.k_params, dtype=ctypes.c_double)
+    n_b = ctypes.byref(ctypes.c_int(g.n_b))
+    n_s = ctypes.byref(ctypes.c_int(g.n_s))
+    temp = ctypes.byref(ctypes.c_double(constants.T))
+    gf = ctypes.byref(ctypes.c_double(constants.gamma_fac))
+    ll = ctypes.byref(ctypes.c_int(len(l)))
+    libantenna.fitness_calc(n_b, n_s,
+                            n_p, offset, pigment, kp,
+                            temp,
+                            gf, l, ip_y,
+                            ll, fr)
+    pr = la.antenna(l, ip_y, g)
+    print("fortran = ", fr)
+    print("python = ", pr)
+    diff = np.abs(pr - fr)
+    print(str.format(("Δν_e = {:10.4e}, "
+    + "Δϕ_e(γ) = {:10.6e}, Δϕ_e = {:10.6e}"), *diff))
+
 def test_python_fortran(n_trials=1000):
     '''
     generate antennae and then solve, using python and my fortran code.
@@ -91,7 +158,7 @@ def test_python_fortran(n_trials=1000):
                                         ctypes.POINTER(ctypes.c_int),
                   np.ctypeslib.ndpointer(dtype=ctypes.c_int, ndim=1),
                   np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
-                  np.ctypeslib.ndpointer(dtype='U10', ndim=1),
+                  np.ctypeslib.ndpointer(dtype='a10', ndim=1),
                   np.ctypeslib.ndpointer(dtype=ctypes.c_double, ndim=1),
                   ctypes.POINTER(ctypes.c_double),
                   ctypes.POINTER(ctypes.c_double),
@@ -112,9 +179,11 @@ def test_python_fortran(n_trials=1000):
         print("offset = ", g.lp)
         print("pigment = ", g.pigment)
         fr = np.zeros(3).astype(ctypes.c_double)
-        n_p = np.array(g.n_p, dtype=ctypes.c_int)
-        offset = np.array(g.lp, dtype=ctypes.c_double)
-        pigment = np.array(g.pigment, dtype='U10')
+        n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
+        offset = np.array([0., *g.lp], dtype=ctypes.c_double)
+        # we have to format them like this, otherwise numpy truncates
+        pigment = np.array([f"{p:<10}" for p in ['rc', *g.pigment]],
+                           dtype='a10', order='F')
         kp = np.array(constants.k_params, dtype=ctypes.c_double)
         n_b = ctypes.byref(ctypes.c_int(g.n_b))
         n_s = ctypes.byref(ctypes.c_int(g.n_s))
