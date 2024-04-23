@@ -116,19 +116,16 @@ def solve(k, method='fortran', debug=False):
 def antenna(l, ip_y, p, debug=False):
     '''
     branched antenna, saturating RC
-    p should be a genome either as defined above or as defined
-    in constants.py (they take different arguments!).
-    an example is given at the bottom in the name = main section
-    set debug = True to output a dict with a load of info in it,
-    set test_lstsq = True to solve with numpy's lstsq in addition
-    to scipy's non-negative least squares solver and output both.
+    l = set of wavelengths
+    ip_y = irradiances at those wavelengths
+    p = instance of constants.Genome
+    set debug = True to output a dict with a load of info in it
     '''
     fp_y = (ip_y * l) / hcnm
-    # gonna switch over and use these instead
     n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
     # 0 offset for the RC!
     lp = np.array([0., *p.lp], dtype=np.float64)
-    pigment = np.array(['rc', *p.pigment], dtype='U10')
+    pigment = np.array([constants.rc_type, *p.pigment], dtype='U10')
     lines = np.zeros((p.n_s + 1, len(l)))
     gamma = np.zeros(p.n_s, dtype=np.float64)
     k_b = np.zeros(2 * p.n_s, dtype=np.float64)

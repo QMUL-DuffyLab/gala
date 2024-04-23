@@ -101,7 +101,7 @@ def test_antenna_fortran():
     n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
     offset = np.array([0., *g.lp], dtype=ctypes.c_double)
     # we have to format them like this, otherwise numpy truncates
-    pigment = np.array([f"{p:<10}" for p in ['rc', *g.pigment]],
+    pigment = np.array([f"{p:<10}" for p in [constants.rc_type, *g.pigment]],
                        dtype='a10', order='F')
     kp = np.array(constants.k_params, dtype=ctypes.c_double)
     n_b = ctypes.byref(ctypes.c_int(g.n_b))
@@ -157,7 +157,7 @@ def test_python_fortran(n_trials=1000):
         n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
         offset = np.array([0., *g.lp], dtype=ctypes.c_double)
         # we have to format them like this, otherwise numpy truncates
-        pigment = np.array([f"{p:<10}" for p in ['rc', *g.pigment]],
+        pigment = np.array([f"{p:<10}" for p in [constants.rc_type, *g.pigment]],
                            dtype='a10', order='F')
         kp = np.array(constants.k_params, dtype=ctypes.c_double)
         n_b = ctypes.byref(ctypes.c_int(g.n_b))

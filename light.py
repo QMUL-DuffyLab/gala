@@ -24,7 +24,8 @@ def get_phoenix_spectrum(ts):
 def get_cwf(mu_e = 1.0):
     '''
     get cool white fluorescent spectrum with given intensity
-    in micro Einsteins - the spectrum in the file's normalised to 1μE
+    in micro Einsteins - the spectrum in the file's normalised to 1μE.
+    taken from http://dx.doi.org/10.13031/2013.13868
     '''
     l, fluo = np.loadtxt(constants.spectrum_prefix
             + 'anderson_2003_cool_white_fluo.csv', unpack=True)
