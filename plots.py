@@ -229,3 +229,64 @@ def plot_best(best_file, spectrum_file):
     plot_antenna(p, output_file)
     l, ip_y = np.loadtxt(spectrum_file, unpack=True)
     plot_antenna_spectra(p, l, ip_y, lines_file, total_file)
+
+def plot_average_best_costs(spectra_dicts, rc_type, xmin=300.0, xmax=800.0):
+    # need to add spectrum, n_p, etc to JSON for RCs
+    psii = np.loadtxt("spectra/PSII.csv")
+    costs = ["0.001", "0.0025", "0.005", "0.0075", "0.01"]
+    base_path = "out/cost_sweep"
+    for spectrum, out_name in light.build(spectra_dicts):
+        l = spectrum[:, 0]
+        output_files = []
+        for cost in costs:
+            prefix = '{}/cost_{}/best_{}'.format(base_path, cost, out_name)
+            suffix = '.dat'
+            total = np.zeros_like(l)
+            individ = np.zeros((constants.n_runs, len(l)))
+            for i in range(constants.n_runs):
+                bf = prefix + "_r{:1d}".format(i) + suffix
+                best = plots.get_best_from_file(bf)
+                run_lines, run_tot = plots.antenna_lines(best, l)
+                individ[i] = run_tot
+                total += run_tot
+
+            total /= constants.n_runs
+            norm_total = total / (np.max(total))
+            outfile = prefix + "_avg_spectrum.dat"
+            output_files.append(outfile)
+            np.savetxt(np.column_stack((l, outfile)), norm_total)
+            fig, ax = plt.subplots(figsize=(12,8))
+            plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
+            plt.plot(psii[:, 0], psii[:, 1], label="PSII")
+            # plt.axvline(680.0)
+            #for i in range(constants.n_runs):
+            #    plt.plot(l, individ[i] / np.max(individ[i]), label="Run {:1d}".format(i))
+            lmin = xmin if np.min(l) < xmin else np.min(l)
+            lmax = xmax if np.max(l) > xmax else np.max(l)
+            ax.set_xlabel(r' $ \lambda (\text{nm}) $')
+            ax.set_ylabel("Intensity (arbitrary)")
+            ax.set_title("Cost = " + cost)
+            ax.set_xlim([lmin, lmax])
+            ax.set_ylim([0.0, 1.2])
+            plt.grid()
+            plt.legend()
+            plt.show()
+            plt.close()
+
+        fig, ax = plt.subplots(figsize=(12,8))
+        for c, f in zip(costs, output_files):
+            d = np.loadtxt(f)
+            plt.plot(l, d, label="Cost = " + c)
+        plt.plot(psii[:, 0], psii[:, 1], label="PSII")
+        lmin = xmin if np.min(l) < xmin else np.min(l)
+        lmax = xmax if np.max(l) > xmax else np.max(l)
+        ax.set_xlim([lmin, lmax])
+        ax.set_ylim([0.0, 1.2])
+        ax.set_xlabel(r' $ \lambda (\text{nm}) $')
+        ax.set_ylabel("Intensity (arbitrary)")
+        plt.grid()
+        plt.legend()
+        plt.savefig("out/cost_sweep/{}_avg_spectrum_by_cost.pdf".format(out_name[0]))
+        plt.show()
+        plt.close()
+
