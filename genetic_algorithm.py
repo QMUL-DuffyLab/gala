@@ -97,8 +97,11 @@ def copy(g):
     ''' return a new identical genome. useful for testing '''
     return constants.Genome(g.n_b, g.n_s, g.n_p, g.lp, g.pigment, g.connected)
 
-def fitness(individual):
+def fitness(g, cost):
     '''
+    g: instance of constants.Genome
+    cost: cost per pigment. NB: once we fix this it can be removed
+    from here and selection below, and turned back into a constant.
     obviously higher electron output is what's primarily wanted,
     but the bigger the antenna is, the more of those electrons
     have to be used building and maintaining the antenna, so
@@ -109,8 +112,7 @@ def fitness(individual):
     bad initial place in the fitness surface, but this would mess with the
     selection procedure below, so it's (currently) not allowed.
     '''
-    f = (individual.nu_e - (constants.cost_per_pigment *
-             individual.n_b * np.sum(individual.n_p)))
+    f = (g.nu_e - (cost * g.n_b * np.sum(g.n_p)))
     return f if f > 0.0 else 0.0
 
 def tournament(population, k, rng):
@@ -124,7 +126,7 @@ def tournament(population, k, rng):
             winner = ind
     return population[winner]
 
-def selection(rng, population):
+def selection(rng, population, cost):
     '''
     build up a 'mating pool' for recombination. i've implemented
     a few different strategies here - the highest (too high) selection
@@ -136,12 +138,13 @@ def selection(rng, population):
     '''
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     strategy = constants.selection_strategy
-    psort = sorted(population, key=fitness, reverse=True)
+    psort = sorted(population, key=lambda p: fitness(p, cost), reverse=True)
+    # psort = sorted(population, key=fitness, reverse=True)
     if constants.selection_strategy == 'fittest':
         survivors = [psort[i] for i in range(n_survivors)]
     elif constants.selection_strategy == 'ranked':
         survivors = []
-        ps = np.array([1.0 - np.exp(fitness(p)) for p in psort])
+        ps = np.array([1.0 - np.exp(fitness(p, cost)) for p in psort])
         pc = np.cumsum(ps / np.sum(ps))
         # stochastic universal sampling to pick pool
         i = 0
