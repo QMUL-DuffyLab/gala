@@ -231,71 +231,67 @@ def plot_best(best_file, spectrum_file):
     l, ip_y = np.loadtxt(spectrum_file, unpack=True)
     plot_antenna_spectra(p, l, ip_y, lines_file, total_file)
 
-def plot_average_best_costs(spectra_dicts, target="psii", xmin=300.0, xmax=800.0):
+def plot_average_best_costs(costs, path,
+        spectrum, out_name, target="psii", xmin=300.0, xmax=800.0):
     if target == "psii":
         tspec = np.loadtxt("spectra/PSII.csv")
         tname = "PSII"
     else:
         tspec = None
-    costs = ["0.001", "0.0025", "0.005", "0.0075", "0.01"]
-    base_path = "out/cost_sweep"
-    for spectrum, out_name in light.build(spectra_dicts):
-        print(out_name)
-        l = spectrum[:, 0]
-        output_files = []
-        for cost in costs:
-            prefix = '{}/cost_{}/best_{}'.format(base_path, cost, out_name)
-            suffix = '.dat'
-            total = np.zeros_like(l)
-            individ = np.zeros((constants.n_runs, len(l)))
-            for i in range(constants.n_runs):
-                bf = prefix + "_r{:1d}".format(i) + suffix
-                print(bf)
-                best = get_best_from_file(bf)
-                run_lines, run_tot = antenna_lines(best, l)
-                individ[i] = run_tot
-                total += run_tot
+    l = spectrum[:, 0]
+    output_files = []
+    for cost in costs:
+        prefix = '{}best_{}'.format(path, out_name)
+        suffix = '.dat'
+        total = np.zeros_like(l)
+        individ = np.zeros((constants.n_runs, len(l)))
+        for i in range(constants.n_runs):
+            bf = prefix + "_r{:1d}".format(i) + suffix
+            print(bf)
+            best = get_best_from_file(bf)
+            run_lines, run_tot = antenna_lines(best, l)
+            individ[i] = run_tot
+            total += run_tot
 
-            total /= constants.n_runs
-            norm_total = total / (np.max(total))
-            outfile = prefix + "_avg_spectrum.dat"
-            output_files.append(outfile)
-            np.savetxt(outfile, np.column_stack((l, norm_total)))
-            fig, ax = plt.subplots(figsize=(12,8))
-            plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
-            if tspec is not None:
-                plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
-            # plt.axvline(680.0)
-            #for i in range(constants.n_runs):
-            #    plt.plot(l, individ[i] / np.max(individ[i]), label="Run {:1d}".format(i))
-            lmin = xmin if np.min(l) < xmin else np.min(l)
-            lmax = xmax if np.max(l) > xmax else np.max(l)
-            ax.set_xlabel(r' $ \lambda (\text{nm}) $')
-            ax.set_ylabel("Intensity (arbitrary)")
-            ax.set_title("Cost = " + cost)
-            ax.set_xlim([lmin, lmax])
-            ax.set_ylim([0.0, 1.2])
-            plt.grid()
-            plt.legend()
-            fig.tight_layout()
-            plt.savefig(prefix + "avg_spectrum.pdf")
-            plt.close()
-
+        total /= constants.n_runs
+        norm_total = total / (np.max(total))
+        outfile = prefix + "_avg_spectrum.dat"
+        output_files.append(outfile)
+        np.savetxt(outfile, np.column_stack((l, norm_total)))
         fig, ax = plt.subplots(figsize=(12,8))
-        for c, f in zip(costs, output_files):
-            d = np.loadtxt(f)
-            plt.plot(l, d[:, 1], label="Cost = " + c)
+        plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
         if tspec is not None:
             plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
         lmin = xmin if np.min(l) < xmin else np.min(l)
         lmax = xmax if np.max(l) > xmax else np.max(l)
-        ax.set_xlim([lmin, lmax])
-        ax.set_ylim([0.0, 1.2])
         ax.set_xlabel(r' $ \lambda (\text{nm}) $')
         ax.set_ylabel("Intensity (arbitrary)")
-        plt.grid(visible=True, axis='both')
-        plt.legend(fontsize=20)
+        ax.set_title("Cost = " + cost)
+        ax.set_xlim([lmin, lmax])
+        ax.set_ylim([0.0, 1.2])
+        plt.grid()
+        plt.legend()
         fig.tight_layout()
-        plt.savefig("out/cost_sweep/{}_avg_spectrum_by_cost.pdf".format(out_name))
+        plt.savefig(prefix + "avg_spectrum.pdf")
         plt.close()
+
+    fig, ax = plt.subplots(figsize=(12,8))
+    for c, f in zip(costs, output_files):
+        d = np.loadtxt(f)
+        plt.plot(l, d[:, 1], label="Cost = {}".format(c))
+    if tspec is not None:
+        plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
+    lmin = xmin if np.min(l) < xmin else np.min(l)
+    lmax = xmax if np.max(l) > xmax else np.max(l)
+    ax.set_xlim([lmin, lmax])
+    ax.set_ylim([0.0, 1.2])
+    ax.set_xlabel(r' $ \lambda (\text{nm}) $')
+    ax.set_ylabel("Intensity (arbitrary)")
+    plt.grid(visible=True, axis='both')
+    plt.legend(fontsize=20)
+    fig.tight_layout()
+    plt.savefig(
+    "{}{}_avg_spectrum_by_cost.pdf".format(constants.output_dir,
+                                            out_name))
+    plt.close()
 
