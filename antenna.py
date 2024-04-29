@@ -29,7 +29,7 @@ def get_lineshape(l, pigment, lp_offset):
 
 def gauss(l, lp, w, a = None):
     '''
-    return a gaussian lineshape. if you give it one peak
+    return a normalised gaussian lineshape. if you give it one peak
     it'll use that, if you give it a list of peaks it'll
     add them together. assumes that w and a are arrays
     of the same length as lp.

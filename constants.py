@@ -44,8 +44,8 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           # for any subunit; RCs shouldn't be included here.
           # names must match what's in pigment_data_file!
           'pigment': np.array(["bchl_a", "chl_a", "chl_b",
-                            "chl_d", "chl_f", "r_apc",
-                            "r_pc", "r_pe"])}
+                            "chl_d", "chl_f", "apc",
+                            "pc", "r-pe", "c-pe", "b-pe"])}
 
 # list of parameters defined per subunit rather than per genome
 # the strings here *must match* the names in genome definition below
