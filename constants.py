@@ -33,7 +33,7 @@ mu_rate = 0.05
 tourney_k = 5 # selection tournament size
 hist_snapshot = 50 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-max_lp_offset = 10.0
+max_lp_offset = 0.1
 # boundaries on the genome parameters. used during generation;
 # mutation uses a truncated Gaussian with these as bounds as well.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
@@ -95,6 +95,4 @@ class Genome:
     phi_e_g: float = np.nan
     phi_e: float = np.nan
     fitness: float = np.nan
-    def __eq__(self, other):
-        return dc_eq(self, other)
 

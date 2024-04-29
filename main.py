@@ -21,29 +21,29 @@ if __name__ == "__main__":
     '''
     various other examples of dicts in light.py
     '''
+    costs = [0.01, 0.0075, 0.001, 0.0025, 0.005, 0.02]
     spectra_dicts = [
           {'type': "filtered", 'kwargs': {'filter': "red"}},
-          # {'type': "filtered", 'kwargs': {'filter': "far-red"}},
-          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          # {'type': "marine", 'kwargs': {'depth': 1.0}},
-          # {'type': "marine", 'kwargs': {'depth': 5.0}},
-          # {'type': "marine", 'kwargs': {'depth': 10.0}},
+          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          {'type': "marine", 'kwargs': {'depth': 1.0}},
+          {'type': "marine", 'kwargs': {'depth': 5.0}},
+          {'type': "marine", 'kwargs': {'depth': 10.0}},
           # {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
           # {'type': "fluo", 'kwargs': {'mu_e': 50.0}},
           # {'type': "fluo", 'kwargs': {'mu_e': 10.0}},
           ]
-    costs = [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.02]
     light.check(spectra_dicts)
     spectra_zip = light.build(spectra_dicts)
-    for spectrum, out_name in spectra_zip:
-        print("Spectrum output name: ", out_name)
-        init_type = 'radiative' # can be radiative or random
-        names = ["avg", "avgsq", "np", "npsq", "lp",
-                "lpsq", "w", "wsq", "best", "neg"]
 
-        l    = spectrum[:, 0]
-        ip_y = spectrum[:, 1]
-        for cost in costs:
+    init_type = 'radiative' # can be radiative or random
+    names = ["avg", "avgsq", "np", "npsq", "lp",
+            "lpsq", "w", "wsq", "best", "neg"]
+    for cost in costs:
+        for spectrum, out_name in spectra_zip:
+            l    = spectrum[:, 0]
+            ip_y = spectrum[:, 1]
+            print("Spectrum output name: ", out_name)
             outdir = constants.output_dir + "cost_{}".format(cost)
             print("Output dir: {}".format(outdir))
             prefs = ["{}/{}_{}".format(outdir,
