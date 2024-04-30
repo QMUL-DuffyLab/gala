@@ -51,7 +51,7 @@ def antenna_lines(p, l):
                     * (l - (pigment['lp'][j] + p.lp[i]))**2
                     / (2.0 * (pigment['w'][j]**2)))
         lines[i] /= np.sum(lines[i])
-        lines[i] /= np.max(lines[i])
+        # lines[i] /= np.max(lines[i])
         total += lines[i] * p.n_p[i]
     return lines, total
 
@@ -166,7 +166,7 @@ def plot_antenna_spectra(p, l, ip_y,
         if draw_00:
             ax.axvline(x=lps[i], color=color, ls='--')
         label = "Subunit {:1d}: ".format(i + 1) + pd[p.pigment[i]]['text']
-        plt.plot(l, lines[i], label=label)
+        plt.plot(l, lines[i]/np.max(lines[i]), label=label)
     plt.plot(l, ip_y, label="Incident")
     ax.set_xlabel(r'$ \lambda (\text{nm}) $')
     ax.set_ylabel("Intensity (arb. for antenna)")
@@ -237,6 +237,18 @@ def plot_average_best(path, spectrum, out_name,
     if target == "psii":
         tspec = np.loadtxt("spectra/PSII.csv")
         tname = "PSII"
+    elif target == "6803":
+        tspec = np.loadtxt("spectra/PCC_6803_Abs.txt")
+        tname = "6803"
+    elif target == "6301":
+        tspec = np.loadtxt("spectra/SP_6301_Abs.txt")
+        tname = "6301"
+    elif target == "frl":
+        tspec = np.loadtxt("spectra/frl_cells.csv")
+        tname = "FRL"
+    elif target == "marine":
+        tspec = np.loadtxt("spectra/kolodny_marine_pbs.csv")
+        tname = "marine"
     else:
         tspec = None
     l = spectrum[:, 0]
@@ -260,7 +272,14 @@ def plot_average_best(path, spectrum, out_name,
     plt.plot(l, spectrum[:, 1], color='0.8')
     plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
     if tspec is not None:
-        plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
+        # we want the largest peak in the *visible* spectrum
+        t_vis = tspec[(tspec[:, 0] > 500.0) & (tspec[:, 0] < 800.0)]
+        arg = np.argmax(t_vis[:, 1])
+        peak_wl = t_vis[arg, 0]
+        # normalise that peak to 1
+        norm_tspec = tspec[:, 1] / t_vis[arg, 1]
+        plt.plot(tspec[:, 0], norm_tspec, label=tname, color='C1')
+        plt.axvline(peak_wl, ls='--', color='C1')
     lmin = xmin if np.min(l) < xmin else np.min(l)
     lmax = xmax if np.max(l) > xmax else np.max(l)
     ax.set_xlabel(r' $ \lambda (\text{nm}) $')

@@ -138,7 +138,8 @@ if __name__ == "__main__":
                     lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
 
                     if (gen % constants.hist_snapshot == 0):
-                        pf, lf = stats.hist(population, gen, run, out_name)
+                        pf, lf = stats.hist(population, gen, 
+                                            run, outdir, out_name)
                         plots.hist_plot(pf, lf)
                         plots.plot_antenna(best,
                             best_pref + "_{:04d}_best".format(gen))
@@ -166,7 +167,8 @@ if __name__ == "__main__":
                         (qs < constants.conv_per).all())
                         or gens_since_improvement > constants.conv_gen):
                         print("Fitness converged at gen {}".format(gen))
-                        pf, lf = stats.hist(population, gen, run, out_name)
+                        pf, lf = stats.hist(population, gen, run, 
+                                            outdir, out_name)
                         plots.hist_plot(pf, lf)
                         break
 

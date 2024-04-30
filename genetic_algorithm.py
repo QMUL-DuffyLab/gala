@@ -95,7 +95,8 @@ def new(rng, init_type):
 
 def copy(g):
     ''' return a new identical genome. useful for testing '''
-    return constants.Genome(g.n_b, g.n_s, g.n_p, g.lp, g.pigment, g.connected)
+    return constants.Genome(g.n_b, g.n_s, g.n_p, g.lp,
+        g.pigment, g.connected, g.nu_e, g.phi_e_g, g.phi_e, g.fitness)
 
 def fitness(g, cost):
     '''

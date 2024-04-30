@@ -16,8 +16,7 @@ def pigment_to_index(pigment):
     '''
     return np.where(constants.bounds['pigment'] == pigment)[0][0]
 
-def hist(population, gen, run, out_name):
-    path = constants.output_dir
+def hist(population, gen, run, outdir, out_name):
     suffix = "hist_{}_{:04d}_{:1d}.dat".format(out_name, gen, run)
     l_bin_size = 1.0
     s_max = constants.hist_sub_max
@@ -52,8 +51,8 @@ def hist(population, gen, run, out_name):
             if p_arr[i][j] != '':
                 pcount[pigment_to_index(p_arr[i][j])] += 1
         ph.append(pcount / n_pop)
-    lfile = path + "lp_" + suffix
-    pfile = path + "pigment_" + suffix
+    lfile = outdir + "/" + "lp_" + suffix
+    pfile = outdir + "/" + "pigment_" + suffix
     np.savetxt(lfile, np.transpose(np.array(lh)))
     np.savetxt(pfile,
                np.transpose(np.array(ph, dtype=object)),
