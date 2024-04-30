@@ -6,8 +6,12 @@ author: @callum
 import Pkg
 Pkg.add("Luxor")
 Pkg.add("Colors")
+Pkg.add("LaTeXStrings")
 Pkg.add("MathTeXEngine")
 Pkg.add("ArgParse")
+Pkg.add("JSON")
+import JSON
+using LaTeXStrings
 using Luxor
 using Colors
 using MathTeXEngine
@@ -85,7 +89,6 @@ function plot(n_b, n_s, λs, n_ps, names,
     dr = rcr * 1.1
     gamma = 2.2
     cols = [RGB.(colormatch(λ)) for λ in λs]
-    #cols = [parse(Colorant, RGBA(cols[i].r, cols[i].g, cols[i].b, n_ps[i]/100.0)) for i in 1:length(λs)]
     rc_col = RGB.(colormatch(scale_λ(680.0)))
     size = round(2.5 * n_s) * (dr + rpad) + rcr + 100
     @svg begin
@@ -140,24 +143,18 @@ function test()
     n_s = 5
     λs = [680.0, 660.0, 640.0, 620.0, 560.0]
     n_ps = [90, 60, 80, 20, 50]
-    names = [L"$ \text{Chl}_{a} $", L"$ \text{Chl}_{b} $", L"$ \text{APC} $", L"$ \text{PC} $", L"$ \text{PE} $"]
+    names = [L"$ \text{Chl}_{a} $", L"$ \text{Chl}_{b} $", L"$ \text{APC} $",
+             L"$ \text{PC} $", L"$ \text{PE} $"]
     plot(n_b, n_s, λs, n_ps, names)
 end
 
 function main()
     args = parse_cmds()
-    # replace passed strings with latex versions
-    keys = ["chl_a", "chl_b", "chl_d", "chl_f", 
-            "r_apc", "r_pc", "r_pe", "bchl_a"]
-    strings = [L"$ \text{Chl}_{a} $", L"$ \text{Chl}_{b} $",
-               L"$ \text{Chl}_{d} $", L"$ \text{Chl}_{f} $",
-               L"$ \text{APC} $", L"$ \text{PC} $",
-               L"$ \text{PE} $", L"$ \text{BChl}_{a} $"]
-    name_dict = Dict(zip(keys, strings))
+    pigment_data = JSON.parsefile("pigments/pigment_data.json")
     n_ps = map(x -> parse(Int, x), args["n_ps"]) 
     λs = map(x -> parse(Float64, x), args["lambdas"]) 
-    names = [name_dict[n] for n in args["names"]]
-    plot(args["n_b"], args["n_s"], λs, n_ps, names,
+    latex = [LaTeXString(pigment_data[n]["text"]) for n in args["names"]]
+    plot(args["n_b"], args["n_s"], λs, n_ps, latex,
          "horizontal", args["file"])
 end
 

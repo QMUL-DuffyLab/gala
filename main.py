@@ -103,7 +103,7 @@ if __name__ == "__main__":
                         fitnesses[j] = p.fitness
                         if (fitnesses[j] > fit_max):
                             fit_max = fitnesses[j]
-                            best = population[j]
+                            best = ga.copy(population[j])
                             gens_since_improvement = 0
                         avgs[0]  += nu_phi[0]
                         avgsq[0] += nu_phi[0]**2

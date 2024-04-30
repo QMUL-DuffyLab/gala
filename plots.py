@@ -203,6 +203,7 @@ def get_best_from_file(input_file):
         for line in f:
             pass
         best = line
+    print(best)
     n_b = int(re.search(r'n_b=(\d+)', best).group(1))
     n_s = int(re.search(r'n_s=(\d+)', best).group(1))
     lpm = re.search(r"lp=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
@@ -211,7 +212,7 @@ def get_best_from_file(input_file):
     n_pm = re.search(r"n_p=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
     n_pa = re.search(r"\[(.*)\]", n_pm).group(0)
     n_p = np.fromstring(n_pa[1:-1], sep=',', dtype=int)
-    pigm = re.search(r"pigment=array\(\[\s*([a-z_']+[,\s\]]+)+", best).group(0)
+    pigm = re.search(r"pigment=array\(\[\s*([a-z_\-']+[,\s\]]+)+", best).group(0)
     piga = re.search(r"\[(.*)\]", pigm).group(0)
     # numpy doesn't know how to fromstring() this so do it manually
     pigment = np.array(piga[1:-1]
