@@ -232,52 +232,60 @@ def plot_best(best_file, spectrum_file):
     l, ip_y = np.loadtxt(spectrum_file, unpack=True)
     plot_antenna_spectra(p, l, ip_y, lines_file, total_file)
 
-def plot_average_best_costs(costs, path,
-        spectrum, out_name, target="psii", xmin=300.0, xmax=800.0):
+def plot_average_best(path, spectrum, out_name,
+        cost, target="psii", xmin=300.0, xmax=800.0):
     if target == "psii":
         tspec = np.loadtxt("spectra/PSII.csv")
         tname = "PSII"
     else:
         tspec = None
     l = spectrum[:, 0]
-    output_files = []
-    for cost in costs:
-        prefix = '{}best_{}'.format(path, out_name)
-        suffix = '.dat'
-        total = np.zeros_like(l)
-        individ = np.zeros((constants.n_runs, len(l)))
-        for i in range(constants.n_runs):
-            bf = prefix + "_r{:1d}".format(i) + suffix
-            print(bf)
-            best = get_best_from_file(bf)
-            run_lines, run_tot = antenna_lines(best, l)
-            individ[i] = run_tot
-            total += run_tot
+    prefix = '{}/best_{}'.format(path, out_name)
+    suffix = '.dat'
+    total = np.zeros_like(l)
+    individ = np.zeros((constants.n_runs, len(l)))
+    for i in range(constants.n_runs):
+        bf = prefix + "_r{:1d}".format(i) + suffix
+        print(bf)
+        best = get_best_from_file(bf)
+        run_lines, run_tot = antenna_lines(best, l)
+        individ[i] = run_tot
+        total += run_tot
 
-        total /= constants.n_runs
-        norm_total = total / (np.max(total))
-        outfile = prefix + "_avg_spectrum.dat"
-        output_files.append(outfile)
-        np.savetxt(outfile, np.column_stack((l, norm_total)))
-        fig, ax = plt.subplots(figsize=(12,8))
-        plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
-        if tspec is not None:
-            plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
-        lmin = xmin if np.min(l) < xmin else np.min(l)
-        lmax = xmax if np.max(l) > xmax else np.max(l)
-        ax.set_xlabel(r' $ \lambda (\text{nm}) $')
-        ax.set_ylabel("Intensity (arbitrary)")
-        ax.set_title("Cost = " + cost)
-        ax.set_xlim([lmin, lmax])
-        ax.set_ylim([0.0, 1.2])
-        plt.grid()
-        plt.legend()
-        fig.tight_layout()
-        plt.savefig(prefix + "avg_spectrum.pdf")
-        plt.close()
-
+    total /= constants.n_runs
+    norm_total = total / (np.max(total))
+    outfile = prefix + "_avg_spectrum" + suffix
+    np.savetxt(outfile, np.column_stack((l, norm_total)))
     fig, ax = plt.subplots(figsize=(12,8))
-    for c, f in zip(costs, output_files):
+    plt.plot(l, spectrum[:, 1], color='0.8')
+    plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
+    if tspec is not None:
+        plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
+    lmin = xmin if np.min(l) < xmin else np.min(l)
+    lmax = xmax if np.max(l) > xmax else np.max(l)
+    ax.set_xlabel(r' $ \lambda (\text{nm}) $')
+    ax.set_ylabel("Intensity (arbitrary)")
+    ax.set_title("Cost = " + cost)
+    ax.set_xlim([lmin, lmax])
+    ax.set_ylim([0.0, 1.2])
+    plt.grid()
+    plt.legend()
+    fig.tight_layout()
+    plt.savefig(prefix + "_avg_spectrum.pdf")
+    plt.close()
+    return outfile
+
+def plot_average_best_by_cost(files, costs, spectrum,
+                              out_name, target="psii"):
+    if target == "psii":
+        tspec = np.loadtxt("spectra/PSII.csv")
+        tname = "PSII"
+    else:
+        tspec = None
+    l = spectrum[:, 0]
+    fig, ax = plt.subplots(figsize=(12,8))
+    plt.plot(l, spectrum[:, 1], color='0.8')
+    for c, f in zip(costs, files):
         d = np.loadtxt(f)
         plt.plot(l, d[:, 1], label="Cost = {}".format(c))
     if tspec is not None:
@@ -295,4 +303,3 @@ def plot_average_best_costs(costs, path,
     "{}{}_avg_spectrum_by_cost.pdf".format(constants.output_dir,
                                             out_name))
     plt.close()
-

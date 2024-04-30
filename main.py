@@ -22,6 +22,7 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     costs = [0.01, 0.0075, 0.001, 0.0025, 0.005, 0.02]
+    costs = [0.0075, 0.001, 0.0025, 0.005, 0.02]
     spectra_dicts = [
           {'type': "filtered", 'kwargs': {'filter': "red"}},
           {'type': "filtered", 'kwargs': {'filter': "far-red"}},
@@ -30,8 +31,6 @@ if __name__ == "__main__":
           {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
           # {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
-          # {'type': "fluo", 'kwargs': {'mu_e': 50.0}},
-          # {'type': "fluo", 'kwargs': {'mu_e': 10.0}},
           ]
     light.check(spectra_dicts)
     spectra_zip = light.build(spectra_dicts)
@@ -211,5 +210,5 @@ if __name__ == "__main__":
                 plots.plot_antenna(best, best_pref + "_antenna.pdf")
                 plots.plot_antenna_spectra(best, l, ip_y,
                       best_pref + "_lines.pdf", best_pref + "_total.pdf")
-        plots.plot_average_best_costs(costs, constants.output_dir,
-                                      spectrum, out_name)
+            # after n_runs, average the best antennae and plot absorption
+            plots.plot_average_best(outdir, spectrum, out_name, cost)
