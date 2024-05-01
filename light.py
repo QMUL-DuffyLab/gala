@@ -98,7 +98,12 @@ def get_filtered(**kwargs):
         f = np.loadtxt(constants.spectrum_prefix + "filter_far_red.csv",
                        delimiter=',')
     f_interp = np.interp(am15[:, 0], f[:, 0], f[:, 1])
-    transmitted = am15[:, 1] * f_interp
+    if 'fraction' in kwargs.keys():
+        frac = kwargs['fraction']
+    else:
+        frac = 1.
+    # (1 - frac) unfiltered + frac * filtered
+    transmitted = (1.0 - frac) * am15[:, 1] + frac * am15[:, 1] * f_interp
     return np.column_stack((am15[:, 0], transmitted))
 
 def spectrum_setup(spectrum_type, **kwargs):

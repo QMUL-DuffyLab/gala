@@ -284,7 +284,7 @@ def plot_average_best(path, spectrum, out_name,
     lmax = xmax if np.max(l) > xmax else np.max(l)
     ax.set_xlabel(r' $ \lambda (\text{nm}) $')
     ax.set_ylabel("Intensity (arbitrary)")
-    ax.set_title("Cost = " + cost)
+    ax.set_title("Cost = " + str(cost))
     ax.set_xlim([lmin, lmax])
     ax.set_ylim([0.0, 1.2])
     plt.grid()
