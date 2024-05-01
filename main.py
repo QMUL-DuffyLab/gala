@@ -129,8 +129,8 @@ if __name__ == "__main__":
                     avgs /= constants.population_size
                     avgsq /= constants.population_size
                     std_dev = np.sqrt(avgsq - np.square(avgs))
-                    running_avgs.append(avgs)
-                    running_avgsq.append(avgsq)
+                    running_avgs.append(np.copy(avgs))
+                    running_avgsq.append(np.copy(avgsq))
                     np_avg = np.divide(np_avg, nlw_pop, where=nlw_pop > 0.0)
                     lp_avg = np.divide(lp_avg, nlw_pop, where=nlw_pop > 0.0)
                     np_avgsq = np.divide(np_avgsq, nlw_pop, where=nlw_pop > 0.0)
@@ -171,7 +171,7 @@ if __name__ == "__main__":
                         plots.hist_plot(pf, lf)
                         break
 
-                    survivors = ga.selection(rng, population, cost)
+                    survivors = ga.selection(rng, population, fitnesses, cost)
                     avg_nb_surv = np.sum(np.array([s.n_b
                                             for s in survivors]) / len(survivors))
                     avg_ns_surv = np.sum(np.array([s.n_s
