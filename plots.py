@@ -70,22 +70,24 @@ def plot_nu_phi_4(nu_e, phi_e, n_s, filename):
     plt.savefig(filename)
     plt.close()
 
-def plot_nu_phi_2(nu_e, phi_e, n_s, filename):
+def plot_nu_phi_2(nu_e, phi_e, fitness, n_b, n_s, filename):
     fig, ax = plt.subplots(nrows=2, figsize=(12,8), sharex=True)
     ax[0].plot(np.arange(len(nu_e)), nu_e, color='C0',
                label=r'$ \left<\nu_e\right> $')
     ax2 = ax[0].twinx()
     ax2.plot(np.arange(len(phi_e)), phi_e, color='C1',
                label=r'$ \left<\varphi_e\right> $')
-    ax[0].plot(np.arange(len(phi_e)), nu_e * phi_e, color='C2',
-               label=r'$ \left<\nu_e \varphi_e\right> $')
+    ax[0].plot(np.arange(len(fitness)), fitness, color='C2',
+               label=r'$ \left< \text{fitness} \right> $')
+    ax[1].plot(np.arange(len(n_b)), n_b, label=r'$ \left<n_b\right> $')
     ax[1].plot(np.arange(len(n_s)), n_s, label=r'$ \left<n_s\right> $')
     ax[1].set_ylim([0., 1.5 * n_s[-1]])
     ax[0].legend(loc='lower left')
+    ax[1].legend(loc='upper left')
     ax2.legend(loc='center right')
     ax[1].set_xlabel('Generation')
     ax[1].set_ylabel(r'$ \left<n_s\right> $')
-    ax[0].set_ylabel(r'$ \left<\nu_e\right>, \; \left<\nu_e\varphi_e\right> $')
+    ax[0].set_ylabel(r'$ \left<\nu_e\right>, \; \left< \text{fitness} \right> $')
     ax2.set_ylabel(r'$ \left<\varphi_e\right> $')
     plt.legend()
     fig.tight_layout()
