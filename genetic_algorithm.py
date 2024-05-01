@@ -27,7 +27,7 @@ def get_rand(parameter, rng):
     ''' get a single random number or choice depending on parameter '''
     bounds = constants.bounds[parameter]
     if (isinstance(bounds[0], (int, np.integer))):
-        r = rng.integers(*bounds)
+        r = rng.integers(*bounds, endpoint=True)
     elif (isinstance(bounds[0], (float, np.float64))):
         r = rng.uniform(*bounds)
     elif (isinstance(bounds[0], (str, np.str_))):

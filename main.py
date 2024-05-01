@@ -137,9 +137,9 @@ if __name__ == "__main__":
                     lp_avgsq = np.divide(lp_avgsq, nlw_pop, where=nlw_pop > 0.0)
 
                     if (gen % constants.hist_snapshot == 0):
-                        pf, lf = stats.hist(population, gen, 
+                        histfiles = stats.hist(population, gen, 
                                             run, outdir, out_name)
-                        plots.hist_plot(pf, lf)
+                        plots.hist_plot(*histfiles)
                         plots.plot_antenna(best,
                             best_pref + "_{:04d}_best".format(gen))
 
@@ -155,7 +155,7 @@ if __name__ == "__main__":
                     print(f"<n_s>     = {avgs[7]:10.4n}\t<n_s^2>       = {avgsq[7]:10.4n}\tσ = {std_dev[7]:10.4n}")
 
                     # check convergence
-                    rfm.append(np.round(fit_max, 2))
+                    rfm.append(np.mean(fitnesses))
                     qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                           for i in range(len(rfm)- 1)])
                     print("convergence trues: {:d}".format(
@@ -166,9 +166,9 @@ if __name__ == "__main__":
                         (qs < constants.conv_per).all())
                         or gens_since_improvement > constants.conv_gen):
                         print("Fitness converged at gen {}".format(gen))
-                        pf, lf = stats.hist(population, gen, run, 
+                        histfiles = stats.hist(population, gen, run, 
                                             outdir, out_name)
-                        plots.hist_plot(pf, lf)
+                        plots.hist_plot(*histfiles)
                         break
 
                     survivors = ga.selection(rng, population, fitnesses, cost)
@@ -205,9 +205,9 @@ if __name__ == "__main__":
                 np.savetxt(filenames['lpsq'], lp_avgsq)
                 plot_final_best_2d_file = prefs[-2] + "_r{:1d}_2d.pdf".format(run)
                 plot_final_best_3d_file = prefs[-2] + "_r{:1d}_3d.pdf".format(run)
-                # plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
-                # plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
-                #                   running_avgs[:, 7], plot_nu_phi_file)
+                plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
+                plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
+                                  running_avgs[:, 7], plot_nu_phi_file)
                 plots.plot_antenna(best, best_pref + "_antenna.pdf")
                 plots.plot_antenna_spectra(best, l, ip_y,
                       best_pref + "_lines.pdf", best_pref + "_total.pdf")

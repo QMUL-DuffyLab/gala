@@ -92,10 +92,10 @@ def plot_nu_phi_2(nu_e, phi_e, n_s, filename):
     plt.savefig(filename)
     plt.close()
 
-def hist_plot(pigment_file, lp_file):
+def hist_plot(pigment_file, peak_file, n_p_file):
     n_s = constants.hist_sub_max
 
-    lh = np.loadtxt(lp_file)
+    peak_hist = np.loadtxt(peak_file)
     pnames = np.loadtxt(pigment_file, usecols=0, dtype=str)
     pprops = np.loadtxt(pigment_file,
             usecols=tuple(range(1, n_s + 1)), dtype=float)
