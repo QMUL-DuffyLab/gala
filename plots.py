@@ -126,6 +126,58 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     fig.savefig(os.path.splitext(pigment_file)[0] + ".pdf")
     plt.close()
 
+    n_p_bins = np.loadtxt(n_p_file, usecols=0)
+    props = np.loadtxt(n_p_file,
+            usecols=tuple(range(1, n_s + 1)), dtype=float)
+    fig = plt.figure(figsize=(20, 20))
+    ax = fig.add_subplot(projection='3d')
+
+    for k in reversed(range(n_s)):
+        # hide the counts of zero
+        ys = props[1:, k]
+        xs = n_p_bins[1:]
+        color = 'C{:1d}'.format(k)
+        ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
+     
+    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
+        axis.labelpad = 20
+
+    ax.set_xlabel(r'$ n_{p} $')
+    ax.set_ylabel("Subunit")
+    ax.set_zlabel("Proportion")
+    ax.set_zlim([0.0, 1.0])
+    ax.set_yticks(np.arange(n_s))
+    ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
+
+    fig.tight_layout()
+    fig.savefig(os.path.splitext(n_p_file)[0] + ".pdf")
+    plt.close()
+
+    peak_bins = np.loadtxt(peak_file, usecols=0)
+    props = np.loadtxt(peak_file,
+            usecols=tuple(range(1, n_s + 1)), dtype=float)
+    fig = plt.figure(figsize=(20, 20))
+    ax = fig.add_subplot(projection='3d')
+
+    for k in reversed(range(n_s)):
+        ys = props[:, k]
+        xs = peak_bins
+        color = 'C{:1d}'.format(k)
+        ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
+     
+    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
+        axis.labelpad = 20
+
+    ax.set_xlabel(r'$ \lambda_{\text{peak}} (\text{nm}) $')
+    ax.set_ylabel("Subunit")
+    ax.set_zlabel("Proportion")
+    ax.set_zlim([0.0, 1.0])
+    ax.set_yticks(np.arange(n_s))
+    ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
+    fig.tight_layout()
+    fig.savefig(os.path.splitext(peak_file)[0] + ".pdf")
+    plt.close()
+
 def plot_antenna(p, output_file):
     '''
     this is *incredibly* ugly but don't judge pls
