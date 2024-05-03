@@ -18,6 +18,14 @@ import light
 # from julia import Main
 # from julia.Main import DrawAntennae
 
+target_spectra = {
+    "PSII": "spectra/PSII.csv",
+    "6803": "spectra/PCC_6803_Abs.txt",
+    "6301": "spectra/SP_6301_Abs.txt",
+    "FRL": "spectra/frl_cells.csv",
+    "marine": "spectra/kolodny_marine_pbs.csv",
+    }
+
 def polygon_under_graph(x, y):
     """
     Construct the vertex list which defines the polygon filling the space under
@@ -124,7 +132,6 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
     ax.set_xticklabels(pigment_strings)
 
-    fig.tight_layout()
     fig.savefig(os.path.splitext(pigment_file)[0] + ".pdf")
     plt.close()
 
@@ -151,7 +158,6 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     ax.set_yticks(np.arange(n_s))
     ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
 
-    fig.tight_layout()
     fig.savefig(os.path.splitext(n_p_file)[0] + ".pdf")
     plt.close()
 
@@ -176,7 +182,6 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     ax.set_zlim([0.0, 1.0])
     ax.set_yticks(np.arange(n_s))
     ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
-    fig.tight_layout()
     fig.savefig(os.path.splitext(peak_file)[0] + ".pdf")
     plt.close()
 
@@ -286,92 +291,113 @@ def plot_best(best_file, spectrum_file):
     l, ip_y = np.loadtxt(spectrum_file, unpack=True)
     plot_antenna_spectra(p, l, ip_y, lines_file, total_file)
 
-def plot_average_best(path, spectrum, out_name,
-        cost, target="psii", xmin=300.0, xmax=800.0):
-    if target == "psii":
-        tspec = np.loadtxt("spectra/PSII.csv")
-        tname = "PSII"
-    elif target == "6803":
-        tspec = np.loadtxt("spectra/PCC_6803_Abs.txt")
-        tname = "6803"
-    elif target == "6301":
-        tspec = np.loadtxt("spectra/SP_6301_Abs.txt")
-        tname = "6301"
-    elif target == "frl":
-        tspec = np.loadtxt("spectra/frl_cells.csv")
-        tname = "FRL"
-    elif target == "marine":
-        tspec = np.loadtxt("spectra/kolodny_marine_pbs.csv")
-        tname = "marine"
-    else:
-        tspec = None
-    l = spectrum[:, 0]
-    prefix = '{}/best_{}'.format(path, out_name)
-    suffix = '.dat'
-    total = np.zeros_like(l)
-    individ = np.zeros((constants.n_runs, len(l)))
-    for i in range(constants.n_runs):
-        bf = prefix + "_r{:1d}".format(i) + suffix
-        print(bf)
-        best = get_best_from_file(bf)
-        run_lines, run_tot = antenna_lines(best, l)
-        individ[i] = run_tot
-        total += run_tot
-
-    total /= constants.n_runs
-    norm_total = total / (np.max(total))
-    outfile = prefix + "_avg_spectrum" + suffix
-    np.savetxt(outfile, np.column_stack((l, norm_total)))
+def plot_lines(xs, ys, labels, colours, **kwargs):
     fig, ax = plt.subplots(figsize=(12,8))
-    plt.plot(l, spectrum[:, 1], color='0.8')
-    plt.plot(l, norm_total, label=r' $ \left< \text{best} \right> $')
-    if tspec is not None:
+    for x, y, l, c in zip(xs, ys, labels, colours):
+        plt.plot(x, y, label=l, color=c)
+    if "xlim" in kwargs:
+        ax.set_xlim(kwargs['xlim'])
+    if "ylim" in kwargs:
+        ax.set_ylim(kwargs['ylim'])
+    if "xlabel" in kwargs:
+        ax.set_xlabel(kwargs['xlabel'])
+    if "ylabel" in kwargs:
+        ax.set_ylabel(kwargs['ylabel'])
+    if "title" in kwargs:
+        ax.set_title(kwargs['title'])
+    plt.grid()
+    plt.legend()
+    fig.tight_layout()
+    # return the plot in case there's other stuff we need to do with it
+    return fig, ax
+
+def plot_average(antennae, spectrum, out_prefix, **kwargs):
+    '''
+    '''
+    print("Plotting average for {}".format(out_prefix))
+    l = spectrum[:, 0]
+    total = np.zeros_like(l)
+    for a in antennae:
+        _, run_tot = antenna_lines(a, l)
+        total += run_tot
+    total /= len(antennae)
+    norm_total = total / np.sum(total)
+    outfile = out_prefix + ".dat"
+    np.savetxt(outfile, np.column_stack((l, norm_total)))
+    # normalise peak height to 1 for plot
+    norm_total /= np.max(norm_total)
+    xs = [l, l]
+    ys = [spectrum[:, 1], norm_total]
+    labels = ["", r' $ \left< \text{best} \right> $']
+    colours = ['0.8', 'C0']
+    peak_wl = 0.0
+    draw_peak_wl = False
+    if "target" in kwargs:
+        tspec = np.loadtxt(target_spectra[kwargs['target']])
         # we want the largest peak in the *visible* spectrum
         t_vis = tspec[(tspec[:, 0] > 500.0) & (tspec[:, 0] < 800.0)]
         arg = np.argmax(t_vis[:, 1])
         peak_wl = t_vis[arg, 0]
         # normalise that peak to 1
         norm_tspec = tspec[:, 1] / t_vis[arg, 1]
-        plt.plot(tspec[:, 0], norm_tspec, label=tname, color='C1')
+        xs.append(tspec[:, 0])
+        ys.append(norm_tspec)
+        labels.append(kwargs['target'])
+        colours.append('C1')
+        draw_peak_wl = True
+
+    fig, ax = plot_lines(xs, ys, labels, colours,
+            xlabel=r' $ \lambda (\text{nm}) $',
+            ylabel="Intensity (arbitrary)",
+            **kwargs)
+
+    if draw_peak_wl:
         plt.axvline(peak_wl, ls='--', color='C1')
-    lmin = xmin if np.min(l) < xmin else np.min(l)
-    lmax = xmax if np.max(l) > xmax else np.max(l)
-    ax.set_xlabel(r' $ \lambda (\text{nm}) $')
-    ax.set_ylabel("Intensity (arbitrary)")
-    ax.set_title("Cost = " + str(cost))
-    ax.set_xlim([lmin, lmax])
-    ax.set_ylim([0.0, 1.2])
-    plt.grid()
-    plt.legend()
-    fig.tight_layout()
-    plt.savefig(prefix + "_avg_spectrum.pdf")
+
+    if "cost" in kwargs:
+        ax.set_title("Cost = " + str(kwargs['cost']))
+
+    plt.savefig(out_prefix + ".pdf")
     plt.close()
-    return outfile
+
+def plot_average_best(path, spectrum, out_name,
+        cost, **kwargs):
+    l = spectrum[:, 0]
+    prefix = '{}/best_{}'.format(path, out_name)
+    suffix = '.dat'
+    bests = []
+    for i in range(constants.n_runs):
+        bf = prefix + "_r{:1d}".format(i) + suffix
+        bests.append(get_best_from_file(bf))
+
+    out_prefix = prefix + "_avg_best"
+    plot_average(bests, spectrum, out_prefix, **kwargs)
 
 def plot_average_best_by_cost(files, costs, spectrum,
-                              out_name, target="psii"):
-    if target == "psii":
-        tspec = np.loadtxt("spectra/PSII.csv")
-        tname = "PSII"
-    else:
-        tspec = None
-    l = spectrum[:, 0]
-    fig, ax = plt.subplots(figsize=(12,8))
-    plt.plot(l, spectrum[:, 1], color='0.8')
-    for c, f in zip(costs, files):
+                              out_name, **kwargs):
+    xs = [spectrum[:, 0]]
+    ys = [spectrum[:, 1]]
+    labels = [""]
+    colours = ['0.8']
+    tc = 0
+    for i, (f, c) in enumerate(zip(files, costs)):
         d = np.loadtxt(f)
-        plt.plot(l, d[:, 1], label="Cost = {}".format(c))
-    if tspec is not None:
-        plt.plot(tspec[:, 0], tspec[:, 1], label=tname)
-    lmin = xmin if np.min(l) < xmin else np.min(l)
-    lmax = xmax if np.max(l) > xmax else np.max(l)
-    ax.set_xlim([lmin, lmax])
-    ax.set_ylim([0.0, 1.2])
-    ax.set_xlabel(r' $ \lambda (\text{nm}) $')
-    ax.set_ylabel("Intensity (arbitrary)")
-    plt.grid(visible=True, axis='both')
-    plt.legend(fontsize=20)
-    fig.tight_layout()
+        xs.append(d[:, 0])
+        ys.append(d[:, 1])
+        labels.append("Cost = {}".format(c))
+        colours.append("C{:1d}".format(i))
+        tc += 1
+    if "target" in kwargs:
+        tspec = np.loadtxt(kwargs['target'])
+        xs.append(tspec[:, 0])
+        ys.append(tspec[:, 1])
+        labels.append(kwargs['target'])
+        colours.append("C{:1d}".format(tc))
+    fig, ax = plot_lines(xs, ys, labels, colours,
+        xlabel=r' $ \lambda (\text{nm}) $',
+        ylabel="Intensity (arbitrary)",
+        ylim=[0.0, 1.2],
+        **kwargs)
     plt.savefig(
     "{}{}_avg_spectrum_by_cost.pdf".format(constants.output_dir,
                                             out_name))

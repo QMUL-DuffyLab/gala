@@ -203,8 +203,6 @@ if __name__ == "__main__":
                 np.savetxt(filenames['npsq'], np_avgsq)
                 np.savetxt(filenames['lp'], lp_avg)
                 np.savetxt(filenames['lpsq'], lp_avgsq)
-                plot_final_best_2d_file = prefs[-2] + "_r{:1d}_2d.pdf".format(run)
-                plot_final_best_3d_file = prefs[-2] + "_r{:1d}_3d.pdf".format(run)
                 plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
                 plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                                     running_avgs[:, 3], running_avgs[:, 6],
@@ -212,5 +210,9 @@ if __name__ == "__main__":
                 plots.plot_antenna(best, best_pref + "_antenna.pdf")
                 plots.plot_antenna_spectra(best, l, ip_y,
                       best_pref + "_lines.pdf", best_pref + "_total.pdf")
+                plots.plot_average(population, spectrum,
+                        prefs[0] + "_r{:1d}_spectrum".format(run),
+                        xlim=[400.0, 800.0])
             # after n_runs, average the best antennae and plot absorption
-            plots.plot_average_best(outdir, spectrum, out_name, cost)
+            plots.plot_average_best(outdir, spectrum,
+                    out_name, cost, xlim=[400.0, 800.0])
