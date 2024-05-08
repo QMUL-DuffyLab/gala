@@ -26,10 +26,10 @@ if __name__ == "__main__":
     spectra_dicts = [
           {'type': "filtered", 'kwargs': {'filter': "far-red"}},
           {'type': "filtered", 'kwargs': {'filter': "red"}},
-          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          # {'type': "marine", 'kwargs': {'depth': 1.0}},
-          # {'type': "marine", 'kwargs': {'depth': 5.0}},
-          # {'type': "marine", 'kwargs': {'depth': 10.0}},
+          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          {'type': "marine", 'kwargs': {'depth': 1.0}},
+          {'type': "marine", 'kwargs': {'depth': 5.0}},
+          {'type': "marine", 'kwargs': {'depth': 10.0}},
           ]
     light.check(spectra_dicts)
     spectra_zip = light.build(spectra_dicts)
@@ -42,7 +42,8 @@ if __name__ == "__main__":
             l    = spectrum[:, 0]
             ip_y = spectrum[:, 1]
             print("Spectrum output name: ", out_name)
-            outdir = constants.output_dir + "cost_{}".format(cost)
+            outdir = os.path.join(constants.output_dir,
+                    "cost_{}".format(cost))
             print("Output dir: {}".format(outdir))
             prefs = ["{}/{}_{}".format(outdir,
                 p, out_name) for p in names]
@@ -74,7 +75,7 @@ if __name__ == "__main__":
                 fit_max = 0.0
                 # initialise in case they all have 0 fitness
                 best = population[0]
-                best_pref = os.path.splitext(filenames['best'])[0] 
+                best_pref = os.path.splitext(filenames['best'])[0]
                 while gen < constants.max_gen:
                     avgs.fill(0.0)
                     avgsq.fill(0.0)
@@ -211,3 +212,4 @@ if __name__ == "__main__":
             if do_averages:
                 plots.plot_average_best(outdir, spectrum,
                         out_name, cost, xlim=[400.0, 800.0])
+                stats.average_antenna(outdir, spectrum, out_name)

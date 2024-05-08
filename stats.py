@@ -1,6 +1,9 @@
 import numpy as np
 import constants
 import genetic_algorithm as ga
+import os
+import glob
+import matplotlib.pyplot as plt
 
 def pigment_to_index(pigment):
     ''' 
@@ -74,3 +77,75 @@ def hist(population, gen, run, outdir, out_name):
                np.transpose(np.array(ph, dtype=object)),
                fmt="%s" + s_max * " %.18e")
     return pfile, peak_file, n_p_file
+
+def average_antenna(path, spectrum, out_name):
+    '''
+    averages - take floats for n_b/n_s, sum and average, then round
+    for n_p and pigments, sum the histograms, then take the mode of the result? 
+    then divide n_p through and round to int
+    '''
+    n_b_tot = 0.0
+    n_s_tot = 0.0
+    n_ps = []
+    pigments = []
+    avg_spectrum = np.zeros_like(spectrum)
+    for i in range(constants.n_runs):
+        avg_file = os.path.join(path, "avg_{}_r{:1d}.dat".format(out_name, i))
+        with open(avg_file, "r") as f:
+            for line in f:
+                pass
+            final = np.fromstring(line, sep=' ')
+        n_b_tot += final[6]
+        print(f"n_b = {final[6]}, n_s = {final[7]}")
+        n_s_tot += final[7]
+        # now we need the highest numbered pigment and n_p histograms surely i can think of a way to do this. should've made a log file
+        n_p_histfiles = glob.glob(os.path.join(path, "n_p_hist_{}_*_{:1d}.dat".format(out_name, i)))
+        pigment_histfiles = glob.glob(os.path.join(path, "pigment_hist_{}_*_{:1d}.dat".format(out_name, i)))
+        n_p_file = sorted(n_p_histfiles)[-1]
+        pigment_file = sorted(pigment_histfiles)[-1]
+        n_ps.append(np.loadtxt(n_p_file, usecols=range(1, constants.hist_sub_max + 1)))
+        pigment_names = np.loadtxt(pigment_file, usecols=0, dtype=str)
+        pigments.append(np.loadtxt(pigment_file, usecols=range(1, constants.hist_sub_max + 1)))
+        a = np.loadtxt(os.path.join(path, f"avg_{out_name}_r{i:1d}_spectrum.dat"))
+        avg_spectrum += a
+        # now we need the mode from each column of n_ps and pigment_props; index pigment_props back into pigment_names to get the right one
+
+    avg_spectrum /= constants.n_runs
+    n_b_avg = n_b_tot / constants.n_runs
+    n_s_avg = n_s_tot / constants.n_runs
+    print(f"<n_b> = {n_b_avg}")
+    print(f"<n_s> = {n_s_avg}")
+    n_b = int(np.round(n_b_avg, decimals=0))
+    n_s = int(np.round(n_s_avg, decimals=0))
+    
+    #print(f"n_b = {n_b:2d}, n_s = {n_s:2d}")
+    n_p_hist_avg = np.sum(np.array(n_ps), axis=0) / constants.n_runs
+    n_p_avg = np.zeros(constants.hist_sub_max)
+    for i, col in enumerate(np.transpose(n_p_hist_avg)):
+        n_p_avg[i] = np.sum([(j * col[j]) for j in range(len(col))])
+    #print(f"<n_p> = {n_p_avg}")
+    # don't actually need to divide through pigments - just taking mode
+    pigments_avg = np.sum(np.array(pigments), axis=0)
+    #print(np.column_stack((pigment_names, pigments_avg)))
+    average_antenna_output_file = os.path.join(path, f"{out_name}_average_antenna_params.dat")
+    with open(average_antenna_output_file, "w") as f:
+        f.write(f"n_b = {n_b:2d}\n")
+        f.write(f"n_s = {n_s:2d}\n")
+        f.write(f"<n_p> = {n_p_avg}\n")
+        f.write("\n")
+        f.write("pigments:\n")
+        f.write(str(np.column_stack((pigment_names, pigments_avg))))
+    
+    fig, ax = plt.subplots(figsize=(12,8))
+    plt.plot(spectrum[:, 0], spectrum[:, 1], label='Incident', color='0.8')
+    x = avg_spectrum[:, 0]
+    y = avg_spectrum[:, 1]/np.sum(avg_spectrum[:, 1])
+    np.savetxt(os.path.join(path, f"{out_name}_avg_avg_spectrum.dat"), np.column_stack((x, y)))
+    plt.plot(avg_spectrum[:, 0], avg_spectrum[:, 1] / np.max(avg_spectrum[:, 1]), label=r'$ \left<A\left(\lambda\right)\right> $')
+    ax.set_xlabel(r'$ \lambda\left(\text{nm}\right) $')
+    ax.set_ylabel("Intentity (arb. for spectrum)")
+    ax.set_xlim([400.0, 800.0])
+    plt.grid(True)
+    plt.legend()
+    plt.savefig(os.path.join(path, f"{out_name}_avg_avg_spectrum.pdf"))
+    plt.close()
