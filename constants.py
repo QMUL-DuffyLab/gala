@@ -31,7 +31,7 @@ d_recomb = 0.25 # random perturbation of values during crossover
 mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05
 tourney_k = 5 # selection tournament size
-hist_snapshot = 50 # generate histograms every hist_snapshot generations
+hist_snapshot = 25 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
 max_lp_offset = 0.1
 # boundaries on the genome parameters. used during generation;

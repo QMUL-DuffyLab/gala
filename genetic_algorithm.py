@@ -4,8 +4,6 @@
 @author: callum
 """
 
-from operator import itemgetter
-from dataclasses import fields
 import numpy as np
 import scipy.stats as ss
 import constants
@@ -137,13 +135,16 @@ def selection(rng, population, fitnesses, cost):
     choose tourney_k members at random and choose the fittest of those.
     i found tournament selection didn't seem to work very well
     '''
+    if np.max(fitnesses) == 0.0:
+        # if the cost is too high or the algorithm can't find
+        # any workable antennae, return an error to catch in main.py
+        raise ValueError("No antennae with positive fitness values.")
+
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     strategy = constants.selection_strategy
     fidx = np.argsort(fitnesses)
     fsort = fitnesses[fidx]
     psort = [population[i] for i in fidx]
-    # psort = sorted(population, key=fitnesses, reverse=True)
-    # psort = sorted(population, key=fitness, reverse=True)
     if constants.selection_strategy == 'fittest':
         survivors = [psort[i] for i in range(n_survivors)]
     elif constants.selection_strategy == 'ranked':

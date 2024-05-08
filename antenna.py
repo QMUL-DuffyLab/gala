@@ -7,10 +7,8 @@ branched antenna with saturating reaction centre
 
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
-from dataclasses import dataclass, field
 from scipy.optimize import nnls
 import numpy as np
-import numpy.typing as npt
 import constants
 import ctypes
 import plots

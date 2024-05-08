@@ -1,8 +1,6 @@
 import numpy as np
 import constants
 import genetic_algorithm as ga
-# import pyjulia
-# from julia import DrawAntennae
 
 def pigment_to_index(pigment):
     ''' 

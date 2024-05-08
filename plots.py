@@ -13,10 +13,6 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 import constants
 import light
-# from julia.api import Julia
-# jl = Julia(compiled_modules=False)
-# from julia import Main
-# from julia.Main import DrawAntennae
 
 target_spectra = {
     "PSII": "spectra/PSII.csv",
@@ -33,21 +29,6 @@ def polygon_under_graph(x, y):
     """
     return [(x[0], 0.), *zip(x, y), (x[-1], 0.)]
 
-def gauss(l, lp, w):
-    '''
-    return a properly unscaled Gaussian to plot alongside spectral irradiance
-    '''
-    y = np.exp(-1.0*((l - lp)**2)/(2.0*w**2))
-    return y
-
-def two_gauss(l, lp1, w1, lp2, w2, a12):
-    '''
-    return a properly unscaled Gaussian to plot alongside spectral irradiance
-    '''
-    y = np.exp(-1.0*((l - lp1)**2)/(2.0*w1**2))
-    y += a12 * np.exp(-1.0*((l - lp2)**2)/(2.0*w2**2))
-    return y
-
 def antenna_lines(p, l):
     pd = constants.pigment_data
     lines = np.zeros((p.n_s, len(l)))
@@ -63,21 +44,6 @@ def antenna_lines(p, l):
         total += lines[i] * p.n_p[i]
     return lines, total
 
-def plot_nu_phi_4(nu_e, phi_e, n_s, filename):
-    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(12,12), sharex=True)
-    ax[0, 0].plot(np.arange(len(nu_e)), nu_e, label=r'$ \left<\nu_e\right> $')
-    ax[0, 1].plot(np.arange(len(phi_e)), phi_e,
-               label=r'$ \left<\varphi_e\right> $')
-    ax[1, 0].plot(np.arange(len(phi_e)), nu_e * phi_e,
-               label=r'$ \left<\nu_e \varphi_e\right> $')
-    ax[1, 1].plot(np.arange(len(n_s)), n_s, label=r'$ \left<n_s\right> $')
-    for a in ax.flat:
-        a.legend()
-    plt.legend()
-    fig.tight_layout()
-    plt.savefig(filename)
-    plt.close()
-
 def plot_nu_phi_2(nu_e, phi_e, fitness, n_b, n_s, filename):
     fig, ax = plt.subplots(nrows=2, figsize=(12,8), sharex=True)
     ax[0].plot(np.arange(len(nu_e)), nu_e, color='C0',
@@ -89,7 +55,6 @@ def plot_nu_phi_2(nu_e, phi_e, fitness, n_b, n_s, filename):
                label=r'$ \left< \text{fitness} \right> $')
     ax[1].plot(np.arange(len(n_b)), n_b, label=r'$ \left<n_b\right> $')
     ax[1].plot(np.arange(len(n_s)), n_s, label=r'$ \left<n_s\right> $')
-    ax[1].set_ylim([0., 1.5 * n_s[-1]])
     ax[0].legend(loc='lower left')
     ax[1].legend(loc='upper left')
     ax2.legend(loc='center right')
@@ -97,12 +62,19 @@ def plot_nu_phi_2(nu_e, phi_e, fitness, n_b, n_s, filename):
     ax[1].set_ylabel(r'$ \left<n_s\right> $')
     ax[0].set_ylabel(r'$ \left<\nu_e\right>, \; \left< \text{fitness} \right> $')
     ax2.set_ylabel(r'$ \left<\varphi_e\right> $')
+    plt.grid()
     plt.legend()
     fig.tight_layout()
     plt.savefig(filename)
     plt.close()
 
 def hist_plot(pigment_file, peak_file, n_p_file):
+    '''
+    gather up the histogram output and make 3D plots of them.
+    these don't look that nice really, but it's really annoying trying
+    to visualise the data any other way. 
+    NB: the code's basically repeated x3 - is there a way to tidy this up?
+    '''
     n_s = constants.hist_sub_max
 
     peak_hist = np.loadtxt(peak_file)
@@ -185,7 +157,7 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     fig.savefig(os.path.splitext(peak_file)[0] + ".pdf")
     plt.close()
 
-def plot_antenna(p, output_file):
+def julia_plot(p, output_file):
     '''
     this is *incredibly* ugly but don't judge pls
     i couldn't find a package to draw an antenna easily in python,
@@ -205,7 +177,7 @@ def plot_antenna(p, output_file):
     print(cmd)
     subprocess.run(cmd.split())
 
-def plot_antenna_spectra(p, l, ip_y,
+def antenna_spectra(p, l, ip_y,
         lines_file, total_file, draw_00=True):
     '''
     Draw the total absorption spectrum and the set of subunit
@@ -237,7 +209,7 @@ def plot_antenna_spectra(p, l, ip_y,
     plt.close()
 
     fig, ax = plt.subplots(figsize=(12,8))
-    plt.plot(l, ip_y, label="Incident")
+    plt.plot(l, ip_y, label="Incident", color='0.8')
     # set the peak height of the total antenna spectrum
     # to the same height as the incident spectrum
     norm_total = total / (np.max(total) / np.max(ip_y))
@@ -268,7 +240,7 @@ def get_best_from_file(input_file):
     lpm = re.search(r"lp=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
     lpa = re.search(r"\[(.*)\]", lpm).group(0)
     lp = np.fromstring(lpa[1:-1], sep=',')
-    n_pm = re.search(r"n_p=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
+    n_pm = re.search(r"n_p=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
     n_pa = re.search(r"\[(.*)\]", n_pm).group(0)
     n_p = np.fromstring(n_pa[1:-1], sep=',', dtype=int)
     pigm = re.search(r"pigment=array\(\[\s*([a-z_\-']+[,\s\]]+)+", best).group(0)
@@ -280,16 +252,20 @@ def get_best_from_file(input_file):
                        .split(","), dtype='U10')
     return constants.Genome(n_b, n_s, n_p, lp, pigment)
 
-def plot_best(best_file, spectrum_file):
+def plot_best(best_file, spectrum):
+    '''
+    just wraps the julia plot and best spectrum functions
+    to call in one line from main.py
+    '''
     p = get_best_from_file(best_file)
     prefix = os.path.splitext(best_file)[0]
     output_file = prefix + "_antenna.pdf"
-    lines_file = prefix + "_lines.pdf"
-    total_file = prefix + "_total.pdf"
+    lines_file  = prefix + "_lines.pdf"
+    total_file  = prefix + "_total.pdf"
 
-    plot_antenna(p, output_file)
-    l, ip_y = np.loadtxt(spectrum_file, unpack=True)
-    plot_antenna_spectra(p, l, ip_y, lines_file, total_file)
+    julia_plot(p, output_file)
+    antenna_spectra(p, spectrum[:, 0],
+                         spectrum[:, 1], lines_file, total_file)
 
 def plot_lines(xs, ys, labels, colours, **kwargs):
     fig, ax = plt.subplots(figsize=(12,8))
@@ -328,7 +304,10 @@ def plot_average(antennae, spectrum, out_prefix, **kwargs):
     norm_total /= np.max(norm_total)
     xs = [l, l]
     ys = [spectrum[:, 1], norm_total]
-    labels = ["", r' $ \left< \text{best} \right> $']
+    if "label" in kwargs:
+        labels = ["", kwargs['label']]
+    else:
+        labels = ["", ""]
     colours = ['0.8', 'C0']
     peak_wl = 0.0
     draw_peak_wl = False
@@ -371,7 +350,8 @@ def plot_average_best(path, spectrum, out_name,
         bests.append(get_best_from_file(bf))
 
     out_prefix = prefix + "_avg_best"
-    plot_average(bests, spectrum, out_prefix, **kwargs)
+    plot_average(bests, spectrum, out_prefix,
+                 label=r'$ \left<\text{best}\right> $', **kwargs)
 
 def plot_average_best_by_cost(files, costs, spectrum,
                               out_name, **kwargs):
