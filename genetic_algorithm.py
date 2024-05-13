@@ -57,24 +57,35 @@ def fill_arrays(rng, parent_values, res_length, parameter):
                 result[j][i] = parent_values[j][len(parent_values[j]) - 1]
     return result
 
-def new(rng, init_type):
+def new(rng, init_type, **kwargs):
     '''
     Initialise one individual from our population.
-    There are two ways to do this - either assume they all
-    have tiny prototypical antennae, or they're all
-    completely random. Option controlled by changing init_type.
+    Multiple ways of doing this, controlled by string arg init_type.
     NB : could have a kwargs here with a getattr call so that
     we can make random antennae with specific properties if necessary
     '''
-    if init_type == 'radiative':
+    if init_type == 'template':
+        '''
+        initialise according to a template. two required kwargs:
+        'template' -> an instance of constants.Genome as the template
+        'variability' -> [0.0, 1.0], mutation rate of the template.
+        '''
+        if 'antenna' not in kwargs:
+            raise KeyError("Antenna not defined for template init")
+        if 'variability' not in kwargs:
+            raise KeyError("Variability not defined for template init")
+        if rng.random() < kwargs['variability']:
+            g = mutation(rng, kwargs['antenna'])
+        return g
+    if init_type == 'proto':
         '''
         Assumes every individual at the start is an
         identically structured prototypical antenna with
-        one branch and one subunit, random pigment
+        one branch and one subunit, random n_p and pigment
         '''
         nb = 1
         ns = 1
-    else: # random initialisation
+    elif init_type == 'random': # random initialisation
         '''
         Each branch is (currently) assumed to be identical!
         First randomise n_branches, then n_subunits.
@@ -279,7 +290,7 @@ def mutate(genome, parameter, rng, subunit=None):
     else:
         setattr(genome, parameter, new)
 
-def mutation(rng, individual, n_s_changes):
+def mutation(rng, individual):
     '''
     Perform the mutation step of the genetic algorithm.
     We do this by looping over each mutable parameter and selecting from
@@ -300,7 +311,6 @@ def mutation(rng, individual, n_s_changes):
     if current < new:
         # add subunits as necessary
         # NB: we assume new subunits are copies of the tail subunit
-        n_s_changes[0] += new - current
         for p in constants.subunit_params:
             c = getattr(individual, p)
             # i think setting refcheck to false is fine?
@@ -310,7 +320,6 @@ def mutation(rng, individual, n_s_changes):
                 c[-(i + 1)] = c[current - 1]
     elif current > new:
         # delete the last (new - current) elements
-        n_s_changes[1] += current - new
         for p in constants.subunit_params:
             np.delete(getattr(individual, p), new - current)
     # now pick a random subunit to apply these mutations to.

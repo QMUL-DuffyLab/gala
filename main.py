@@ -22,19 +22,19 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     costs = [0.02, 0.015, 0.01, 0.005, 0.001]
-    costs = [0.02, 0.01, 0.001]
+    costs = [0.001]
     spectra_dicts = [
-          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
-          {'type': "filtered", 'kwargs': {'filter': "red"}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
+          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
     light.check(spectra_dicts)
     spectra_zip = light.build(spectra_dicts)
 
-    init_type = 'radiative' # can be radiative or random
+    init_type = 'proto' # can be radiative or random
     names = ["avg", "avgsq", "np", "npsq", "lp",
             "lpsq", "w", "wsq", "best", "neg"]
     for cost in costs:
@@ -135,7 +135,7 @@ if __name__ == "__main__":
                                 label=r'$ \left<A(\lambda)\right> $')
 
                     # f""" looks horrible but keeps it under 80 chars
-                    print(f"""Generation {gen:4d}:
+                    print(f"""{out_name}, run {run:1d}, generation {gen:4d}:
 ================
 <ν_e>    = {avgs[0]:10.4n}\t<ν_e^2>    = {avgsq[0]:10.4n}\tσ = {std[0]:10.4n}
 <φ_e(γ)> = {avgs[1]:10.4n}\t<φ_e(γ)^2> = {avgsq[1]:10.4n}\tσ = {std[1]:10.4n}
@@ -181,7 +181,7 @@ if __name__ == "__main__":
                     for j in range(constants.population_size):
                         p = rng.random()
                         if p < constants.mu_rate:
-                            population[j] = ga.mutation(rng, population[j], n_s_changes)
+                            population[j] = ga.mutation(rng, population[j])
                     gen += 1
                     gens_since_improvement += 1
 

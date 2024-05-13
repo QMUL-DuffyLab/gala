@@ -237,7 +237,7 @@ def get_best_from_file(input_file):
     print(best)
     n_b = int(re.search(r'n_b=(\d+)', best).group(1))
     n_s = int(re.search(r'n_s=(\d+)', best).group(1))
-    lpm = re.search(r"lp=array\(\[\s*([0-9.\-]+[,\s\]]+)+", best).group(0)
+    lpm = re.search(r"lp=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
     lpa = re.search(r"\[(.*)\]", lpm).group(0)
     lp = np.fromstring(lpa[1:-1], sep=',')
     n_pm = re.search(r"n_p=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
