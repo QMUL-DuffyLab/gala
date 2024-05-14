@@ -24,7 +24,7 @@ if __name__ == "__main__":
     costs = [0.02, 0.015, 0.01, 0.005, 0.001]
     costs = [0.001]
     spectra_dicts = [
-          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
@@ -50,6 +50,7 @@ if __name__ == "__main__":
             os.makedirs(outdir, exist_ok=True)
 
             do_averages = True
+            do_best_avg = False
             for run in range(constants.n_runs):
                 end_run = False
                 population = [None for _ in range(constants.population_size)]
@@ -201,7 +202,11 @@ if __name__ == "__main__":
                                     running_avgs[:, 3], running_avgs[:, 6],
                                     running_avgs[:, 7], plot_nu_phi_file)
                 # call julia_plot and antenna_spectra
-                plots.plot_best(filenames['best'], spectrum)
+                try:
+                    plots.plot_best(filenames['best'], spectrum)
+                except AttributeError:
+                    do_best_avg = False
+
                 plots.plot_average(population, spectrum,
                         prefs[0] + "_r{:1d}_spectrum".format(run),
                         xlim=[400.0, 800.0],
@@ -210,6 +215,7 @@ if __name__ == "__main__":
             # end of all runs for given cost/spectrum
             # after n_runs, average the best antennae and plot absorption
             if do_averages:
-                plots.plot_average_best(outdir, spectrum,
-                        out_name, cost, xlim=[400.0, 800.0])
                 stats.average_antenna(outdir, spectrum, out_name)
+                if do_best_avg:
+                    plots.plot_average_best(outdir, spectrum,
+                            out_name, cost, xlim=[400.0, 800.0])

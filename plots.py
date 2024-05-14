@@ -231,10 +231,26 @@ def get_best_from_file(input_file):
     and then parse with regular expressions lol
     '''
     with open(input_file) as f:
+        '''
+        despite my explicitly stripping newlines from the string output
+        in main.py, it still writes some of the antennae with newlines
+        in (???), so read in two at a time. if it's split over three
+        lines, god help us all. i have no idea why f.write(str()) adds
+        them, and i can't find a way to stop it doing that :)
+        '''
         for line in f:
-            pass
-        best = line
-    print(best)
+            line1 = line
+            line2 = next(f, None)
+        best = line1
+        if line2 is not None:
+            if re.search(r'^Genome\(*', line2):
+                best = line2
+            else:
+                total = line1 + line2
+                best = total.strip('\n')
+    print("line1 = ", line1)
+    print("line2 = ", line2)
+    print("best = ", best)
     n_b = int(re.search(r'n_b=(\d+)', best).group(1))
     n_s = int(re.search(r'n_s=(\d+)', best).group(1))
     lpm = re.search(r"lp=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
