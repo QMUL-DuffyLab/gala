@@ -232,24 +232,17 @@ def get_best_from_file(input_file):
     '''
     with open(input_file) as f:
         '''
-        despite my explicitly stripping newlines from the string output
-        in main.py, it still writes some of the antennae with newlines
-        in (???), so read in two at a time. if it's split over three
-        lines, god help us all. i have no idea why f.write(str()) adds
-        them, and i can't find a way to stop it doing that :)
+        this is very inefficient, reading in the whole file - if
+        the genomes get huge or the runs get really long, might be worth
+        looking into reading from end of file. alternatively call sed via
+        subprocess or something
         '''
-        for line in f:
-            line1 = line
-            line2 = next(f, None)
-        best = line1
-        if line2 is not None:
-            if re.search(r'^Genome\(*', line2):
-                best = line2
-            else:
-                total = line1 + line2
-                best = total.strip('\n')
-    print("line1 = ", line1)
-    print("line2 = ", line2)
+        fstring = ' '.join(f.read().splitlines())
+    f.close()
+    matches = re.finditer(r'Genome\(*', fstring)
+    for m in matches:
+        pass # we only want the last one
+    best = fstring[m.start():]
     print("best = ", best)
     n_b = int(re.search(r'n_b=(\d+)', best).group(1))
     n_s = int(re.search(r'n_s=(\d+)', best).group(1))
