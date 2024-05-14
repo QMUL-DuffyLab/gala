@@ -22,9 +22,8 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     costs = [0.02, 0.015, 0.01, 0.005, 0.001]
-    costs = [0.001]
     spectra_dicts = [
-          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
@@ -32,12 +31,14 @@ if __name__ == "__main__":
           {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
     light.check(spectra_dicts)
-    spectra_zip = light.build(spectra_dicts)
 
     init_type = 'proto' # can be radiative or random
     names = ["avg", "avgsq", "np", "npsq", "lp",
             "lpsq", "w", "wsq", "best", "neg"]
     for cost in costs:
+        print(f"Cost = {cost}. Building spectra")
+        # the zip's an iterator - need to rebuild it each time
+        spectra_zip = light.build(spectra_dicts)
         for spectrum, out_name in spectra_zip:
             l    = spectrum[:, 0]
             ip_y = spectrum[:, 1]
