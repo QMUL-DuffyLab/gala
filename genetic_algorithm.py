@@ -110,29 +110,29 @@ def copy(g):
 def fitness(g, cost):
     '''
     g: instance of constants.Genome
-    cost: cost per pigment. NB: once we fix this it can be removed
+    cost: cost per pigment. once we fix this it can be removed
     from here and selection below, and turned back into a constant.
     obviously higher electron output is what's primarily wanted,
     but the bigger the antenna is, the more of those electrons
     have to be used building and maintaining the antenna, so
-    we subtract a certain amount per pigment as our proxy for fitness
+    we subtract a certain amount per pigment as our proxy for fitness.
 
-    NB: we set a hard limit of zero fitness here; in principle we could
+    we set a hard limit of zero fitness here; in principle we could
     allow negative fitness values to allow the system to get out of a
     bad initial place in the fitness surface, but this would mess with the
     selection procedure below, so it's (currently) not allowed.
     '''
-    f = (g.nu_e - (cost * g.n_b * np.sum(g.n_p)))
+    f = (g.nu_e - (cost * g.n_b * np.sum(g.n_p))) * g.phi_e
     return f if f > 0.0 else 0.0
 
-def tournament(population, k, rng):
+def tournament(population, k, rng, cost):
     fit_max = 0.0
     for i in range(k):
         ind = rng.integers(constants.population_size)
         winner = ind # if they all have 0 fitness, just take the first
         p = population[ind]
-        if (fitness(p) > fit_max):
-            fit_max = fitness(p)
+        if (fitness(p, cost) > fit_max):
+            fit_max = fitness(p, cost)
             winner = ind
     return population[winner]
 
