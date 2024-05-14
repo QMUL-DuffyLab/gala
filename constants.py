@@ -4,6 +4,7 @@
 @author: callum
 """
 
+import os
 import json
 import numpy as np
 import numpy.typing as npt
@@ -12,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = "out/"
+output_dir = os.path.join("out", "efficiency_weighted")
 spectrum_prefix = 'spectra/'
 phoenix_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'

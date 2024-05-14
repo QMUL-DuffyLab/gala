@@ -33,8 +33,7 @@ if __name__ == "__main__":
     light.check(spectra_dicts)
 
     init_type = 'proto' # can be radiative or random
-    names = ["avg", "avgsq", "np", "npsq", "lp",
-            "lpsq", "w", "wsq", "best", "neg"]
+    names = ["avg", "avgsq", "best"]
     for cost in costs:
         print(f"Cost = {cost}. Building spectra")
         # the zip's an iterator - need to rebuild it each time
