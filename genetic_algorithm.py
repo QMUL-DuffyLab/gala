@@ -122,7 +122,7 @@ def fitness(g, cost):
     bad initial place in the fitness surface, but this would mess with the
     selection procedure below, so it's (currently) not allowed.
     '''
-    f = (g.nu_e - (cost * g.n_b * np.sum(g.n_p))) * g.phi_e
+    f = (g.nu_e - (cost * g.n_b * np.sum(g.n_p)))
     return f if f > 0.0 else 0.0
 
 def tournament(population, k, rng, cost):

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "efficiency_weighted")
+output_dir = os.path.join("out", "unweighted")
 spectrum_prefix = 'spectra/'
 phoenix_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
