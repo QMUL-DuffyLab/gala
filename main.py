@@ -22,18 +22,18 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     costs = [0.02, 0.015, 0.01, 0.005]
-    costs = [0.03]
+    costs = [0.02]
     spectra_dicts = [
-          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          {'type': "marine", 'kwargs': {'depth': 1.0}},
-          {'type': "marine", 'kwargs': {'depth': 5.0}},
+          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          # {'type': "marine", 'kwargs': {'depth': 1.0}},
+          # {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
-          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
-          {'type': "filtered", 'kwargs': {'filter': "red"}},
+          # {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          # {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
     light.check(spectra_dicts)
 
-    init_type = 'proto' # can be radiative or random
+    # init_type = 'proto' # can be radiative or random
     names = ["avg", "avgsq", "best"]
     for cost in costs:
         print(f"Cost = {cost}. Building spectra")
@@ -72,7 +72,10 @@ if __name__ == "__main__":
                 gens_since_improvement = 0
                 # initialise population
                 for j in range(constants.population_size):
-                    population[j] = ga.new(rng, init_type)
+                    population[j] = ga.new(rng, 'template',
+                            antenna=constants.Genome(4, 2, 
+                                [76, 75], [0.0, 0.0], ['apc', 'pc']),
+                            variability=0.0)
 
                 fit_max = 0.0
                 # initialise in case they all have 0 fitness
