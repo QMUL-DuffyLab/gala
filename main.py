@@ -21,7 +21,8 @@ if __name__ == "__main__":
     '''
     various other examples of dicts in light.py
     '''
-    costs = [0.02, 0.015, 0.01, 0.005, 0.001]
+    costs = [0.02, 0.015, 0.01, 0.005]
+    costs = [0.03]
     spectra_dicts = [
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},

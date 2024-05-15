@@ -85,11 +85,13 @@ def average_antenna(path, spectrum, out_name):
     then divide n_p through and round to int
     '''
     totals = np.zeros(5)
+    errors = np.zeros(5)
     n_ps = []
     pigments = []
     avg_spectrum = np.zeros_like(spectrum)
     for i in range(constants.n_runs):
         avg_file = os.path.join(path, "avg_{}_r{:1d}.dat".format(out_name, i))
+        avg_sq_file = os.path.join(path, "avgsq_{}_r{:1d}.dat".format(out_name, i))
         with open(avg_file, "r") as f:
             for line in f:
                 pass
@@ -100,6 +102,15 @@ def average_antenna(path, spectrum, out_name):
         totals[3] += final[6]
         print(f"n_b = {final[6]}, n_s = {final[7]}")
         totals[4] += final[7]
+        with open(avg_sq_file, "r") as f:
+            for line in f:
+                pass
+            final = np.fromstring(line, sep=' ')
+        errors[0] += final[0] / constants.population_size
+        errors[1] += final[2] / constants.population_size
+        errors[2] += final[3] / constants.population_size
+        errors[3] += final[6] / constants.population_size
+        errors[4] += final[7] / constants.population_size
         # now we need the highest numbered pigment and n_p histograms surely i can think of a way to do this. should've made a log file
         n_p_histfiles = glob.glob(os.path.join(path, "n_p_hist_{}_*_{:1d}.dat".format(out_name, i)))
         pigment_histfiles = glob.glob(os.path.join(path, "pigment_hist_{}_*_{:1d}.dat".format(out_name, i)))
@@ -112,12 +123,14 @@ def average_antenna(path, spectrum, out_name):
         avg_spectrum += a
         # now we need the mode from each column of n_ps and pigment_props; index pigment_props back into pigment_names to get the right one
 
+    errors = np.sqrt(errors)
     avg_spectrum /= constants.n_runs
     totals /= constants.n_runs
-    print(f"<n_b> = {totals[3]}")
-    print(f"<n_s> = {totals[4]}")
-    n_b = int(np.round(totals[3], decimals=0))
-    n_s = int(np.round(totals[4], decimals=0))
+    print(f"<nu_e> = {totals[0]} += {errors[0]}")
+    print(f"<phi_e> = {totals[1]} += {errors[1]}")
+    print(f"<fit> = {totals[2]} += {errors[2]}")
+    print(f"<n_b> = {totals[3]} += {errors[3]}")
+    print(f"<n_s> = {totals[4]} += {errors[4]}")
     
     n_p_hist_avg = np.sum(np.array(n_ps), axis=0) / constants.n_runs
     n_p_avg = np.zeros(constants.hist_sub_max)
@@ -127,11 +140,11 @@ def average_antenna(path, spectrum, out_name):
     pigments_avg = np.sum(np.array(pigments), axis=0)
     average_antenna_output_file = os.path.join(path, f"{out_name}_average_antenna_params.dat")
     with open(average_antenna_output_file, "w") as f:
-        f.write(f"<nu_e> = {totals[0]}\n")
-        f.write(f"<phi_e> = {totals[1]}\n")
-        f.write(f"<fit> = {totals[2]}\n")
-        f.write(f"n_b = {n_b:2d}\n")
-        f.write(f"n_s = {n_s:2d}\n")
+        f.write(f"<nu_e> = {totals[0]} += {errors[0]}\n")
+        f.write(f"<phi_e> = {totals[1]} += {errors[1]}\n")
+        f.write(f"<fit> = {totals[2]} += {errors[2]}\n")
+        f.write(f"n_b = {totals[3]} += {errors[3]}\n")
+        f.write(f"n_s = {totals[4]} += {errors[4]}\n")
         f.write(f"<n_p> = {n_p_avg}\n")
         f.write("\n")
         f.write("pigments:\n")
