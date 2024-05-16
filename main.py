@@ -135,7 +135,7 @@ if __name__ == "__main__":
                             best_pref + "_{:04d}_best".format(gen))
                         plots.plot_average(population, spectrum,
                         prefs[0] + "_{:04d}_r{:1d}_spectrum".format(gen, run),
-                                xlim=[400.0, 800.0],
+                                xlim=constants.x_lim,
                                 label=r'$ \left<A(\lambda)\right> $')
 
                     # f""" looks horrible but keeps it under 80 chars
@@ -212,7 +212,7 @@ if __name__ == "__main__":
 
                 plots.plot_average(population, spectrum,
                         prefs[0] + "_r{:1d}_spectrum".format(run),
-                        xlim=[400.0, 800.0],
+                        xlim=constants.x_lim,
                         label=r'$\left<A(\lambda)\right>$')
 
             # end of all runs for given cost/spectrum
@@ -221,4 +221,4 @@ if __name__ == "__main__":
                 stats.average_antenna(outdir, spectrum, out_name)
                 if do_best_avg:
                     plots.plot_average_best(outdir, spectrum,
-                            out_name, cost, xlim=[400.0, 800.0])
+                            out_name, cost, xlim=constants.x_lim)

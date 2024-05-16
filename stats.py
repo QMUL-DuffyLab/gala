@@ -22,7 +22,7 @@ def hist(population, gen, run, outdir, out_name):
     s_max = constants.hist_sub_max
     n_pop = constants.population_size
     # peak wavelength histogram with offset
-    peak_b = [400.0, 800.0]
+    peak_b = constants.x_lim
     peak_binsize = 1.0
     peakbins = np.linspace(*peak_b,
             num=np.round(((peak_b[1] - peak_b[0]) / peak_binsize)).astype(int))
@@ -87,6 +87,7 @@ def average_antenna(path, spectrum, out_name):
     totals = np.zeros(5)
     errors = np.zeros(5)
     n_ps = []
+    peaks = []
     pigments = []
     avg_spectrum = np.zeros_like(spectrum)
     for i in range(constants.n_runs):
@@ -114,8 +115,12 @@ def average_antenna(path, spectrum, out_name):
         # now we need the highest numbered pigment and n_p histograms surely i can think of a way to do this. should've made a log file
         n_p_histfiles = glob.glob(os.path.join(path, "n_p_hist_{}_*_{:1d}.dat".format(out_name, i)))
         pigment_histfiles = glob.glob(os.path.join(path, "pigment_hist_{}_*_{:1d}.dat".format(out_name, i)))
+        peak_histfiles = glob.glob(os.path.join(path, "peak_hist_{}_*_{:1d}.dat".format(out_name, i)))
+        peak_file = sorted(peak_histfiles)[-1]
         n_p_file = sorted(n_p_histfiles)[-1]
         pigment_file = sorted(pigment_histfiles)[-1]
+        peak_bins = np.loadtxt(peak_file, usecols=0)
+        peaks.append(np.loadtxt(peak_file, usecols=range(1, constants.hist_sub_max + 1)))
         n_ps.append(np.loadtxt(n_p_file, usecols=range(1, constants.hist_sub_max + 1)))
         pigment_names = np.loadtxt(pigment_file, usecols=0, dtype=str)
         pigments.append(np.loadtxt(pigment_file, usecols=range(1, constants.hist_sub_max + 1)))
@@ -133,9 +138,15 @@ def average_antenna(path, spectrum, out_name):
     print(f"<n_s> = {totals[4]} += {errors[4]}")
     
     n_p_hist_avg = np.sum(np.array(n_ps), axis=0) / constants.n_runs
+    peak_hist_sum = np.sum(np.array(peaks), axis=0) / constants.n_runs
     n_p_avg = np.zeros(constants.hist_sub_max)
     for i, col in enumerate(np.transpose(n_p_hist_avg)):
         n_p_avg[i] = np.sum([(j * col[j]) for j in range(len(col))])
+
+    peak_avg = np.zeros(constants.hist_sub_max)
+    for i, col in enumerate(np.transpose(peak_hist_sum)):
+        peak_avg[i] = np.sum([(peak_bins[j] * col[j]) for j in range(len(col))])
+
     # don't actually need to divide through pigments - just taking mode
     pigments_avg = np.sum(np.array(pigments), axis=0)
     average_antenna_output_file = os.path.join(path, f"{out_name}_average_antenna_params.dat")
@@ -147,6 +158,7 @@ def average_antenna(path, spectrum, out_name):
         f.write(f"n_s = {totals[4]} += {errors[4]}\n")
         f.write(f"<n_p> = {n_p_avg}\n")
         f.write("\n")
+        f.write(f"peaks: {peak_avg}\n")
         f.write("pigments:\n")
         f.write(str(np.column_stack((pigment_names, pigments_avg))))
     
@@ -158,7 +170,7 @@ def average_antenna(path, spectrum, out_name):
     plt.plot(avg_spectrum[:, 0], avg_spectrum[:, 1] / np.max(avg_spectrum[:, 1]), label=r'$ \left<A\left(\lambda\right)\right> $')
     ax.set_xlabel(r'$ \lambda\left(\text{nm}\right) $')
     ax.set_ylabel("Intentity (arb. for spectrum)")
-    ax.set_xlim([400.0, 800.0])
+    ax.set_xlim(constants.x_lim)
     plt.grid(True)
     plt.legend()
     plt.savefig(os.path.join(path, f"{out_name}_avg_avg_spectrum.pdf"))

@@ -65,6 +65,7 @@ with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
 rc_type = 'psii'
+x_lim = [400.0, 800.0] # x limits for plots and histograms
 
 '''
 some rates that I think are going to be fixed
