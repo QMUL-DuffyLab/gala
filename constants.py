@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "rc_720nm")
+output_dir = os.path.join("out")
 spectrum_prefix = 'spectra/'
 phoenix_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
 spectrum_suffix = '.dat'
@@ -64,7 +64,7 @@ and PhotochemCAD
 with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
-rc_type = 'fr_rc'
+rc_type = 'psii'
 
 '''
 some rates that I think are going to be fixed
