@@ -20,6 +20,7 @@ target_spectra = {
     "6301": "spectra/SP_6301_Abs.txt",
     "FRL": "spectra/frl_cells.csv",
     "marine": "spectra/kolodny_marine_pbs.csv",
+    "red_alga": "spectra/l_glaciale.csv",
     }
 
 def polygon_under_graph(x, y):
@@ -220,6 +221,7 @@ def antenna_spectra(p, l, ip_y,
     ax.legend()
     fig.savefig(total_file)
     plt.close()
+    #return fig, ax
 
 def get_best_from_file(input_file):
     '''
