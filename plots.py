@@ -15,12 +15,14 @@ import constants
 import light
 
 target_spectra = {
-    "PSII": "spectra/PSII.csv",
-    "6803": "spectra/PCC_6803_Abs.txt",
-    "6301": "spectra/SP_6301_Abs.txt",
-    "FRL": "spectra/frl_cells.csv",
-    "marine": "spectra/kolodny_marine_pbs.csv",
-    "red_alga": "spectra/l_glaciale.csv",
+    "PSII": os.path.join("spectra", "PSII.csv"),
+    "6803": os.path.join("spectra", "PCC_6803_Abs.txt"),
+    "6301": os.path.join("spectra", "SP_6301_Abs.txt"),
+    "FRL":  os.path.join("spectra", "frl_cells.csv"),
+    "marine": os.path.join("spectra", "kolodny_marine_pbs.csv"),
+    "red_alga": os.path.join("spectra", "l_glaciale.csv"),
+    "a_platensis": os.path.join("spectra",
+                    "pbs_a_platensis_appl_sci_2020.csv")
     }
 
 def polygon_under_graph(x, y):
