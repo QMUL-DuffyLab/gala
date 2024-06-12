@@ -14,10 +14,9 @@ from dataclasses import dataclass, field, astuple
 General stuff
 '''
 output_dir = os.path.join("out")
-spectrum_prefix = 'spectra/'
-phoenix_prefix = 'PHOENIX/Scaled_Spectrum_PHOENIX_'
-spectrum_suffix = '.dat'
-pigment_data_file = "pigments/pigment_data.json"
+spectrum_prefix = 'spectra'
+phoenix_prefix = 'PHOENIX'
+pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
 gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc
 population_size = 1000

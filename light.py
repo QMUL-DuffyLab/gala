@@ -3,6 +3,7 @@
 12/03/2024
 @author: callum
 """
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import constants
@@ -16,10 +17,9 @@ def get_phoenix_spectrum(ts):
     '''
     return scaled PHOENIX spectrum representing star of given temperature
     '''
-    return np.loadtxt(constants.spectrum_prefix
-            + constants.phoenix_prefix
-            + '{:4d}K'.format(ts)
-            + constants.spectrum_suffix)
+    return np.loadtxt(os.path.join(constants.spectrum_prefix,
+            constants.phoenix_prefix,
+            'Scaled_Spectrum_PHOENIX_{:4d}K.dat'.format(ts)))
 
 def get_cwf(mu_e = 1.0):
     '''
@@ -27,8 +27,8 @@ def get_cwf(mu_e = 1.0):
     in micro Einsteins - the spectrum in the file's normalised to 1μE.
     taken from http://dx.doi.org/10.13031/2013.13868
     '''
-    l, fluo = np.loadtxt(constants.spectrum_prefix
-            + 'anderson_2003_cool_white_fluo.csv', unpack=True)
+    l, fluo = np.loadtxt(os.path.join(constants.spectrum_prefix,
+            'anderson_2003_cool_white_fluo.csv'), unpack=True)
     return np.column_stack((l, mu_e * fluo))
 
 def get_gaussian(l, lp, w, a):
@@ -45,8 +45,8 @@ def get_am15(dataset="tilt"):
     return relevant am15 dataset. standard spectrum. taken from
     https://www.nrel.gov/grid/solar-resource/spectra-am1.5.html
     '''
-    d = np.loadtxt(constants.spectrum_prefix + "ASTMG173.csv",
-                   skiprows=2, delimiter=",")
+    d = np.loadtxt(os.path.join(constants.spectrum_prefix,
+                    "ASTMG173.csv"), skiprows=2, delimiter=",")
     if dataset == "tilt":
         am15 = np.column_stack((d[:, 0], d[:, 2]))
     elif dataset == "ext":
@@ -65,16 +65,16 @@ def get_marine(**kwargs):
     note that we (currently) ignore gilvin/tripton/phytoplankton terms
     since we're not trying to model any specific ocean precisely.
     '''
-    if 'dataset' in kwargs.keys():
+    if 'dataset' in kwargs:
         am15 = get_am15(kwargs['dataset'])
     else:
         am15 = get_am15()
-    if 'depth' in kwargs.keys():
+    if 'depth' in kwargs:
         z = kwargs['depth']
     else:
         raise KeyError("Marine spectrum must be given depth parameter")
-    water = np.loadtxt(constants.spectrum_prefix +
-                       "water_absorption.csv", skiprows=1, delimiter=",")
+    water = np.loadtxt(os.path.join(constants.spectrum_prefix,
+                       "water_absorption.csv"), skiprows=1, delimiter=",")
     water_interp = np.interp(am15[:, 0], water[:, 0], water[:, 1])
     ilz = am15[:, 1] * np.exp(-1.0 * z * water_interp)
     return np.column_stack((am15[:, 0], ilz))
@@ -85,20 +85,20 @@ def get_filtered(**kwargs):
     digitised from the red and far-red filters in
     https://dx.doi.org/10.1007/s11120-016-0309-z (Fig. S1)
     '''
-    if 'dataset' in kwargs.keys():
+    if 'dataset' in kwargs:
         am15 = get_am15(kwargs['dataset'])
     else:
         am15 = get_am15()
-    if 'filter' not in kwargs.keys():
+    if 'filter' not in kwargs:
         raise KeyError("Filtered spectrum must have filter kwarg")
     if kwargs['filter'] == "red":
-        f = np.loadtxt(constants.spectrum_prefix + "filter_red.csv",
-                       delimiter=',')
+        f = np.loadtxt(os.path.join(constants.spectrum_prefix,
+            "filter_red.csv"), delimiter=',')
     if kwargs['filter'] == "far-red":
-        f = np.loadtxt(constants.spectrum_prefix + "filter_far_red.csv",
-                       delimiter=',')
+        f = np.loadtxt(os.path.join(constants.spectrum_prefix,
+            "filter_far_red.csv"), delimiter=',')
     f_interp = np.interp(am15[:, 0], f[:, 0], f[:, 1])
-    if 'fraction' in kwargs.keys():
+    if 'fraction' in kwargs:
         frac = kwargs['fraction']
     else:
         frac = 1.
@@ -127,6 +127,8 @@ def spectrum_setup(spectrum_type, **kwargs):
     elif spectrum_type == "filtered":
         s = get_filtered(**kwargs)
         output_prefix = kwargs['filter']
+        if 'fraction' in kwargs:
+            output_prefix += f"_{kwargs['fraction']}"
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])
@@ -161,8 +163,10 @@ def check(spectra_dicts):
     outputs the plots using the output prefix that'll be generated as well.
     '''
     z = build(spectra_dicts)
+    os.makedirs(constants.output_dir, exist_ok=True)
     for spectrum, out_pref in z:
-        np.savetxt(constants.output_dir + out_pref + "_spectrum.dat", spectrum)
+        np.savetxt(os.path.join(constants.output_dir,
+                  f"{out_pref}_spectrum.dat"), spectrum)
         fig, ax = plt.subplots(figsize=(12, 8))
         plt.plot(spectrum[:, 0], spectrum[:, 1])
         smin = np.min(spectrum[:, 0])
@@ -173,7 +177,8 @@ def check(spectra_dicts):
         ax.set_xlim([xmin, xmax])
         ax.set_ylabel(r'Intensity')
         ax.set_title(out_pref)
-        fig.savefig(constants.output_dir + out_pref + "_test_plot.pdf")
+        fig.savefig(os.path.join(constants.output_dir,
+                    f"{out_pref}_test_plot.pdf"))
         plt.close()
 
 if __name__ == "__main__":
@@ -183,6 +188,7 @@ if __name__ == "__main__":
     sd = [
           {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
           {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          {'type': "filtered", 'kwargs': {'filter': "red", 'fraction': 0.5}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},

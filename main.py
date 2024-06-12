@@ -23,6 +23,7 @@ if __name__ == "__main__":
     '''
     costs = [0.02, 0.015, 0.01, 0.005]
     spectra_dicts = [
+          {'type': "phoenix", 'kwargs': {'temperature': 2300}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
@@ -112,10 +113,10 @@ if __name__ == "__main__":
                         avgsq[2] += nu_phi[2]**2
                         avgs[3]  += fitnesses[j]
                         avgsq[3] += (fitnesses[j])**2
-                        avgs[4]  += np.sum(p.n_p) / (p.n_s) # don't count RC
-                        avgsq[4] += np.sum(np.square(p.n_p)) / (p.n_s)
-                        avgs[5]  += np.sum(p.lp) / (p.n_s)
-                        avgsq[5] += np.sum(np.square(p.lp)) / (p.n_s)
+                        avgs[4]  += p.n_b * np.sum(p.n_p) # don't count RC
+                        avgsq[4] += (p.n_b * np.sum(p.n_p))**2
+                        avgs[5]  += p.n_b * p.n_s
+                        avgsq[5] += (p.n_b * p.n_s)**2
                         avgs[6]  += p.n_b
                         avgsq[6] += p.n_b**2
                         avgs[7]  += p.n_s
