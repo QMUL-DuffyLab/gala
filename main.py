@@ -22,14 +22,20 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     costs = [0.02, 0.015, 0.01, 0.005]
+    costs = [0.02]
     spectra_dicts = [
           {'type': "phoenix", 'kwargs': {'temperature': 2300}},
-          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          {'type': "marine", 'kwargs': {'depth': 1.0}},
-          {'type': "marine", 'kwargs': {'depth': 5.0}},
-          {'type': "marine", 'kwargs': {'depth': 10.0}},
-          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
-          {'type': "filtered", 'kwargs': {'filter': "red"}},
+          {'type': "phoenix", 'kwargs': {'temperature': 2600}},
+          {'type': "phoenix", 'kwargs': {'temperature': 2800}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3300}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3700}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3800}},
+          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          # {'type': "marine", 'kwargs': {'depth': 1.0}},
+          # {'type': "marine", 'kwargs': {'depth': 5.0}},
+          # {'type': "marine", 'kwargs': {'depth': 10.0}},
+          # {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          # {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
     light.check(spectra_dicts)
 
@@ -132,8 +138,8 @@ if __name__ == "__main__":
                         histfiles = stats.hist(population, gen, 
                                             run, outdir, out_name)
                         plots.hist_plot(*histfiles)
-                        plots.julia_plot(best,
-                            best_pref + "_{:04d}_best".format(gen))
+                        # plots.julia_plot(best,
+                        #     best_pref + "_{:04d}_best".format(gen))
                         plots.plot_average(population, spectrum,
                         prefs[0] + "_{:04d}_r{:1d}_spectrum".format(gen, run),
                                 xlim=constants.x_lim,

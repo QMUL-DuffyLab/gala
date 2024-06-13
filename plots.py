@@ -15,7 +15,8 @@ import constants
 import light
 
 target_spectra = {
-    "PSII": os.path.join("spectra", "PSII.csv"),
+    # "PSII": os.path.join("spectra", "PSII.csv"),
+    "PSII": os.path.join("spectra", "psii_wientjies.csv"),
     "6803": os.path.join("spectra", "PCC_6803_Abs.txt"),
     "6301": os.path.join("spectra", "SP_6301_Abs.txt"),
     "FRL":  os.path.join("spectra", "frl_cells.csv"),

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out")
+output_dir = os.path.join("out", "anoxygenic")
 spectrum_prefix = 'spectra'
 phoenix_prefix = 'PHOENIX'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
@@ -33,7 +33,7 @@ mu_rate = 0.05
 tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-max_lp_offset = 0.1
+max_lp_offset = 100.0
 # boundaries on the genome parameters. used during generation;
 # mutation uses a truncated Gaussian with these as bounds as well.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
@@ -43,8 +43,8 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           # note that any pigment in this array can be picked
           # for any subunit; RCs shouldn't be included here.
           # names must match what's in pigment_data_file!
-          'pigment': np.array(["bchl_a", "chl_a", "chl_b",
-                            "chl_d", "chl_f", "apc",
+          'pigment': np.array(["bchl_a", "chl_f", "chl_d",
+                            "chl_a", "chl_b", "apc",
                             "pc", "r-pe", "c-pe", "b-pe"])}
 
 # list of parameters defined per subunit rather than per genome
@@ -63,8 +63,8 @@ and PhotochemCAD
 with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
-rc_type = 'psii'
-x_lim = [400.0, 800.0] # x limits for plots and histograms
+rc_type = 'ano_rc'
+x_lim = [500.0, 900.0] # x limits for plots and histograms
 
 '''
 some rates that I think are going to be fixed
