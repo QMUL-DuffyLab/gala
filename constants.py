@@ -63,8 +63,8 @@ and PhotochemCAD
 with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
-rc_type = 'ano_rc'
-x_lim = [500.0, 900.0] # x limits for plots and histograms
+rc_type = 'psii'
+x_lim = [400.0, 800.0] # x limits for plots and histograms
 
 '''
 some rates that I think are going to be fixed

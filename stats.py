@@ -1,9 +1,10 @@
-import numpy as np
-import constants
-import genetic_algorithm as ga
 import os
 import glob
+import numpy as np
 import matplotlib.pyplot as plt
+import constants
+import plots
+import genetic_algorithm as ga
 
 def pigment_to_index(pigment):
     ''' 
@@ -149,6 +150,8 @@ def average_antenna(path, spectrum, out_name):
 
     # don't actually need to divide through pigments - just taking mode
     pigments_avg = np.sum(np.array(pigments), axis=0)
+    pigments_final = []
+    fstr = "['{:s}'" + constants.hist_sub_max * ', {:10.6e}' + '],'
     average_antenna_output_file = os.path.join(path, f"{out_name}_average_antenna_params.dat")
     with open(average_antenna_output_file, "w") as f:
         f.write(f"<nu_e> = {totals[0]} += {errors[0]}\n")
@@ -159,19 +162,32 @@ def average_antenna(path, spectrum, out_name):
         f.write(f"<n_p> = {n_p_avg}\n")
         f.write("\n")
         f.write(f"peaks: {peak_avg}\n")
-        f.write("pigments:\n")
-        f.write(str(np.column_stack((pigment_names, pigments_avg))))
-    
-    fig, ax = plt.subplots(figsize=(12,8))
-    plt.plot(spectrum[:, 0], spectrum[:, 1], label='Incident', color='0.8')
+        f.write("pigments = ")
+        f.write("[")
+        for i in range(len(pigment_names)):
+            row = [pigment_names[i]] + list(pigments_avg[i, :])
+            print(row)
+            pigments_final.append(row)
+            f.write(fstr.format(*row))
+        f.write("]")
+
+    fig, ax = plt.subplots(figsize=(9,9))
+    plt.plot(spectrum[:, 0], spectrum[:, 1], label='Incident',
+            color=plots.incident_cols[out_name], lw=5.0)
     x = avg_spectrum[:, 0]
     y = avg_spectrum[:, 1]/np.sum(avg_spectrum[:, 1])
-    np.savetxt(os.path.join(path, f"{out_name}_avg_avg_spectrum.dat"), np.column_stack((x, y)))
-    plt.plot(avg_spectrum[:, 0], avg_spectrum[:, 1] / np.max(avg_spectrum[:, 1]), label=r'$ \left<A\left(\lambda\right)\right> $')
-    ax.set_xlabel(r'$ \lambda\left(\text{nm}\right) $')
-    ax.set_ylabel("Intentity (arb. for spectrum)")
+    np.savetxt(os.path.join(path, f"{out_name}_avg_avg_spectrum.dat"),
+            np.column_stack((x, y)))
+    plt.plot(avg_spectrum[:, 0], avg_spectrum[:, 1] / np.max(avg_spectrum[:, 1]),
+            color='k', lw=5.0, label=r'$ \left<A\left(\lambda\right)\right> $')
+    ax.set_xlabel(r'wavelength (nm)')
+    ax.set_ylabel("intensity (arb.)")
     ax.set_xlim(constants.x_lim)
     plt.grid(True)
-    plt.legend()
+    # plt.legend()
+    fig.tight_layout()
     plt.savefig(os.path.join(path, f"{out_name}_avg_avg_spectrum.pdf"))
     plt.close()
+
+    pigment_bar_file = os.path.join(path, f"{out_name}_pigment_bar.pdf")
+    plots.pigment_bar(pigments_final, pigment_bar_file)

@@ -26,6 +26,21 @@ target_spectra = {
                     "pbs_a_platensis_appl_sci_2020.csv")
     }
 
+# colours to print the incident spectra with, matching paper
+incident_cols = {
+        'am15_tilt': '#ff8c0099',
+        'marine_z_1.0': '#00800099',
+        'marine_z_2.5': '#00800099',
+        'marine_z_5.0': '#00008b99',
+        'marine_z_7.5': '#00008b99',
+        'marine_z_10.0': '#ff149399',
+        'red': '#ff000099',
+        'far-red': '#8b000099',
+        '2300K': '#8b000099',
+        '2800K': '#ff000099',
+        '3800K': '#ff8c0099',
+    }
+
 def polygon_under_graph(x, y):
     """
     Construct the vertex list which defines the polygon filling the space under
@@ -396,3 +411,41 @@ def plot_average_best_by_cost(files, costs, spectrum,
     "{}{}_avg_spectrum_by_cost.pdf".format(constants.output_dir,
                                             out_name))
     plt.close()
+
+def pigment_bar(pigments, outfile):
+    '''
+    plot a bar chart showing prevalence of each pigment as a
+    function of distance from RC up to constants.hist_sub_max
+    '''
+    colours = { # this might need moving somewhere, idk yet
+    'bchl_a': '#000000',
+    'chl_f': '#8b0000',
+    'chl_d': '#ff0000',
+    'chl_a': '#ff8c00',
+    'chl_b': '#ffd700',
+    'apc': '#00ff00',
+    'pc': '#008000',
+    'c-pe': '#00008b',
+    'b-pe': '#800080',
+    'r-pe': '#ff1493'
+    }
+    hists = np.array([row[1:] for row in pigments])
+    hists = hists / float(constants.n_runs)
+    names = [row[0] for row in pigments]
+    labels = {n: constants.pigment_data[n]['text'] for n in names}
+    props = {name: hist for name, hist in zip(names, hists)}
+
+    fig, ax = plt.subplots(figsize=(9,9))
+    ax.set_xlabel("Distance from RC")
+    bottom = np.zeros(len(names))
+    for b, p in props.items():
+        pp = ax.bar(np.arange(constants.hist_sub_max) + 1, p, 0.8,
+                label=labels[b], color=colours[b],
+                bottom=bottom, edgecolor='0.6')
+        bottom += p
+    ax.set_ylim([0.0, 1.01])
+    ax.set_yticks([0, 0.25, 0.5, 0.75])
+    fig.savefig(outfile)
+    plt.close()
+    
+
