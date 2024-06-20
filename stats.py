@@ -44,8 +44,8 @@ def hist(population, gen, run, outdir, out_name):
         for i in range(s_max):
             if i < p.n_s:
                 par = constants.pigment_data[p.pigment[i]]
-                # p.lp[i] is the peakset now!
-                peak_arr[i][j] = p.lp[i] + par['lp'][0]
+                # p.shift[i] shifts the 0-0 lines
+                peak_arr[i][j] = p.shift[i] + par['lp'][0]
                 p_arr[i][j] = p.pigment[i]
                 n_p_arr[i][j] = p.n_p[i]
     peakh = [peakbins[:-1]] # len(peakbins) = len(hist) + 1

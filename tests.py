@@ -88,18 +88,18 @@ def test_antenna_fortran():
     n_b = 4
     n_s = 3
     n_p = [80, 70, 60]
-    offset = [-5.0, 0.5, 5.0]
+    shift = [-5.0, 0.5, 5.0]
     pigment = ['chl_a', 'chl_b', 'chl_f']
-    g = constants.Genome(n_b, n_s, n_p, offset, pigment)
+    g = constants.Genome(n_b, n_s, n_p, shift, pigment)
     print("Python:")
     print("n_b = ", g.n_b)
     print("n_s = ", g.n_s)
     print("n_p = ", g.n_p)
-    print("offset = ", g.lp)
+    print("shift = ", g.shift)
     print("pigment = ", g.pigment)
     fr = np.zeros(3).astype(ctypes.c_double)
     n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
-    offset = np.array([0., *g.lp], dtype=ctypes.c_double)
+    shift = np.array([0., *g.shift], dtype=ctypes.c_double)
     # we have to format them like this, otherwise numpy truncates
     pigment = np.array([f"{p:<10}" for p in [constants.rc_type, *g.pigment]],
                        dtype='a10', order='F')
@@ -110,7 +110,7 @@ def test_antenna_fortran():
     gf = ctypes.byref(ctypes.c_double(constants.gamma_fac))
     ll = ctypes.byref(ctypes.c_int(len(l)))
     libantenna.fitness_calc(n_b, n_s,
-                            n_p, offset, pigment, kp,
+                            n_p, shift, pigment, kp,
                             temp,
                             gf, l, ip_y,
                             ll, fr)
@@ -155,7 +155,7 @@ def test_python_fortran(n_trials=1000):
         g = ga.new(rng, 'random')
         fr = np.zeros(3).astype(ctypes.c_double)
         n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
-        offset = np.array([0., *g.lp], dtype=ctypes.c_double)
+        shift = np.array([0., *g.shift], dtype=ctypes.c_double)
         # we have to format them like this, otherwise numpy truncates
         pigment = np.array([f"{p:<10}" for p in [constants.rc_type, *g.pigment]],
                            dtype='a10', order='F')

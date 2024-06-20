@@ -95,17 +95,17 @@ def new(rng, init_type, **kwargs):
         nb = get_rand('n_b', rng)
         ns = get_rand('n_s', rng)
     n_p = np.zeros(ns, dtype=np.int32)
-    lp = np.zeros(ns, dtype=np.float64)
+    shift = np.zeros(ns, dtype=np.float64)
     pigment = np.empty(ns, dtype='U10')
     for i in range(ns):
         n_p[i] = get_rand('n_p', rng)
-        lp[i]  = get_rand('lp', rng)
+        shift[i]  = get_rand('shift', rng)
         pigment[i]  = get_rand('pigment', rng)
-    return constants.Genome(nb, ns, n_p, lp, pigment)
+    return constants.Genome(nb, ns, n_p, shift, pigment)
 
 def copy(g):
     ''' return a new identical genome. useful for testing '''
-    return constants.Genome(g.n_b, g.n_s, g.n_p, g.lp,
+    return constants.Genome(g.n_b, g.n_s, g.n_p, g.shift,
         g.pigment, g.connected, g.nu_e, g.phi_e_g, g.phi_e, g.fitness)
 
 def fitness(g, cost):

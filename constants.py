@@ -13,9 +13,8 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "anoxygenic")
+output_dir = os.path.join("out", "stellar")
 spectrum_prefix = 'spectra'
-phoenix_prefix = 'PHOENIX'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
 gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc
@@ -24,7 +23,7 @@ max_gen = 1000
 n_runs = 5
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
 reproduction_strategy = 'nads' # options: 'nads', 'steady'
-conv_gen = 50
+conv_gen = 50 # number of generations without improvement for convergence
 conv_per = 0.01
 fitness_cutoff = 0.2 # fraction of individuals kept
 d_recomb = 0.25 # random perturbation of values during crossover
@@ -33,13 +32,13 @@ mu_rate = 0.05
 tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-max_lp_offset = 100.0
+max_shift = 0.1 # maximum shift (nm) of absorption peaks
 # boundaries on the genome parameters. used during generation;
 # mutation uses a truncated Gaussian with these as bounds as well.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 100], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
-          'lp': np.array([-max_lp_offset, max_lp_offset]),
+          'shift': np.array([-max_shift, max_shift]),
           # note that any pigment in this array can be picked
           # for any subunit; RCs shouldn't be included here.
           # names must match what's in pigment_data_file!
@@ -50,7 +49,7 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
 # list of parameters defined per subunit rather than per genome
 # the strings here *must match* the names in genome definition below
 # for the generation, crossover and mutation algorithms to work
-subunit_params = ['n_p', 'lp', 'pigment']
+subunit_params = ['n_p', 'shift', 'pigment']
 
 '''
 Gaussian fits to pigment data, done by me.
@@ -64,7 +63,10 @@ with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
 rc_type = 'psii'
-x_lim = [400.0, 800.0] # x limits for plots and histograms
+if rc_type == 'ano_rc':
+    x_lim = [500.0, 900.0] # x limits (nm) for plots and histograms
+else:
+    x_lim = [400.0, 800.0]
 
 '''
 some rates that I think are going to be fixed
@@ -79,9 +81,9 @@ k_lhc_rc = 1.0 / 10.0E-12
 k_params  = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
 
 '''
-Spectral parameters - I think these will change
+Spectral parameters
 '''
-sig_chl = 9E-20 # (approximate!) cross-section of one chlorophyll
+sig_chl = 9E-20 #  cross-section of one pigment
 np_rc = 10 # number of pigments in reaction centre
 
 @dataclass(eq=False)
@@ -89,7 +91,7 @@ class Genome:
     n_b: int = 0
     n_s: int = 0
     n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
-    lp: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
+    shift: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
     pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     connected: bool = False
     nu_e: float = np.nan

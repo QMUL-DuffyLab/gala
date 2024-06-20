@@ -18,7 +18,7 @@ def get_phoenix_spectrum(ts):
     return scaled PHOENIX spectrum representing star of given temperature
     '''
     return np.loadtxt(os.path.join(constants.spectrum_prefix,
-            constants.phoenix_prefix,
+            "PHOENIX",
             'Scaled_Spectrum_PHOENIX_{:4d}K.dat'.format(ts)))
 
 def get_cwf(mu_e = 1.0):

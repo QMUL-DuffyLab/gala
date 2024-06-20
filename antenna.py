@@ -16,12 +16,12 @@ import light
 
 hcnm = (h * c) / (1.0E-9)
 
-def get_lineshape(l, pigment, lp_offset):
+def get_lineshape(l, pigment, shift):
     '''
     return lineshape of pigment shifted by lp
     '''
     params = constants.pigment_data[pigment]
-    lp = [x + lp_offset for x in params['lp']]
+    lp = [x + shift for x in params['lp']]
     g = gauss(l, lp, params['w'], params['amp'])
     return g
 
@@ -49,13 +49,12 @@ def dG(l1, l2, n, T):
     s12 = -kB * np.log(n)
     return h12 - (s12 * T)
 
-def peak(lp_offset, pigment):
+def peak(shift, pigment):
     '''
-    lp is now an offset, not an actual peak - this function
     returns the 0-0 line for a given index on a given individual
     '''
     params = constants.pigment_data[pigment]
-    return lp_offset + params['lp'][0]
+    return shift + params['lp'][0]
 
 def solve(k, method='fortran', debug=False):
     '''
@@ -122,13 +121,13 @@ def antenna(l, ip_y, p, debug=False):
     fp_y = (ip_y * l) / hcnm
     n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
     # 0 offset for the RC!
-    lp = np.array([0., *p.lp], dtype=np.float64)
+    shift = np.array([0., *p.shift], dtype=np.float64)
     pigment = np.array([constants.rc_type, *p.pigment], dtype='U10')
     lines = np.zeros((p.n_s + 1, len(l)))
     gamma = np.zeros(p.n_s, dtype=np.float64)
     k_b = np.zeros(2 * p.n_s, dtype=np.float64)
     for i in range(p.n_s + 1):
-        lines[i] = get_lineshape(l, pigment[i], lp[i])
+        lines[i] = get_lineshape(l, pigment[i], shift[i])
         if i > 0:
             gamma[i - 1] = (n_p[i] * constants.sig_chl *
                             overlap(l, fp_y, lines[i]))
@@ -136,8 +135,8 @@ def antenna(l, ip_y, p, debug=False):
     for i in range(p.n_s):
         de = overlap(l, lines[i], lines[i + 1])
         n = float(n_p[i]) / float(n_p[i + 1])
-        dg = dG(peak(lp[i], pigment[i]),
-                peak(lp[i + 1], pigment[i + 1]), n, constants.T)
+        dg = dG(peak(shift[i], pigment[i]),
+                peak(shift[i + 1], pigment[i + 1]), n, constants.T)
         if i == 0:
             rate = constants.k_lhc_rc
         else:
@@ -300,12 +299,11 @@ if __name__ == '__main__':
     # changed behaviour - now the RC's added inside antenna
     n_b = 5
     n_p = [90, 60, 80, 20, 50]
-    lp = [-6.0, -8.0, -5.0, 5.0, -1.0]
+    shift = [-6.0, -8.0, -5.0, 5.0, -1.0]
     # w = [10.0, 10.0, 10.0]
     n_s = len(n_p)
-    # pigments = ['chl_a', 'chl_b', 'r_pe']
     pigments = ['chl_a', 'chl_b', 'r_apc', 'r_pc', 'r_pe']
-    test = constants.Genome(n_b, n_s, n_p, lp, pigments)
+    test = constants.Genome(n_b, n_s, n_p, shift, pigments)
     plots.draw_antenna(test, "test_from_python.svg")
 
     od = antenna(d[:, 0], d[:, 1], test, True)

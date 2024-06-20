@@ -56,7 +56,7 @@ def antenna_lines(p, l):
         pigment = pd[p.pigment[i]]
         for j in range(pigment['n_gauss']):
             lines[i] += pigment['amp'][j] * np.exp(-1.0
-                    * (l - (pigment['lp'][j] + p.lp[i]))**2
+                    * (l - (pigment['lp'][j] + p.shift[i]))**2
                     / (2.0 * (pigment['w'][j]**2)))
         lines[i] /= np.sum(lines[i])
         # lines[i] /= np.max(lines[i])
@@ -185,7 +185,7 @@ def julia_plot(p, output_file):
     doesn't seem to work and i couldn't find any docs explaining
     why, and it kept throwing errors, so now i'm just doing this
     '''
-    lps = [p.lp[i] +
+    lps = [p.shift[i] +
            constants.pigment_data[p.pigment[i]]['lp'][0]
            for i in range(p.n_s)]
     cmd = "julia plot_antenna.jl --n_b {:d} --n_s {:d} ".format(p.n_b, p.n_s)\
@@ -266,9 +266,10 @@ def get_best_from_file(input_file):
     print("best = ", best)
     n_b = int(re.search(r'n_b=(\d+)', best).group(1))
     n_s = int(re.search(r'n_s=(\d+)', best).group(1))
-    lpm = re.search(r"lp=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
-    lpa = re.search(r"\[(.*)\]", lpm).group(0)
-    lp = np.fromstring(lpa[1:-1], sep=',')
+    shiftm = re.search(r"shift=array\(\[\s*([0-9e.\-]+[,\s\]]+)+",
+                       best).group(0)
+    shifta = re.search(r"\[(.*)\]", shiftm).group(0)
+    shift = np.fromstring(shifta[1:-1], sep=',')
     n_pm = re.search(r"n_p=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
     n_pa = re.search(r"\[(.*)\]", n_pm).group(0)
     n_p = np.fromstring(n_pa[1:-1], sep=',', dtype=int)
@@ -279,7 +280,7 @@ def get_best_from_file(input_file):
                        .replace("'", "")
                        .replace(" ", "")
                        .split(","), dtype='U10')
-    return constants.Genome(n_b, n_s, n_p, lp, pigment)
+    return constants.Genome(n_b, n_s, n_p, shift, pigment)
 
 def plot_best(best_file, spectrum):
     '''
@@ -382,36 +383,6 @@ def plot_average_best(path, spectrum, out_name,
     plot_average(bests, spectrum, out_prefix,
                  label=r'$ \left<\text{best}\right> $', **kwargs)
 
-def plot_average_best_by_cost(files, costs, spectrum,
-                              out_name, **kwargs):
-    xs = [spectrum[:, 0]]
-    ys = [spectrum[:, 1]]
-    labels = [""]
-    colours = ['0.8']
-    tc = 0
-    for i, (f, c) in enumerate(zip(files, costs)):
-        d = np.loadtxt(f)
-        xs.append(d[:, 0])
-        ys.append(d[:, 1])
-        labels.append("Cost = {}".format(c))
-        colours.append("C{:1d}".format(i))
-        tc += 1
-    if "target" in kwargs:
-        tspec = np.loadtxt(kwargs['target'])
-        xs.append(tspec[:, 0])
-        ys.append(tspec[:, 1])
-        labels.append(kwargs['target'])
-        colours.append("C{:1d}".format(tc))
-    fig, ax = plot_lines(xs, ys, labels, colours,
-        xlabel=r' $ \lambda (\text{nm}) $',
-        ylabel="Intensity (arbitrary)",
-        ylim=[0.0, 1.2],
-        **kwargs)
-    plt.savefig(
-    "{}{}_avg_spectrum_by_cost.pdf".format(constants.output_dir,
-                                            out_name))
-    plt.close()
-
 def pigment_bar(pigments, outfile):
     '''
     plot a bar chart showing prevalence of each pigment as a
@@ -448,4 +419,3 @@ def pigment_bar(pigments, outfile):
     fig.savefig(outfile)
     plt.close()
     
-

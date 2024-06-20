@@ -13,7 +13,6 @@ import antenna as la
 import plots
 import stats
 import light
-import os
 
 if __name__ == "__main__":
     rng = np.random.default_rng()
@@ -22,19 +21,12 @@ if __name__ == "__main__":
     various other examples of dicts in light.py
     '''
     costs = [0.02, 0.015, 0.01, 0.005]
-    costs = [0.02]
+    costs = [0.005]
     spectra_dicts = [
           {'type': "phoenix", 'kwargs': {'temperature': 2300}},
-          {'type': "phoenix", 'kwargs': {'temperature': 2600}},
-          {'type': "phoenix", 'kwargs': {'temperature': 2800}},
-          {'type': "phoenix", 'kwargs': {'temperature': 3300}},
-          {'type': "phoenix", 'kwargs': {'temperature': 3700}},
-          {'type': "phoenix", 'kwargs': {'temperature': 3800}},
           # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          # {'type': "marine", 'kwargs': {'depth': 1.0}},
-          # {'type': "marine", 'kwargs': {'depth': 5.0}},
-          # {'type': "marine", 'kwargs': {'depth': 10.0}},
-          # {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          # {'type': "marine", 'kwargs': {'depth': 2.5}},
+          # {'type': "marine", 'kwargs': {'depth': 7.5}},
           # {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
     light.check(spectra_dicts)
