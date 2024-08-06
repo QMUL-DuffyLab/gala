@@ -129,6 +129,16 @@ def spectrum_setup(spectrum_type, **kwargs):
         output_prefix = kwargs['filter']
         if 'fraction' in kwargs:
             output_prefix += f"_{kwargs['fraction']}"
+    elif spectrum_type == "red":
+        s = get_filtered(filter='red', **kwargs)
+        output_prefix = "red"
+        if 'fraction' in kwargs:
+            output_prefix += f"_{kwargs['fraction']}"
+    elif spectrum_type == "far-red":
+        s = get_filtered(filter='far-red', **kwargs)
+        output_prefix = "far-red"
+        if 'fraction' in kwargs:
+            output_prefix += f"_{kwargs['fraction']}"
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])
@@ -197,4 +207,5 @@ if __name__ == "__main__":
             'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
           ]
     check(sd)
-
+    # if you only need one you can call spectrum_setup directly:
+    spectrum, output_prefix = spectrum_setup("far-red", fraction=0.5)
