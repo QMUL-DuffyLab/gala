@@ -32,12 +32,14 @@ mu_rate = 0.05
 tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-max_shift = 0.1 # maximum shift (nm) of absorption peaks
+max_shift = 100 # maximum shift (nm) of absorption peaks
+shift_inc = 10
 # boundaries on the genome parameters. used during generation;
 # mutation uses a truncated Gaussian with these as bounds as well.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 100], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
+          # 'lp': np.array([450., 2000.], dtype=np.float64),
           'shift': np.array([-max_shift, max_shift]),
           # note that any pigment in this array can be picked
           # for any subunit; RCs shouldn't be included here.
