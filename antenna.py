@@ -16,6 +16,48 @@ import light
 
 hcnm = (h * c) / (1.0E-9)
 
+'''
+a lot of the stuff we need to build the matrices is precomputable;
+this class precomputes it. note that i still need to decide once and
+for all how the averaged chlorophyll instead of named pigments is gonna
+work, but in the end it might be easier to overload this class to take
+a max and min peak and increment, and assume the averaged chlorophyll
+if those are given. 
+'''
+class LookupTables:
+    def __init__(self, spectrum, pigments, rcs):
+        self.gamma = self.gamma_calc(spectrum, pigments)
+        self.h     = self.enthalpy_calc(pigments, rcs)
+        self.s     = self.entropy_calc(pigments, rcs)
+
+    @classmethod
+    def lineshapes(self, spectrum, peak_bounds, increment):
+        peak = peak_bounds[0]
+        while peak <= peak_bounds[1]:
+            l = get_lineshape(spectrum[:, 0], ["avg"], peak)
+            peak += increment
+
+    def gamma_calc(self, spectrum, pigments):
+        lines = np.zeros(len(pigments))
+        gamma = np.zeros(len(pigments))
+        for i in range(len(pigments)):
+            lines[i] = get_lineshape(spectrum[:, 0], pigments[i], 0.)
+            gamma[i] = (constants.sig_chl *
+                                overlap(*spectrum, lines[i]))
+        return gamma
+    def enthalpy_calc(self, pigments, rcs):
+        ntot = len(pigments) + len(rcs)
+        h = np.zeros((ntot, ntot))
+        # h12 = hcnm * ((l1 - l2) / (l1 * l2))
+        return h
+    def entropy_calc(self, pigments, rcs):
+        ntot = len(pigments) + len(rcs)
+        s = np.zeros((ntot, ntot))
+        # s12 = -kB * np.log(n)
+        return s
+
+
+
 def get_lineshape(l, pigment, shift):
     '''
     return lineshape of pigment shifted by lp

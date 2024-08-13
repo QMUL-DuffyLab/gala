@@ -32,18 +32,18 @@ mu_rate = 0.05
 tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
-max_shift = 100 # maximum shift (nm) of absorption peaks
-shift_inc = 10
+max_shift = 0 # maximum shift (nm) of absorption peaks
+peak_inc = 10
 # boundaries on the genome parameters. used during generation;
 # mutation uses a truncated Gaussian with these as bounds as well.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 100], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
-          # 'lp': np.array([450., 2000.], dtype=np.float64),
           'shift': np.array([-max_shift, max_shift]),
-          # note that any pigment in this array can be picked
-          # for any subunit; RCs shouldn't be included here.
           # names must match what's in pigment_data_file!
+          'rc': np.array(["psii", "frl_rc", "ano_rc",
+                            "hydro_rc"]),
+          # any pigment in this array can be picked
           'pigment': np.array(["bchl_a", "chl_f", "chl_d",
                             "chl_a", "chl_b", "apc",
                             "pc", "r-pe", "c-pe", "b-pe"])}
@@ -63,12 +63,6 @@ and PhotochemCAD
 '''
 with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
-
-rc_type = 'psii'
-if rc_type == 'ano_rc':
-    x_lim = [500.0, 900.0] # x limits (nm) for plots and histograms
-else:
-    x_lim = [400.0, 800.0]
 
 '''
 some rates that I think are going to be fixed
@@ -95,6 +89,7 @@ class Genome:
     n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
     shift: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
     pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
+    rc: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     connected: bool = False
     nu_e: float = np.nan
     phi_e_g: float = np.nan

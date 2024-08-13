@@ -64,6 +64,7 @@ def new(rng, init_type, **kwargs):
     NB : could have a kwargs here with a getattr call so that
     we can make random antennae with specific properties if necessary
     '''
+    rc = get_rand('rc', rng)
     if init_type == 'template':
         '''
         initialise according to a template. two required kwargs:
@@ -101,12 +102,13 @@ def new(rng, init_type, **kwargs):
         n_p[i] = get_rand('n_p', rng)
         shift[i]  = get_rand('shift', rng)
         pigment[i]  = get_rand('pigment', rng)
-    return constants.Genome(nb, ns, n_p, shift, pigment)
+    return constants.Genome(nb, ns, n_p, shift, pigment, rc)
 
 def copy(g):
     ''' return a new identical genome. useful for testing '''
     return constants.Genome(g.n_b, g.n_s, g.n_p, g.shift,
-        g.pigment, g.connected, g.nu_e, g.phi_e_g, g.phi_e, g.fitness)
+        g.pigment, g.rc, g.connected, g.nu_e, g.phi_e_g,
+        g.phi_e, g.fitness)
 
 def fitness(g, cost):
     '''
@@ -176,7 +178,7 @@ def selection(rng, population, fitnesses, cost):
     elif constants.selection_strategy == 'tournament':
         survivors = []
         for i in range(n_survivors):
-            survivors.append(tournament(population, constants.tourney_k, rng))
+            survivors.append(tournament(population, constants.tourney_k, rng, cost))
     else:
         raise ValueError("Invalid selection strategy")
     return survivors
@@ -189,7 +191,7 @@ def recombine(vals, parameter, rng):
     '''
     d = constants.d_recomb
     bounds = constants.bounds[parameter]
-    if parameter == 'pigment': # binary choice
+    if parameter == 'pigment' or parameter == 'rc': # binary choice
         new = rng.choice(vals)
     else:
         b = rng.uniform(-d, 1 + d)
@@ -276,7 +278,7 @@ def mutate(genome, parameter, rng, subunit=None):
        current = getattr(genome, parameter)[subunit]
     else:
        current = getattr(genome, parameter)
-    if parameter == 'pigment':
+    if parameter == 'pigment' or parameter == 'rc':
         new = rng.choice(constants.bounds[parameter])
     else:
         b = constants.bounds[parameter]
@@ -303,6 +305,8 @@ def mutation(rng, individual):
     I think it's acceptable to just loop over all parameters since they
     are all independent quantities?
     '''
+    # assume the RC's fixed for a given genome
+    # mutate(individual, 'rc', rng, None)
     mutate(individual, 'n_b', rng, None)
     # n_s - we also have to update arrays here
     # bit ugly but i haven't thought of a neater way yet
