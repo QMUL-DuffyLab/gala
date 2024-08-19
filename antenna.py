@@ -63,7 +63,7 @@ def get_lineshape(l, pigment, shift):
     return lineshape of pigment shifted by lp
     '''
     params = constants.pigment_data[pigment]
-    lp = [x + shift for x in params['shift']]
+    lp = [x + shift for x in params['lp']]
     g = gauss(l, lp, params['w'], params['amp'])
     return g
 
