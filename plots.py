@@ -56,7 +56,8 @@ def antenna_lines(p, l):
         pigment = pd[p.pigment[i]]
         for j in range(pigment['n_gauss']):
             lines[i] += pigment['amp'][j] * np.exp(-1.0
-                    * (l - (pigment['lp'][j] + p.shift[i]))**2
+                    * (l - (pigment['lp'][j] +
+                        (p.shift[i] * constants.shift_inc)))**2
                     / (2.0 * (pigment['w'][j]**2)))
         lines[i] /= np.sum(lines[i])
         # lines[i] /= np.max(lines[i])
@@ -97,34 +98,38 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     n_s = constants.hist_sub_max
 
     peak_hist = np.loadtxt(peak_file)
-    pnames = np.loadtxt(pigment_file, usecols=0, dtype=str)
-    pprops = np.loadtxt(pigment_file,
-            usecols=tuple(range(1, n_s + 1)), dtype=float)
-    pigment_strings = [constants.pigment_data[p]['text'] for p in pnames]
-    n_pigments = len(pigment_strings)
-    fig = plt.figure(figsize=(20, 20))
-    ax = fig.add_subplot(projection='3d')
+    # ndmin = 1 to ensure a list is returned
+    pnames = np.loadtxt(pigment_file, usecols=0, ndmin=1, dtype=str)
+    # if there's only one pigment type, this plot's meaningless
+    # and also will crash because pprops[:, k] fails below
+    if len(pnames) > 1:
+        pprops = np.loadtxt(pigment_file,
+                usecols=tuple(range(1, n_s + 1)), dtype=float)
+        pigment_strings = [constants.pigment_data[p]['text'] for p in pnames]
+        n_pigments = len(pigment_strings)
+        fig = plt.figure(figsize=(20, 20))
+        ax = fig.add_subplot(projection='3d')
 
-    for k in reversed(range(n_s)):
-        ys = pprops[:, k]
-        xs = np.arange(n_pigments)
-        color = 'C{:1d}'.format(k)
-        ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
-     
-    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
-        axis.labelpad = 20
+        for k in reversed(range(n_s)):
+            ys = pprops[:, k]
+            xs = np.arange(n_pigments)
+            color = 'C{:1d}'.format(k)
+            ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
+         
+        for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
+            axis.labelpad = 20
 
-    ax.set_xlabel("Pigment")
-    ax.set_ylabel("Subunit")
-    ax.set_zlabel("Proportion")
-    ax.set_zlim([0.0, 1.0])
-    ax.set_xticks(np.arange(n_pigments))
-    ax.set_yticks(np.arange(n_s))
-    ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
-    ax.set_xticklabels(pigment_strings)
+        ax.set_xlabel("Pigment")
+        ax.set_ylabel("Subunit")
+        ax.set_zlabel("Proportion")
+        ax.set_zlim([0.0, 1.0])
+        ax.set_xticks(np.arange(n_pigments))
+        ax.set_yticks(np.arange(n_s))
+        ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, n_s + 1)])
+        ax.set_xticklabels(pigment_strings)
 
-    fig.savefig(os.path.splitext(pigment_file)[0] + ".pdf")
-    plt.close()
+        fig.savefig(os.path.splitext(pigment_file)[0] + ".pdf")
+        plt.close()
 
     n_p_bins = np.loadtxt(n_p_file, usecols=0)
     props = np.loadtxt(n_p_file,
@@ -185,7 +190,7 @@ def julia_plot(p, output_file):
     doesn't seem to work and i couldn't find any docs explaining
     why, and it kept throwing errors, so now i'm just doing this
     '''
-    lps = [p.shift[i] +
+    lps = [(p.shift[i] * constants.shift_inc) +
            constants.pigment_data[p.pigment[i]]['lp'][0]
            for i in range(p.n_s)]
     cmd = "julia plot_antenna.jl --n_b {:d} --n_s {:d} ".format(p.n_b, p.n_s)\

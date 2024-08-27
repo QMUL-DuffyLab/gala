@@ -56,8 +56,6 @@ class LookupTables:
         # s12 = -kB * np.log(n)
         return s
 
-
-
 def get_lineshape(l, pigment, shift):
     '''
     return lineshape of pigment shifted by lp
@@ -162,9 +160,10 @@ def antenna(l, ip_y, p, debug=False):
     '''
     fp_y = (ip_y * l) / hcnm
     n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
-    # 0 offset for the RC!
-    shift = np.array([0., *p.shift], dtype=np.float64)
-    pigment = np.array([constants.rc_type, *p.pigment], dtype='U10')
+    # 0 offset for the RC! shifts stored as integer increments, so
+    # multiply by shift_inc here
+    shift = np.array([0., *p.shift], dtype=np.float64) * constants.shift_inc
+    pigment = np.array([p.rc, *p.pigment], dtype='U10')
     lines = np.zeros((p.n_s + 1, len(l)))
     gamma = np.zeros(p.n_s, dtype=np.float64)
     k_b = np.zeros(2 * p.n_s, dtype=np.float64)

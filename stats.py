@@ -45,7 +45,7 @@ def hist(population, gen, run, outdir, out_name):
             if i < p.n_s:
                 par = constants.pigment_data[p.pigment[i]]
                 # p.shift[i] shifts the 0-0 lines
-                peak_arr[i][j] = p.shift[i] + par['lp'][0]
+                peak_arr[i][j] = p.shift[i] * constants.shift_inc + par['lp'][0]
                 p_arr[i][j] = p.pigment[i]
                 n_p_arr[i][j] = p.n_p[i]
     peakh = [peakbins[:-1]] # len(peakbins) = len(hist) + 1
@@ -123,7 +123,7 @@ def average_antenna(path, spectrum, out_name):
         peak_bins = np.loadtxt(peak_file, usecols=0)
         peaks.append(np.loadtxt(peak_file, usecols=range(1, constants.hist_sub_max + 1)))
         n_ps.append(np.loadtxt(n_p_file, usecols=range(1, constants.hist_sub_max + 1)))
-        pigment_names = np.loadtxt(pigment_file, usecols=0, dtype=str)
+        pigment_names = np.loadtxt(pigment_file, usecols=0, ndmin=1, dtype=str)
         pigments.append(np.loadtxt(pigment_file, usecols=range(1, constants.hist_sub_max + 1)))
         a = np.loadtxt(os.path.join(path, f"avg_{out_name}_r{i:1d}_spectrum.dat"))
         avg_spectrum += a
@@ -162,14 +162,15 @@ def average_antenna(path, spectrum, out_name):
         f.write(f"<n_p> = {n_p_avg}\n")
         f.write("\n")
         f.write(f"peaks: {peak_avg}\n")
-        f.write("pigments = ")
-        f.write("[")
-        for i in range(len(pigment_names)):
-            row = [pigment_names[i]] + list(pigments_avg[i, :])
-            print(row)
-            pigments_final.append(row)
-            f.write(fstr.format(*row))
-        f.write("]")
+        if len(pigment_names) > 1:
+            f.write("pigments = ")
+            f.write("[")
+            for i in range(len(pigment_names)):
+                row = [pigment_names[i]] + list(pigments_avg[i, :])
+                print(row)
+                pigments_final.append(row)
+                f.write(fstr.format(*row))
+            f.write("]")
 
     fig, ax = plt.subplots(figsize=(9,9))
     plt.plot(spectrum[:, 0], spectrum[:, 1], label='Incident',

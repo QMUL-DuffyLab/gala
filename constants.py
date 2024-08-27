@@ -24,37 +24,42 @@ n_runs = 5
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
 reproduction_strategy = 'nads' # options: 'nads', 'steady'
 conv_gen = 50 # number of generations without improvement for convergence
-conv_per = 0.01
+conv_per = 0.01 # convergence if max(fitness) within conv_per for conv_gen
 fitness_cutoff = 0.2 # fraction of individuals kept
 d_recomb = 0.25 # random perturbation of values during crossover
 mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
-mu_rate = 0.05
+mu_rate = 0.05 # proportion of genomes to mutate after each generation
 tourney_k = 5 # selection tournament size
-hist_snapshot = 25 # generate histograms every hist_snapshot generations
+hist_snapshot = 5 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
 max_shift = 0 # maximum shift (nm) of absorption peaks
-peak_inc = 10.0
-peak_binwidth = 10.0
-# boundaries on the genome parameters. used during generation;
-# mutation uses a truncated Gaussian with these as bounds as well.
+shift_inc = 10.0 # increment to shift lineshapes by
+peak_binwidth = 10.0 # binwidth for histograms of peak absorption per subunit
+
+'''
+boundaries on the genome parameters. used during generation;
+mutation uses a truncated Gaussian with these as bounds as well.
+note that specifying dtype for non-string variables is important;
+the type of the numpy arrays here is used to determine what random
+function to use and hence how generation/crossover/mutation will work.
+'''
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
-          'n_s': np.array([1, 100], dtype=np.int32),
+          'n_s': np.array([1, 20], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
-          'shift': np.array([-200.0, 1200.0]),
+          'shift': np.array([-20, 120], dtype=np.int32),
           # names must match what's in pigment_data_file!
           'rc': np.array(["psii", "fr_rc", "ano_rc",
                             "hydro_rc"]),
           # any pigment in this array can be picked
-          # 'pigment': np.array(["bchl_a", "chl_f", "chl_d",
-          #                   "chl_a", "chl_b", "apc",
-          #                   "pc", "r-pe", "c-pe", "b-pe"])
           'pigment': np.array(["averaged"])
           }
 
 # list of parameters defined per subunit rather than per genome
 # the strings here *must match* the names in genome definition below
 # for the generation, crossover and mutation algorithms to work
-subunit_params = ['n_p', 'shift', 'pigment']
+# pigment's still here even though there's currently only one type, because
+# otherwise the pigment arrays don't get updated after mutation etc.
+subunit_params = ['n_p', 'pigment', 'shift']
 
 '''
 Gaussian fits to pigment data, done by me.
@@ -68,12 +73,13 @@ with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
 # i think these should be sensible
-x_lim = [
-np.min([pigment_data[rc]['lp'][0] +
-    bounds['shift'][0] for rc in bounds['rc']]),
-np.max([pigment_data[rc]['lp'][1] -
-    bounds['shift'][0] for rc in bounds['rc']])
-]
+# x_lim = [
+# np.min([pigment_data[rc]['lp'][1] +
+#     (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
+# np.max([pigment_data[rc]['lp'][0] +
+#     (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
+# ]
+x_lim = [450.0, 1600.0]
 
 '''
 some rates that I think are going to be fixed
@@ -106,4 +112,3 @@ class Genome:
     phi_e_g: float = np.nan
     phi_e: float = np.nan
     fitness: float = np.nan
-

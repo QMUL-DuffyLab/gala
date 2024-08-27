@@ -6,6 +6,8 @@
 
 from collections import deque
 import os
+import pickle
+import zipfile
 import numpy as np
 import constants
 import genetic_algorithm as ga
@@ -20,12 +22,10 @@ if __name__ == "__main__":
     '''
     various other examples of dicts in light.py
     '''
-    costs = [0.02, 0.015, 0.01, 0.005]
-    costs = [0.005]
+    costs = [0.02]
     spectra_dicts = [
           {'type': "phoenix", 'kwargs': {'temperature': 2300}},
           # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          # {'type': "marine", 'kwargs': {'depth': 2.5}},
           # {'type': "marine", 'kwargs': {'depth': 7.5}},
           # {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
@@ -50,6 +50,8 @@ if __name__ == "__main__":
 
             do_averages = True
             do_best_avg = False
+            # list of files to be zipped
+            zf = [ [] for _ in range(constants.n_runs)]
             for run in range(constants.n_runs):
                 end_run = False
                 population = [None for _ in range(constants.population_size)]
@@ -58,6 +60,8 @@ if __name__ == "__main__":
                 with open(filenames['best'], "w") as f:
                     pass # start a new file
                 f.close()
+                # files to add to zip
+                zf[run].extend(list(filenames.values()))
 
                 fitnesses = np.zeros(constants.population_size, dtype=np.float64)
                 avgs  = np.zeros(9)
@@ -90,7 +94,7 @@ if __name__ == "__main__":
                         a non-Python kernel to do the calculations it might
                         not be aware of the dataclass structure and so
                         can't update class members. might be worth adding
-                        a function to wrap this though, i guess?
+                        a function to wrap this though, i guess
                         '''
                         p.nu_e  = nu_phi[0]
                         # nu_phi[1] is the high intensity result,
@@ -129,11 +133,13 @@ if __name__ == "__main__":
                     if (gen % constants.hist_snapshot == 0):
                         histfiles = stats.hist(population, gen, 
                                             run, outdir, out_name)
+                        zf[run].extend(histfiles)
                         plots.hist_plot(*histfiles)
-                        # plots.julia_plot(best,
-                        #     best_pref + "_{:04d}_best".format(gen))
+                        avg_plot_prefix = "{}_{:04d}_r{:1d}_spectrum".format(prefs[0], gen, run)
+                        zf[run].append(f"{avg_plot_prefix}.dat")
+                        zf[run].append(f"{avg_plot_prefix}.pdf")
                         plots.plot_average(population, spectrum,
-                        prefs[0] + "_{:04d}_r{:1d}_spectrum".format(gen, run),
+                                avg_plot_prefix,
                                 xlim=constants.x_lim,
                                 label=r'$ \left<A(\lambda)\right> $')
 
@@ -166,6 +172,7 @@ if __name__ == "__main__":
                         histfiles = stats.hist(population, gen, run, 
                                             outdir, out_name)
                         plots.hist_plot(*histfiles)
+                        zf[run].extend(histfiles)
                         break
 
                     try:
@@ -203,6 +210,13 @@ if __name__ == "__main__":
                 plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
                                     running_avgs[:, 3], running_avgs[:, 6],
                                     running_avgs[:, 7], plot_nu_phi_file)
+
+                # do pickle stuff and add pickled filename to zf
+                pop_file = f"{outdir}/{out_name}_{run}_final_pop.dat"
+                with open(pop_file, "wb") as f:
+                    pickle.dump(population, f)
+                zf[run].append(pop_file)
+
                 # call julia_plot and antenna_spectra
                 try:
                     plots.plot_best(filenames['best'], spectrum)
@@ -221,3 +235,11 @@ if __name__ == "__main__":
                 if do_best_avg:
                     plots.plot_average_best(outdir, spectrum,
                             out_name, cost, xlim=constants.x_lim)
+            for run in range(constants.n_runs):
+                # do zipfile stuff - need to figure out pathnames etc
+                # note that these are currently uncompressed
+                zipfilename = f"{outdir}/{out_name}_{run}.zip"
+                with zipfile.ZipFile(zipfilename, mode="w") as archive:
+                    for filename in zf[run]:
+                        archive.write(filename,
+                                arcname=os.path.basename(filename))
