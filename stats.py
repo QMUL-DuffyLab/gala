@@ -24,9 +24,9 @@ def hist(population, gen, run, outdir, out_name):
     n_pop = constants.population_size
     # peak wavelength histogram with offset
     peak_b = constants.x_lim
-    peak_binsize = 1.0
     peakbins = np.linspace(*peak_b,
-            num=np.round(((peak_b[1] - peak_b[0]) / peak_binsize)).astype(int))
+            num=np.round(((peak_b[1] - peak_b[0])
+                / constants.peak_binwidth)).astype(int))
     peak_arr = np.zeros((s_max, n_pop), dtype=np.float64)
 
     # n_p histogram

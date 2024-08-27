@@ -33,20 +33,23 @@ tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
 max_shift = 0 # maximum shift (nm) of absorption peaks
-peak_inc = 10
+peak_inc = 10.0
+peak_binwidth = 10.0
 # boundaries on the genome parameters. used during generation;
 # mutation uses a truncated Gaussian with these as bounds as well.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 100], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
-          'shift': np.array([-max_shift, max_shift]),
+          'shift': np.array([-200.0, 1200.0]),
           # names must match what's in pigment_data_file!
-          'rc': np.array(["psii", "frl_rc", "ano_rc",
+          'rc': np.array(["psii", "fr_rc", "ano_rc",
                             "hydro_rc"]),
           # any pigment in this array can be picked
-          'pigment': np.array(["bchl_a", "chl_f", "chl_d",
-                            "chl_a", "chl_b", "apc",
-                            "pc", "r-pe", "c-pe", "b-pe"])}
+          # 'pigment': np.array(["bchl_a", "chl_f", "chl_d",
+          #                   "chl_a", "chl_b", "apc",
+          #                   "pc", "r-pe", "c-pe", "b-pe"])
+          'pigment': np.array(["averaged"])
+          }
 
 # list of parameters defined per subunit rather than per genome
 # the strings here *must match* the names in genome definition below
@@ -63,6 +66,14 @@ and PhotochemCAD
 '''
 with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
+
+# i think these should be sensible
+x_lim = [
+np.min([pigment_data[rc]['lp'][0] +
+    bounds['shift'][0] for rc in bounds['rc']]),
+np.max([pigment_data[rc]['lp'][1] -
+    bounds['shift'][0] for rc in bounds['rc']])
+]
 
 '''
 some rates that I think are going to be fixed
