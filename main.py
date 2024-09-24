@@ -19,19 +19,14 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    '''
-    various other examples of dicts in light.py
-    '''
     costs = [0.02]
+    # various other examples of dicts in light.py
     spectra_dicts = [
           {'type': "phoenix", 'kwargs': {'temperature': 2300}},
-          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          # {'type': "marine", 'kwargs': {'depth': 7.5}},
-          # {'type': "filtered", 'kwargs': {'filter': "red"}},
           ]
     light.check(spectra_dicts)
 
-    init_type = 'proto' # can be radiative or random
+    init_type = 'proto' # can be proto (single branch & block) or random
     names = ["avg", "avgsq", "best"]
     for cost in costs:
         print(f"Cost = {cost}. Building spectra")

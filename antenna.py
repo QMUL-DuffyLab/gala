@@ -20,10 +20,66 @@ hcnm = (h * c) / (1.0E-9)
 a lot of the stuff we need to build the matrices is precomputable;
 this class precomputes it. note that i still need to decide once and
 for all how the averaged chlorophyll instead of named pigments is gonna
-work, but in the end it might be easier to overload this class to take
-a max and min peak and increment, and assume the averaged chlorophyll
-if those are given. 
+work, but in the end it might be easier to just write a few functions to
+do each bit and then compose them in different ways depending on whether
+we have a set of named pigments, an averaged shifting one, or both
 '''
+
+def precalculate_peak_locations(pigment, lmin, lmax, increment):
+    op = constants.pigment_data[pigment]['lp'][0]
+    # ceil in both cases - for the min, it's -ve so rounds towards zero,
+    # for the max we want to go one step outside the range because
+    # np.arange(min, max, step) generates [min, max)
+    smin = op + np.ceil((lmin - op) / increment) * increment
+    smax = op + np.ceil((lmax - op) / increment) * increment
+    # if we turn off shift, set increment to 0 or set min and max to
+    # the same number, np.arange will return an empty array; fix that
+    if smin == smax or increment == 0.0:
+        peaks = np.array([smin])
+    else:
+        peaks = np.arange(smin, smax, increment)
+    # return a dict so we can index with the shift to get peak location
+    return {shift: peak for shift, peak in zip(peaks - op, peaks)}
+
+def precalculate_overlap_gamma(pigment, rcs, spectrum, shift_peak):
+    n_shifts = len(shift_peak.keys())
+    gamma = np.zeros(n_shifts)
+    lines = np.zeros((n_shifts + len(rcs), len(spectrum[:, 0])))
+    for i, s in enumerate(shift_peak.keys()):
+        lines[i] = get_lineshape(spectrum[:, 0], pigment, s)
+        gamma[i] = (constants.sig_chl *
+                    overlap(spectrum[:, 0], spectrum[:, 1], lines[i]))
+    for i in range(len(rcs)):
+        lines[n_shifts + i] = get_lineshape(spectrum[:, 0], rcs[i], 0.0)
+    
+    overlaps = np.zeros((len(lines), len(lines)))
+    for i, l1 in enumerate(lines):
+        for j, l2 in enumerate(lines):
+            overlaps[i, j] = overlap(spectrum[:, 0], l1, l2)
+    return gamma, overlaps
+
+def precalculate_delta_G(pigment, rcs, shift_peak):
+    ntot = len(shift_peak.keys()) + len(rcs)
+    rce = [constants.pigment_data[rc]['lp'][0] for rc in rcs]
+    dh = np.zeros((ntot, ntot))
+    ds = np.zeros_like(dh)
+    energies = np.zeros(n_tot)
+    for i, l1 in enumerate(shift_peak.values()):
+        energies[i] = l1
+    for i in range(len(rcs)):
+        energies[len(shift_peak.values()) + i] = rce[i]
+    for i, l1 in enumerate(energies):
+        for j, l2 in enumerate(energies):
+            dh[i, j] = hcnm * ((l1 - l2) / (l1 * l2))
+    # entropy - actually we could just calculate the lower triangle
+    # of this matrix since it's symmetric, but whatever
+    nbounds = constants.bounds['n_p']
+    for i in range(n_bounds[0], n_bounds[1] + 1):
+        for j in range(n_bounds[0], n_bounds[1] + 1):
+            n = float(i / j)
+            ds[i, j] = -kB * np.log(n)
+    return dh, ds
+
 class LookupTables:
     def __init__(self, spectrum, pigments, rcs):
         self.gamma = self.gamma_calc(spectrum, pigments)
