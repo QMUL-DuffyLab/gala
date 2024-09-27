@@ -82,9 +82,9 @@ try:
         if indices[tuple(state)] in cycdices:
             nu_cyc += p
         print(f"p_eq({state}) = {p}")
-    print(f"nu_lin = {nu_lin}")
     print(f"nu_cyc = {nu_cyc}")
-    print(f"nu_lin / nu_cyc = {nu_lin / nu_cyc}")
+    print(f"nu_lin = {nu_lin}")
+    print(f"nu_cyc / nu_lin = {nu_cyc / nu_lin}")
 except RuntimeError:
     p_eq = None
     p_eq_res = None
