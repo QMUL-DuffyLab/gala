@@ -2,13 +2,13 @@ import numpy as np
 from scipy.optimize import nnls
 
 # need reasonable numbers for the gammas
-gamma_ox = 1.0 / 3.0e-6
-gamma_E  = 1.0 / 5.0e-5
+gamma_ox = 1.0e6
+gamma_E  = 1.0e6
 k_diss   = 1.0 / 1.0e-9
 k_trap   = 1.0 / 10.0e-12
 k_o2     = 1.0 / 400.0e-6
 k_lin    = 1.0 / 10.0e-3
-k_out    = 1.0 / 1.0e-9 # check with chris
+k_out    = 1.0 / 10.0e-3 # check with chris
 alpha    = 1.0
 k_cyc    = alpha * k_lin
 
@@ -33,22 +33,26 @@ processes = {
         (0, 0, 0, 1, 0, 0): gamma_E,
         (-1, 0, 0, 0, 0, 0): k_diss,
         (0, 0, 0, -1, 0, 0): k_diss,
+        (-1, 1, 0, 0, 0, 0): k_trap,
+        (0, 0, 0, -1, 1, 0): k_trap,
         (0, 0, -1, 0, 0, 0): k_o2,
         (0, -1, 1, 0, 0, -1): k_lin,
-        (0, -1, 1, 0, -1, 1): k_out,
-        (0, -1, 1, 0, -1, 0): k_cyc,
+        (0, 0, 0, 0, -1, 1): k_out,
+        (0, 0, 0, 0, -1, 0): k_cyc,
         }
 # loop over, check difference, assign rate if necessary. bish bash bosh
 # also add the relevant indices for linear and cyclic flow to lists
 lindices = []
 cycdices = []
 for si in two_rc:
-    if si[4] == 0 and si[5] == 1:
-        # [n_^{ox}, n^{E}_e, 0, 1]
+    if si[4] == 1 and si[5] == 0:
+        # [n_^{ox}, n^{E}_e, 1, 0]
         cycdices.append(indices[tuple(si)])
-        if si[1] == 1 and si[2] == 0:
-            # [n_^{ox}_e, 1, 0, n^{E}_e, 0, 1]
-            lindices.append(indices[tuple(si)])
+    if si[1] == 1 and si[2] == 0 and si[4] == 0 and si[5] == 1:
+        # [n_^{ox}_e, 1, 0, n^{E}_e, 0, 1]
+        lindices.append(indices[tuple(si)])
+
+for si in two_rc:
     for sf in two_rc:
         diff = tuple(sf - si)
         if diff in processes:
@@ -78,10 +82,11 @@ try:
     p_eq, p_eq_res = nnls(k, b)
     for state, p in zip(two_rc, p_eq):
         if indices[tuple(state)] in lindices:
-            nu_lin += p
+            nu_lin += k_lin * p
         if indices[tuple(state)] in cycdices:
-            nu_cyc += p
-        print(f"p_eq({state}) = {p}")
+            nu_cyc += k_cyc * p
+        if p > 0.0:
+            print(f"p_eq({state}) = {p}")
     print(f"nu_cyc = {nu_cyc}")
     print(f"nu_lin = {nu_lin}")
     print(f"nu_cyc / nu_lin = {nu_cyc / nu_lin}")
