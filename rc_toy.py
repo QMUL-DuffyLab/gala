@@ -281,6 +281,7 @@ def antenna_rc(l, ip_y, p, debug=False):
         return {
                 "k": k,
                 "twa": twa,
+                "gamma": gamma,
                 "kb": k_b,
                 "p_eq": p_eq,
                 "lindices": lindices,
@@ -296,14 +297,16 @@ if __name__ == "__main__":
     spectrum, output_prefix = light.spectrum_setup("red")
     n_b = 2
     n_s = 3
-    n_p = [80, 70, 60]
-    shift = [100.0, 90.0, 200.0]
+    n_p = [70, 60, 50]
+    shift_good = [10.0, 0.0, -10.0]
+    shift_bad = [100.0, 90.0, 200.0]
     pigment = ['averaged', 'averaged', 'averaged']
     rc = ["rc_ox", "rc_E"]
     alpha = 1.0
-    p = constants.Genome(n_b, n_s, n_p, shift, pigment, rc, alpha)
+    p = constants.Genome(n_b, n_s, n_p, shift_good, pigment, rc, alpha)
 
     od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
     print(od)
     print(len(od["cycdices"]) == 12 * ((n_b * n_s) + 1))
     print(len(od["lindices"]) == 4 * ((n_b * n_s) + 1))
+    print(np.sum(od["gamma"]))
