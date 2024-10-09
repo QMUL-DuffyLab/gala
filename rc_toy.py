@@ -50,7 +50,6 @@ def rc_only(rc_params, debug=True):
             if diff in processes:
                 index = indices[tuple(si)], indices[tuple(sf)]
                 twa[index] = processes[diff]
-
     # set up nnls
     # in theory you should be able to construct this matrix as you go
     # but in practice i always fuck it up somehow. so just do it here
@@ -167,6 +166,10 @@ def antenna_rc(l, ip_y, p, rc_params, debug=False):
     for jind, j in enumerate(js):
         # jind == 0 is empty antenna, etc
         for i in range(n_rc):
+            # NB: can just generate the RC matrix once and then do
+            # for m in range(n_rc):
+            #     indf = m + j
+            #     twa[ind][indf] = t_rc[i][m]
             ind = i + j # total index
             rc_state = two_rc[i] # tuple with current RC state
             # RC rate stuff first
