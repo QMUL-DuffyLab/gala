@@ -1,7 +1,12 @@
 import numpy as np
+import ctypes
 import matplotlib.pyplot as plt
 from scipy.optimize import nnls
 from matplotlib import cm, ticker, colors
+import constants
+import antenna as la
+import light
+from scipy.constants import Boltzmann as kB
 
 '''
 look how clever i am
@@ -88,7 +93,7 @@ def rc_only(rc_params, debug=True):
     else:
         return nu_cyc / nu_lin
 
-def antenna_rc(l, ip_y, p, rc_params, debug=False):
+def antenna_rc(l, ip_y, p, debug=False):
     '''
     branched antenna, saturating RC
     l = set of wavelengths
@@ -96,34 +101,41 @@ def antenna_rc(l, ip_y, p, rc_params, debug=False):
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
     '''
+    # NB: need to implement alpha in the GA
+    k_cyc = p.alpha * constants.k_lin
     
     # NB: need to add both RCs, ox and then E, at the start!
     # then k_b will match below
-    fp_y = (ip_y * l) / hcnm
-    n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
-    # 0 offset for the RC! shifts stored as integer increments, so
+    fp_y = (ip_y * l) / la.hcnm
+    # assumes constant (and equal) number of pigments in RCs
+    n_p = np.array([constants.np_rc, constants.np_rc, *p.n_p],
+            dtype=np.int32)
+    # 0 shift for RCs. shifts stored as integer increments, so
     # multiply by shift_inc here
-    shift = np.array([0., *p.shift], dtype=np.float64) * constants.shift_inc
-    pigment = np.array([p.rc, *p.pigment], dtype='U10')
-    lines = np.zeros((p.n_s + 1, len(l)))
-    gamma = np.zeros(p.n_s, dtype=np.float64)
-    k_b = np.zeros(2 * p.n_s, dtype=np.float64)
-    for i in range(p.n_s + 1):
-        lines[i] = get_lineshape(l, pigment[i], shift[i])
-        if i > 0:
-            gamma[i - 1] = (n_p[i] * constants.sig_chl *
-                            overlap(l, fp_y, lines[i]))
+    shift = np.array([0., 0., *p.shift], dtype=np.float64) * constants.shift_inc
+    pigment = np.array([*p.rc, *p.pigment], dtype='U10')
+    lines = np.zeros((p.n_s + 2, len(l)))
+    gamma = np.zeros(p.n_s + 2, dtype=np.float64)
+    k_b = np.zeros(2 * (p.n_s + 2), dtype=np.float64)
+    for i in range(p.n_s + 2):
+        lines[i] = la.get_lineshape(l, pigment[i], shift[i])
+        gamma[i] = (n_p[i] * constants.sig_chl *
+                        la.overlap(l, fp_y, lines[i]))
 
-    for i in range(p.n_s):
-        de = overlap(l, lines[i], lines[i + 1])
-        n = float(n_p[i]) / float(n_p[i + 1])
-        dg = dG(peak(shift[i], pigment[i]),
-                peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-        if i == 0:
-            rate = constants.k_lhc_rc
-        else:
-            rate = constants.k_hop
-        rate *= de
+    for i in range(p.n_s + 2):
+        if i < 2:
+            # RCs - overlap/dG with first subunit (3rd in list, so [2])
+            de = la.overlap(l, lines[i], lines[2])
+            n = float(n_p[i]) / float(n_p[2])
+            dg = la.dG(la.peak(shift[i], pigment[i]),
+                    la.peak(shift[2], pigment[2]), n, constants.T)
+        elif i < p.n_s + 1:
+            # one subunit and the next
+            de = la.overlap(l, lines[i], lines[i + 1])
+            n = float(n_p[i]) / float(n_p[i + 1])
+            dg = la.dG(la.peak(shift[i], pigment[i]),
+                    la.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
+        rate = constants.k_hop * de
         k_b[2 * i] = rate
         k_b[(2 * i) + 1] = rate
         if dg < 0.0:
@@ -145,16 +157,16 @@ def antenna_rc(l, ip_y, p, rc_params, debug=False):
     # keys in the dict here are the population differences between
     # initial and final states, for each type of process; values are rates
     processes = {
-            (1, 0, 0, 0, 0, 0): gamma_ox,
-            (0, 0, 0, 1, 0, 0): gamma_E,
-            (-1, 0, 0, 0, 0, 0): k_diss,
-            (0, 0, 0, -1, 0, 0): k_diss,
-            (-1, 1, 0, 0, 0, 0): k_trap,
-            (0, 0, 0, -1, 1, 0): k_trap,
-            (0, 0, -1, 0, 0, 0): k_o2,
-            (0, -1, 1, 0, 0, -1): k_lin,
-            (0, 0, 0, 0, -1, 1): k_out,
-            (0, 0, 0, 0, -1, 0): k_cyc,
+            (1, 0, 0, 0, 0, 0): gamma[0], # rc_ox is first in lists
+            (0, 0, 0, 1, 0, 0): gamma[1], # rc_E second
+            (-1, 0, 0, 0, 0, 0):  constants.k_diss,
+            (0, 0, 0, -1, 0, 0):  constants.k_diss,
+            (-1, 1, 0, 0, 0, 0):  constants.k_trap,
+            (0, 0, 0, -1, 1, 0):  constants.k_trap,
+            (0, 0, -1, 0, 0, 0):  constants.k_o2,
+            (0, -1, 1, 0, 0, -1): constants.k_lin,
+            (0, 0, 0, 0, -1, 1):  constants.k_out,
+            (0, 0, 0, 0, -1, 0):  k_cyc,
             }
 
     side = n_rc * ((p.n_b * p.n_s) + 1)
@@ -183,14 +195,14 @@ def antenna_rc(l, ip_y, p, rc_params, debug=False):
             for sf in two_rc:
                 diff = tuple(sf - rc_state)
                 if diff in processes:
-                    indf = indices[sf] + j
+                    indf = indices[tuple(sf)] + j
                     twa[ind][indf] = processes[diff]
 
             # antenna rate stuff
             if jind > 0: # population in antenna subunit
                 twa[ind][i] = constants.k_diss # dissipation from antenna
                 si = ((j // n_rc) - 1) % p.n_s 
-                twa[i][ind] = gamma[si] # absorption by this block
+                twa[i][ind] = gamma[si + 2] # absorption by this block
                 if si == 0:
                     # root of branch - antenna <-> RC transfer possible
                     if rc_state[0] == 1: # ox -> antenna possible
@@ -244,40 +256,54 @@ def antenna_rc(l, ip_y, p, rc_params, debug=False):
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
-    for i in range(2 * side):
-        for j in range(2 * side):
+    for i in range(side):
+        for j in range(side):
             if (i != j):
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
         # add a row for the probability constraint
-        k[2 * side][i] = 1.0
+        k[side][i] = 1.0
 
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res = solve(k, method='scipy')
+    p_eq, p_eq_res = la.solve(k, method='scipy')
 
     # need to fix this loop for branches and subunits etc
     nu_lin = 0.0
     nu_cyc = 0.0
     for i, p in enumerate(p_eq):
         if i in lindices:
-            nu_lin += k_lin * p
+            nu_lin += constants.k_lin * p
         if i in cycdices:
             nu_cyc += k_cyc * p
 
+    if debug:
+        return {
+                "k": k,
+                "twa": twa,
+                "kb": k_b,
+                "p_eq": p_eq,
+                "lindices": lindices,
+                "cycdices": cycdices,
+                "nu_lin": nu_lin,
+                "nu_cyc": nu_cyc,
+                }
+    else:
         return nu_cyc / nu_lin
 
 if __name__ == "__main__":
 
-    rc_params = {
-    gamma_ox : 1.0e6,
-    gamma_E  : 1.0,
-    k_diss   : 1.0 / 1.0e-9,
-    k_trap   : 1.0 / 10.0e-12,
-    k_o2     : 1.0 / 400.0e-6,
-    k_lin    : 1.0 / 10.0e-3,
-    k_out    : 1.0 / 10.0e-3, # check with chris
-    alpha    : 1.0,
-    k_cyc    : alpha * k_lin,
-    }
-    ratio = rc_toy(rc_params)
+    spectrum, output_prefix = light.spectrum_setup("red")
+    n_b = 2
+    n_s = 3
+    n_p = [80, 70, 60]
+    shift = [100.0, 90.0, 200.0]
+    pigment = ['averaged', 'averaged', 'averaged']
+    rc = ["rc_ox", "rc_E"]
+    alpha = 1.0
+    p = constants.Genome(n_b, n_s, n_p, shift, pigment, rc, alpha)
+
+    od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
+    print(od)
+    print(len(od["cycdices"]) == 12 * ((n_b * n_s) + 1))
+    print(len(od["lindices"]) == 4 * ((n_b * n_s) + 1))

@@ -48,8 +48,9 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
           'shift': np.array([-20, 120], dtype=np.int32),
           # names must match what's in pigment_data_file!
-          'rc': np.array(["psii", "fr_rc", "ano_rc",
+          'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
                             "hydro_rc"]),
+          'alpha': np.array([0.0, 10.0], dtype=np.float64),
           # any pigment in this array can be picked
           'pigment': np.array(["averaged"])
           }
@@ -86,12 +87,13 @@ some rates that I think are going to be fixed
 all given in s^{-1}
 '''
 
-k_diss   = 1.0 / 4.0E-9 # Chl excited state decay rate
-k_trap   = 1.0 / 5.0E-12 # PSII trapping rate
-k_con    = 1.0 / 10.0E-3 # PSII RC turnover rate
 k_hop    = 1.0 / 10.0E-12 # just one hopping rate between all subunits
-k_lhc_rc = 1.0 / 10.0E-12
-k_params  = (k_diss, k_trap, k_con, k_hop, k_lhc_rc)
+k_diss   = 1.0 / 1.0E-9 # Chl excited state decay rate
+k_trap   = 1.0 / 10.0E-12 # PSII trapping rate
+k_o2     = 1.0 / 400.0e-6
+k_lin    = 1.0 / 10.0E-3 # PSII RC turnover rate
+k_out    = 1.0 / 10.0E-3 # PSII RC turnover rate
+k_params  = (k_diss, k_trap, k_o2, k_lin, k_out, k_hop)
 
 '''
 Spectral parameters
@@ -107,6 +109,7 @@ class Genome:
     shift: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
     pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     rc: str = field(default_factory=lambda: np.empty([], dtype='U10'))
+    alpha: float = 0.0
     connected: bool = False
     nu_e: float = np.nan
     phi_e_g: float = np.nan

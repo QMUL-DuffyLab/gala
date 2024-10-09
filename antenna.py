@@ -395,6 +395,7 @@ def antenna(l, ip_y, p, debug=False):
 
 if __name__ == '__main__':
 
+    # NB: update this
     ts = "5800K"
     f = "spectra/PHOENIX/Scaled_Spectrum_PHOENIX_" + ts + ".dat"
     d = np.loadtxt(f)
