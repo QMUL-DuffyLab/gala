@@ -43,14 +43,18 @@ def precalculate_peak_locations(pigment, lmin, lmax, increment):
 
 def precalculate_overlap_gamma(pigment, rcs, spectrum, shift_peak):
     n_shifts = len(shift_peak.keys())
-    gamma = np.zeros(n_shifts)
-    lines = np.zeros((n_shifts + len(rcs), len(spectrum[:, 0])))
+    ntot = n_shifts + len(rcs)
+    gamma = np.zeros(ntot)
+    lines = np.zeros((ntot, len(spectrum[:, 0])))
     for i, s in enumerate(shift_peak.keys()):
         lines[i] = get_lineshape(spectrum[:, 0], pigment, s)
         gamma[i] = (constants.sig_chl *
                     overlap(spectrum[:, 0], spectrum[:, 1], lines[i]))
     for i in range(len(rcs)):
         lines[n_shifts + i] = get_lineshape(spectrum[:, 0], rcs[i], 0.0)
+        gamma[n_shifts + i] = (constants.sig_chl *
+                    overlap(spectrum[:, 0], spectrum[:, 1],
+                            lines[n_shifts + i]))
     
     overlaps = np.zeros((len(lines), len(lines)))
     for i, l1 in enumerate(lines):
@@ -386,6 +390,8 @@ def antenna(l, ip_y, p, debug=False):
                 }
     else:
         return np.array([nu_e, phi_e_g, phi_e])
+
+
 
 if __name__ == '__main__':
 
