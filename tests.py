@@ -157,7 +157,7 @@ def test_python_fortran(n_trials=1000):
         n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
         shift = np.array([0., *g.shift], dtype=ctypes.c_double)
         # we have to format them like this, otherwise numpy truncates
-        pigment = np.array([f"{p:<10}" for p in [constants.rc_type, *g.pigment]],
+        pigment = np.array([f"{p:<10}" for p in ["rc_ox", *g.pigment]],
                            dtype='a10', order='F')
         kp = np.array(constants.k_params, dtype=ctypes.c_double)
         n_b = ctypes.byref(ctypes.c_int(g.n_b))
@@ -166,7 +166,7 @@ def test_python_fortran(n_trials=1000):
         gf = ctypes.byref(ctypes.c_double(constants.gamma_fac))
         ll = ctypes.byref(ctypes.c_int(len(l)))
         libantenna.fitness_calc(n_b, n_s,
-                                n_p, offset, pigment, kp,
+                                n_p, shift, pigment, kp,
                                 temp,
                                 gf, l, ip_y,
                                 ll, fr)

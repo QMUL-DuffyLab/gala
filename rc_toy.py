@@ -93,13 +93,14 @@ def rc_only(rc_params, debug=True):
     else:
         return nu_cyc / nu_lin
 
-def antenna_rc(l, ip_y, p, debug=False):
+def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     '''
     branched antenna, saturating RC
     l = set of wavelengths
     ip_y = irradiances at those wavelengths
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
+    nnls = which NNLS version to use
     '''
     # NB: need to implement alpha in the GA
     k_cyc = p.alpha * constants.k_lin
@@ -266,7 +267,7 @@ def antenna_rc(l, ip_y, p, debug=False):
 
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res = la.solve(k, method='scipy')
+    p_eq, p_eq_res = la.solve(k, method=nnls)
 
     # need to fix this loop for branches and subunits etc
     nu_lin = 0.0
