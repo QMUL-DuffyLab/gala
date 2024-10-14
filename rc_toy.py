@@ -10,18 +10,19 @@ from scipy.constants import Boltzmann as kB
 
 def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     '''
-    branched antenna, saturating RC
+    combined antenna-RC model.
+    NB: this is probably not going to work as-is for a non-oxygenic system,
+    yet. need to think about how to implement them generally. but it works
+    for rc_ox and rc_E in the oxygenic case.
+
     l = set of wavelengths
     ip_y = irradiances at those wavelengths
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
     nnls = which NNLS version to use
     '''
-    # NB: need to implement alpha in the GA
     k_cyc = p.alpha * constants.k_lin
     
-    # NB: need to add both RCs, ox and then E, at the start!
-    # then k_b will match below
     fp_y = (ip_y * l) / la.hcnm
     # assumes constant (and equal) number of pigments in RCs
     n_p = np.array([constants.np_rc, constants.np_rc, *p.n_p],
@@ -65,6 +66,16 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     one_rc = [(0, 0, 0), (1, 0, 0), (0, 1, 0),
               (0, 0, 1), (1, 1, 0), (1, 0, 1)]
     # combine one_rc with itself to make the possible states of the supersystem
+    '''
+    NB: this can be modified for different RC types by something like
+    if len(rcs) == 1:
+        final_rc = one_rc
+    elif len(rcs) == 2:
+        final_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
+    else:
+        print("TOO MANY RCS!!")
+    i think that should be fine, there will never be more than two
+    '''
     two_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
     n_rc = len(two_rc)
     # assign each combination to an index for use in the array below
@@ -73,6 +84,10 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     # keys in the dict here are the population differences between
     # initial and final states, for each type of process; values are rates
     processes = {
+            # NB: these four processes could also be transfer to and
+            # from the antenna, but we only use this dict for the RC-RC
+            # terms, and the transfer's taken care of afterwards, so
+            # this should be fine
             (1, 0, 0, 0, 0, 0): gamma[0], # rc_ox is first in lists
             (0, 0, 0, 1, 0, 0): gamma[1], # rc_E second
             (-1, 0, 0, 0, 0, 0):  constants.k_diss,
@@ -92,7 +107,7 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     cycdices = []
     js = list(range(0, side, n_rc))
     for jind, j in enumerate(js):
-        # jind == 0 is empty antenna, etc
+        # jind == 0 is empty antenna, 0 + n_rc is first antenna block, etc
         for i in range(n_rc):
             # NB: can just generate the RC matrix once and then do
             # for m in range(n_rc):
@@ -108,6 +123,8 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
             and rc_state[4] == 0 and rc_state[5] == 1):
                 # [n_^{ox}_e, 1, 0, n^{E}_e, 0, 1]
                 lindices.append(ind)
+            # now loop over the states again, get the population change,
+            # and insert the correct rate if it matches a process
             for sf in two_rc:
                 diff = tuple(sf - rc_state)
                 if diff in processes:
@@ -121,6 +138,8 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 twa[i][ind] = gamma[si + 2] # absorption by this block
                 if si == 0:
                     # root of branch - antenna <-> RC transfer possible
+                    # need to calculate the index of the final RC state:
+                    # antenna-RC transfer changes the state of both
                     if rc_state[0] == 1: # ox -> antenna possible
                         # index of final RC state
                         rcf = indices[(0, *rc_state[1:])]
@@ -139,7 +158,6 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                         # transfer to e^E
                         twa[ind][rcf] = p.phi * k_b[3]
                 if p.connected:
-                    # need to think about this logic - indexing correct?
                     prevind = ind - (p.n_s * n_rc)
                     nextind = ind + (p.n_s * n_rc)
                     '''
@@ -191,13 +209,23 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     # need to fix this loop for branches and subunits etc
     nu_lin = 0.0
     nu_cyc = 0.0
-    nu_out = 0.0
     for i, p_i in enumerate(p_eq):
         if i in lindices:
             nu_lin += p.eta * constants.k_lin * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
-            nu_out += constants.k_out * p_i
+
+    if debug:
+        # generate states to go with p_eq indices
+        ast = []
+        empty = tuple([0 for _ in range(p.n_b * p.n_s)])
+        ast.append(empty)
+        for i in range(p.n_b * p.n_s):
+            el = [0 for _ in range(p.n_b * p.n_s)]
+            el[i] = 1
+            ast.append(tuple(el))
+        total_states = [s1 + tuple(s2) for s1 in ast for s2 in two_rc]
+
 
     w_e = nu_lin + nu_cyc
     w_red = w_e / (1.0 + (p.alpha * constants.k_lin / constants.k_out))
@@ -208,6 +236,7 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 "gamma": gamma,
                 "kb": k_b,
                 "p_eq": p_eq,
+                "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
                 "nu_lin": nu_lin,
@@ -220,12 +249,12 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
 
 if __name__ == "__main__":
 
-    spectrum, output_prefix = light.spectrum_setup("red")
-    n_b = 5
-    n_s = 3
-    n_p = [50, 50, 50]
+    spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
+    n_b = 1
+    n_s = 1
+    n_p = [10 for _ in range(n_s)]
     no_shift = [0.0 for _ in range(n_s)]
-    pigment = ['apc', 'pc', 'pc']
+    pigment = ['apc']
     rc = ["rc_ox", "rc_E"]
     alpha = 0.1
     # phi seems to have no effect - why
@@ -237,6 +266,9 @@ if __name__ == "__main__":
     od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
     # print(od)
     print(f"alpha = {alpha}, phi = {phi}, eta = {eta}")
+    print(f"p(0) = {od['p_eq'][0]}")
     print(f"w_e = {od['w_e']}")
     print(f"w_red = {od['w_red']}")
     print(f"sum(gamma) = {np.sum(od['gamma'])}")
+    for si, pi in zip(od["states"], od["p_eq"]):
+        print(f"p_eq{si} = {pi}")
