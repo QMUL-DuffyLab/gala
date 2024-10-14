@@ -51,6 +51,8 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
                             "hydro_rc"]),
           'alpha': np.array([0.0, 10.0], dtype=np.float64),
+          'phi': np.array([0.0, 10.0], dtype=np.float64),
+          'eta': np.array([0.0, 10.0], dtype=np.float64),
           # any pigment in this array can be picked
           'pigment': np.array(["averaged"])
           }
@@ -110,6 +112,8 @@ class Genome:
     pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     rc: str = field(default_factory=lambda: np.empty([], dtype='U10'))
     alpha: float = 0.0
+    phi: float = 0.0
+    eta: float = 0.0
     connected: bool = False
     nu_e: float = np.nan
     phi_e_g: float = np.nan

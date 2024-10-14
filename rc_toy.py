@@ -8,91 +8,6 @@ import antenna as la
 import light
 from scipy.constants import Boltzmann as kB
 
-'''
-look how clever i am
-'''
-def rc_only(rc_params, debug=True):
-    one_rc = [(0, 0, 0), (1, 0, 0), (0, 1, 0),
-              (0, 0, 1), (1, 1, 0), (1, 0, 1)]
-    # combine one_rc with itself to make the possible states of the supersystem
-    two_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
-    # assign each combination to an index for use in the array below
-    indices = {state: i for state, i in zip(two_rc, range(len(two_rc)))}
-    # assign the array
-    side = len(two_rc)
-    twa = np.zeros((side, side))
-    two_rc = np.array(two_rc)
-
-    lindices = []
-    cycdices = []
-    for si in two_rc:
-        if si[4] == 1 and si[5] == 0:
-            # [n_^{ox}, n^{E}_e, 1, 0]
-            cycdices.append(indices[tuple(si)])
-        if si[1] == 1 and si[2] == 0 and si[4] == 0 and si[5] == 1:
-            # [n_^{ox}_e, 1, 0, n^{E}_e, 0, 1]
-            lindices.append(indices[tuple(si)])
-
-    # keys in the dict here are the population differences between
-    # initial and final states, for each type of process; values are rates
-    processes = {
-            (1, 0, 0, 0, 0, 0):   rc_params["gamma_ox"],
-            (0, 0, 0, 1, 0, 0):   rc_params["gamma_E"],
-            (-1, 0, 0, 0, 0, 0):  rc_params["k_diss"],
-            (0, 0, 0, -1, 0, 0):  rc_params["k_diss"],
-            (-1, 1, 0, 0, 0, 0):  rc_params["k_trap"],
-            (0, 0, 0, -1, 1, 0):  rc_params["k_trap"],
-            (0, 0, -1, 0, 0, 0):  rc_params["k_o2"],
-            (0, -1, 1, 0, 0, -1): rc_params["k_lin"],
-            (0, 0, 0, 0, -1, 1):  rc_params["k_out"],
-            (0, 0, 0, 0, -1, 0):  rc_params["k_cyc"],
-            }
-    # loop over, check difference, assign rate if necessary. bish bash bosh
-    # also add the relevant indices for linear and cyclic flow to lists
-    for si in two_rc:
-        for sf in two_rc:
-            diff = tuple(sf - si)
-            if diff in processes:
-                index = indices[tuple(si)], indices[tuple(sf)]
-                twa[index] = processes[diff]
-    # set up nnls
-    # in theory you should be able to construct this matrix as you go
-    # but in practice i always fuck it up somehow. so just do it here
-    k = np.zeros((side + 1, side))
-    for i in range(side):
-        for j in range(side):
-            if (i != j):
-                k[i][j]  = twa[j][i]
-                k[i][i] -= twa[i][j]
-        k[side][i] = 1.0
-
-    b = np.zeros(side + 1)
-    b[-1] = 1.0
-
-    nu_lin = 0.0
-    nu_cyc = 0.0
-    try:
-        p_eq, p_eq_res = nnls(k, b)
-        for state, p in zip(two_rc, p_eq):
-            if indices[tuple(state)] in lindices:
-                nu_lin += k_lin * p
-            if indices[tuple(state)] in cycdices:
-                nu_cyc += k_cyc * p
-    except RuntimeError:
-        p_eq = None
-        p_eq_res = None
-        nu_cyc = np.nan
-        nu_lin = np.nan
-    if debug:
-        return {k: k,
-                p_eq: p_eq,
-                p_eq_res: p_eq_res,
-                nu_lin: nu_lin,
-                nu_cyc: nu_cyc,
-                }
-    else:
-        return nu_cyc / nu_lin
-
 def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     '''
     branched antenna, saturating RC
@@ -165,7 +80,7 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
             (-1, 1, 0, 0, 0, 0):  constants.k_trap,
             (0, 0, 0, -1, 1, 0):  constants.k_trap,
             (0, 0, -1, 0, 0, 0):  constants.k_o2,
-            (0, -1, 1, 0, 0, -1): constants.k_lin,
+            (0, -1, 1, 0, 0, -1): p.eta * constants.k_lin,
             (0, 0, 0, 0, -1, 1):  constants.k_out,
             (0, 0, 0, 0, -1, 0):  k_cyc,
             }
@@ -209,16 +124,20 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                     if rc_state[0] == 1: # ox -> antenna possible
                         # index of final RC state
                         rcf = indices[(0, *rc_state[1:])]
-                        twa[rcf][ind] = k_b[0] # backtransfer from e^ox
+                        # backtransfer from e^ox
+                        twa[rcf][ind] = (p.eta / p.phi) * k_b[0]
                     if rc_state[0] == 0: # antenna -> ox possible
                         rcf = indices[(1, *rc_state[1:])]
-                        twa[ind][rcf] = k_b[1] # transfer to e^ox
+                        # transfer to e^ox
+                        twa[ind][rcf] = (p.phi / p.eta) * k_b[1]
                     if rc_state[3] == 1: # E -> antenna possible
                         rcf = indices[(*rc_state[0:3], 0, *rc_state[4:])]
-                        twa[rcf][ind] = k_b[2] # backtransfer from e^E
+                        # backtransfer from e^E
+                        twa[rcf][ind] = (1.0 / p.phi) * k_b[2]
                     if rc_state[3] == 0: # antenna -> E possible
                         rcf = indices[(*rc_state[0:3], 1, *rc_state[4:])]
-                        twa[ind][rcf] = k_b[3] # transfer to e^E
+                        # transfer to e^E
+                        twa[ind][rcf] = p.phi * k_b[3]
                 if p.connected:
                     # need to think about this logic - indexing correct?
                     prevind = ind - (p.n_s * n_rc)
@@ -272,12 +191,16 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     # need to fix this loop for branches and subunits etc
     nu_lin = 0.0
     nu_cyc = 0.0
-    for i, p in enumerate(p_eq):
+    nu_out = 0.0
+    for i, p_i in enumerate(p_eq):
         if i in lindices:
-            nu_lin += constants.k_lin * p
+            nu_lin += p.eta * constants.k_lin * p_i
         if i in cycdices:
-            nu_cyc += k_cyc * p
+            nu_cyc += k_cyc * p_i
+            nu_out += constants.k_out * p_i
 
+    w_e = nu_lin + nu_cyc
+    w_red = w_e / (1.0 + (p.alpha * constants.k_lin / constants.k_out))
     if debug:
         return {
                 "k": k,
@@ -289,6 +212,8 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 "cycdices": cycdices,
                 "nu_lin": nu_lin,
                 "nu_cyc": nu_cyc,
+                "w_e": w_e,
+                "w_red": w_red,
                 }
     else:
         return nu_cyc / nu_lin
@@ -296,18 +221,22 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
 if __name__ == "__main__":
 
     spectrum, output_prefix = light.spectrum_setup("red")
-    n_b = 2
+    n_b = 5
     n_s = 3
-    n_p = [70, 60, 50]
-    shift_good = [10.0, 0.0, -10.0]
-    shift_bad = [100.0, 90.0, 200.0]
-    pigment = ['averaged', 'averaged', 'averaged']
+    n_p = [50, 50, 50]
+    no_shift = [0.0 for _ in range(n_s)]
+    pigment = ['apc', 'pc', 'pc']
     rc = ["rc_ox", "rc_E"]
-    alpha = 1.0
-    p = constants.Genome(n_b, n_s, n_p, shift_good, pigment, rc, alpha)
+    alpha = 0.1
+    # phi seems to have no effect - why
+    phi = 0.1
+    eta = 2.0
+    p = constants.Genome(n_b, n_s, n_p, no_shift,
+            pigment, rc, alpha, phi, eta)
 
     od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
-    print(od)
-    print(len(od["cycdices"]) == 12 * ((n_b * n_s) + 1))
-    print(len(od["lindices"]) == 4 * ((n_b * n_s) + 1))
-    print(np.sum(od["gamma"]))
+    # print(od)
+    print(f"alpha = {alpha}, phi = {phi}, eta = {eta}")
+    print(f"w_e = {od['w_e']}")
+    print(f"w_red = {od['w_red']}")
+    print(f"sum(gamma) = {np.sum(od['gamma'])}")
