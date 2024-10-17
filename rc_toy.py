@@ -103,6 +103,16 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     side = n_rc * ((p.n_b * p.n_s) + 1)
     twa = np.zeros((side, side), dtype=np.longdouble)
 
+    # generate states to go with p_eq indices
+    ast = []
+    empty = tuple([0 for _ in range(p.n_b * p.n_s)])
+    ast.append(empty)
+    for i in range(p.n_b * p.n_s):
+        el = [0 for _ in range(p.n_b * p.n_s)]
+        el[i] = 1
+        ast.append(tuple(el))
+    total_states = [s1 + tuple(s2) for s1 in ast for s2 in two_rc]
+
     lindices = []
     cycdices = []
     js = list(range(0, side, n_rc))
@@ -129,34 +139,49 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 diff = tuple(sf - rc_state)
                 if diff in processes:
                     indf = indices[tuple(sf)] + j
+                    # print(f"{total_states[ind]} -> {total_states[indf]}: {processes[diff]:.2e}")
                     twa[ind][indf] = processes[diff]
+
+            twa[ind][i] = constants.k_diss # dissipation from antenna
+            si = ((j // n_rc) - 1) % p.n_s
+            twa[i][ind] = gamma[si + 2] # absorption by this block
+            if si == 0:
+                # root of branch - antenna <-> RC transfer possible
+                # need to calculate the index of the final RC state:
+                # antenna-RC transfer changes the state of both
+                state = total_states[ind]
+                ans = ind // n_rc # antenna block index
+                rcs = ind % n_rc # rc index within block
+                # print(f"{ind}: {state}. ind % n_rc = {rcs}, ind // n_rc = {ans}. state[ind // n_rc * n_rc] = {total_states[ans * n_rc]}, state[ind % n_rc] = {total_states[rcs]}")
+                ti = (j // n_rc) - 1
+                if rc_state[0] == 1 and state[ti] == 0: # ox -> antenna possible
+                    # index of final RC state
+                    rcf = indices[(0, *rc_state[1:])]
+                    # backtransfer from e^ox
+                    # print(f"OX -> A. {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[0]:.2e}")
+                    # twa[ind][rcf] = (p.eta / p.phi) * k_b[0]
+                if rc_state[0] == 0 and state[ti] == 1: # antenna -> ox possible
+                    rcf = indices[(1, *rc_state[1:])]
+                    print(f"A -> OX. {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[1]:.2e}")
+                    print(f"OX -> A. {j} {rcf} {total_states[rcf]} -> {ind} {total_states[ind]}: {k_b[0]:.2e}")
+                    # transfer to e^ox
+                    twa[ind][rcf] = (p.phi / p.eta) * k_b[1]
+                    twa[rcf][ind] = (p.eta / p.phi) * k_b[0]
+                if rc_state[3] == 1 and state[ti] == 0: # E -> antenna possible
+                    rcf = indices[(*rc_state[0:3], 0, *rc_state[4:])] + ((ti + 1) * n_rc)
+                    # backtransfer from e^E
+                    # print(f"E -> A.  {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[2]:.2e}")
+                    # twa[ind][rcf] = (1.0 / p.phi) * k_b[2]
+                if rc_state[3] == 0 and state[ti] == 1: # antenna -> E possible
+                    rcf = indices[(*rc_state[0:3], 1, *rc_state[4:])]
+                    # transfer to e^E
+                    print(f"A -> E.  {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[3]:.2e}")
+                    print(f"E -> A.  {j} {rcf} {total_states[rcf]} -> {ind} {total_states[ind]}: {k_b[2]:.2e}")
+                    twa[ind][rcf] = p.phi * k_b[3]
+                    twa[rcf][ind] = (1.0 / p.phi) * k_b[2]
 
             # antenna rate stuff
             if jind > 0: # population in antenna subunit
-                twa[ind][i] = constants.k_diss # dissipation from antenna
-                si = ((j // n_rc) - 1) % p.n_s 
-                twa[i][ind] = gamma[si + 2] # absorption by this block
-                if si == 0:
-                    # root of branch - antenna <-> RC transfer possible
-                    # need to calculate the index of the final RC state:
-                    # antenna-RC transfer changes the state of both
-                    if rc_state[0] == 1: # ox -> antenna possible
-                        # index of final RC state
-                        rcf = indices[(0, *rc_state[1:])]
-                        # backtransfer from e^ox
-                        twa[rcf][ind] = (p.eta / p.phi) * k_b[0]
-                    if rc_state[0] == 0: # antenna -> ox possible
-                        rcf = indices[(1, *rc_state[1:])]
-                        # transfer to e^ox
-                        twa[ind][rcf] = (p.phi / p.eta) * k_b[1]
-                    if rc_state[3] == 1: # E -> antenna possible
-                        rcf = indices[(*rc_state[0:3], 0, *rc_state[4:])]
-                        # backtransfer from e^E
-                        twa[rcf][ind] = (1.0 / p.phi) * k_b[2]
-                    if rc_state[3] == 0: # antenna -> E possible
-                        rcf = indices[(*rc_state[0:3], 1, *rc_state[4:])]
-                        # transfer to e^E
-                        twa[ind][rcf] = p.phi * k_b[3]
                 if p.connected:
                     prevind = ind - (p.n_s * n_rc)
                     nextind = ind + (p.n_s * n_rc)
@@ -215,17 +240,6 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-    if debug:
-        # generate states to go with p_eq indices
-        ast = []
-        empty = tuple([0 for _ in range(p.n_b * p.n_s)])
-        ast.append(empty)
-        for i in range(p.n_b * p.n_s):
-            el = [0 for _ in range(p.n_b * p.n_s)]
-            el[i] = 1
-            ast.append(tuple(el))
-        total_states = [s1 + tuple(s2) for s1 in ast for s2 in two_rc]
-
 
     w_e = nu_lin + nu_cyc
     w_red = w_e / (1.0 + (p.alpha * constants.k_lin / constants.k_out))
@@ -234,7 +248,7 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 "k": k,
                 "twa": twa,
                 "gamma": gamma,
-                "kb": k_b,
+                "k_b": k_b,
                 "p_eq": p_eq,
                 "states": total_states,
                 "lindices": lindices,
@@ -249,16 +263,17 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
 
 if __name__ == "__main__":
 
+    # spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
     spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
     n_b = 1
-    n_s = 1
-    n_p = [10 for _ in range(n_s)]
-    no_shift = [0.0 for _ in range(n_s)]
     pigment = ['apc']
+    n_s = len(pigment)
+    n_p = [50 for _ in range(n_s)]
+    no_shift = [0.0 for _ in range(n_s)]
     rc = ["rc_ox", "rc_E"]
-    alpha = 0.1
-    # phi seems to have no effect - why
-    phi = 0.1
+    alpha = 1.0
+    # test effect of phi
+    phi = 2.0
     eta = 2.0
     p = constants.Genome(n_b, n_s, n_p, no_shift,
             pigment, rc, alpha, phi, eta)
@@ -271,6 +286,14 @@ if __name__ == "__main__":
         rowsum = np.sum(od["k"][i, :])
         print(f"index {i}: state {od['states'][i]} sum(col[i]) = {colsum}, sum(row[i]) = {rowsum}")
     print(np.sum(od["k"][:side, :]))
+    print(f"alpha = {alpha}, phi = {phi}, eta = {eta}")
+    print(f"p(0) = {od['p_eq'][0]}")
+    print(f"w_e = {od['w_e']}")
+    print(f"w_red = {od['w_red']}")
+    print(f"sum(gamma) = {np.sum(od['gamma'])}")
+    for si, pi in zip(od["states"], od["p_eq"]):
+        print(f"p_eq{si} = {pi}")
+    print(f"k_b = {od['k_b']}")
     np.savetxt("out/antenna_rc_twa.dat", od["twa"])
     with open("out/antenna_rc_results.dat", "w") as f:
     # print(od)
