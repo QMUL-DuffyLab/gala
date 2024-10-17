@@ -264,11 +264,21 @@ if __name__ == "__main__":
             pigment, rc, alpha, phi, eta)
 
     od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
+
+    side = len(od["p_eq"])
+    for i in range(side):
+        colsum = np.sum(od["k"][:side, i])
+        rowsum = np.sum(od["k"][i, :])
+        print(f"index {i}: state {od['states'][i]} sum(col[i]) = {colsum}, sum(row[i]) = {rowsum}")
+    print(np.sum(od["k"][:side, :]))
+    np.savetxt("out/antenna_rc_twa.dat", od["twa"])
+    with open("out/antenna_rc_results.dat", "w") as f:
     # print(od)
-    print(f"alpha = {alpha}, phi = {phi}, eta = {eta}")
-    print(f"p(0) = {od['p_eq'][0]}")
-    print(f"w_e = {od['w_e']}")
-    print(f"w_red = {od['w_red']}")
-    print(f"sum(gamma) = {np.sum(od['gamma'])}")
-    for si, pi in zip(od["states"], od["p_eq"]):
-        print(f"p_eq{si} = {pi}")
+        f.write(f"alpha = {alpha}, phi = {phi}, eta = {eta}\n")
+        f.write(f"p(0) = {od['p_eq'][0]}\n")
+        f.write(f"w_e = {od['w_e']}\n")
+        f.write(f"w_red = {od['w_red']}\n")
+        f.write(f"sum(gamma) = {np.sum(od['gamma'])}\n")
+        for si, pi in zip(od["states"], od["p_eq"]):
+            f.write(f"p_eq{si} = {pi}\n")
+    
