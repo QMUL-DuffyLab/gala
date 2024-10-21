@@ -31,14 +31,21 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     # multiply by shift_inc here
     shift = np.array([0., 0., *p.shift], dtype=np.float64) * constants.shift_inc
     pigment = np.array([*p.rc, *p.pigment], dtype='U10')
-    lines = np.zeros((p.n_s + 2, len(l)))
+    a_l = np.zeros((p.n_s + 2, len(l)))
+    e_l = np.zeros_like(a_l)
+    norms = np.zeros_like(a_l)
     gamma = np.zeros(p.n_s + 2, dtype=np.float64)
     k_b = np.zeros(2 * (p.n_s + 2), dtype=np.float64)
     for i in range(p.n_s + 2):
-        lines[i] = la.get_lineshape(l, pigment[i], shift[i])
+        a_l[i] = la.absorption(l, pigment[i], shift[i])
+        e_l[i] = la.emission(l, pigment[i], shift[i])
+        norms[i] = la.overlap(l, a_l[i], e_l[i])
         gamma[i] = (n_p[i] * constants.sig_chl *
-                        la.overlap(l, fp_y, lines[i]))
+                        la.overlap(l, fp_y, a_l[i]))
 
+    # NB: fix this once the normal antenna model works
+    inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
+    outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
     for i in range(p.n_s + 2):
         if i < 2:
             # RCs - overlap/dG with first subunit (3rd in list, so [2])
@@ -139,7 +146,6 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 diff = tuple(sf - rc_state)
                 if diff in processes:
                     indf = indices[tuple(sf)] + j
-                    # print(f"{total_states[ind]} -> {total_states[indf]}: {processes[diff]:.2e}")
                     twa[ind][indf] = processes[diff]
 
             twa[ind][i] = constants.k_diss # dissipation from antenna
@@ -152,29 +158,17 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 state = total_states[ind]
                 ans = ind // n_rc # antenna block index
                 rcs = ind % n_rc # rc index within block
-                # print(f"{ind}: {state}. ind % n_rc = {rcs}, ind // n_rc = {ans}. state[ind // n_rc * n_rc] = {total_states[ans * n_rc]}, state[ind % n_rc] = {total_states[rcs]}")
                 ti = (j // n_rc) - 1
-                if rc_state[0] == 1 and state[ti] == 0: # ox -> antenna possible
-                    # index of final RC state
-                    rcf = indices[(0, *rc_state[1:])]
-                    # backtransfer from e^ox
-                    # print(f"OX -> A. {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[0]:.2e}")
-                    # twa[ind][rcf] = (p.eta / p.phi) * k_b[0]
                 if rc_state[0] == 0 and state[ti] == 1: # antenna -> ox possible
                     rcf = indices[(1, *rc_state[1:])]
                     print(f"A -> OX. {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[1]:.2e}")
                     print(f"OX -> A. {j} {rcf} {total_states[rcf]} -> {ind} {total_states[ind]}: {k_b[0]:.2e}")
-                    # transfer to e^ox
+                    # antenna <--> e^{ox}
                     twa[ind][rcf] = (p.phi / p.eta) * k_b[1]
                     twa[rcf][ind] = (p.eta / p.phi) * k_b[0]
-                if rc_state[3] == 1 and state[ti] == 0: # E -> antenna possible
-                    rcf = indices[(*rc_state[0:3], 0, *rc_state[4:])] + ((ti + 1) * n_rc)
-                    # backtransfer from e^E
-                    # print(f"E -> A.  {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[2]:.2e}")
-                    # twa[ind][rcf] = (1.0 / p.phi) * k_b[2]
                 if rc_state[3] == 0 and state[ti] == 1: # antenna -> E possible
                     rcf = indices[(*rc_state[0:3], 1, *rc_state[4:])]
-                    # transfer to e^E
+                    # antenna <--> e^E
                     print(f"A -> E.  {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[3]:.2e}")
                     print(f"E -> A.  {j} {rcf} {total_states[rcf]} -> {ind} {total_states[ind]}: {k_b[2]:.2e}")
                     twa[ind][rcf] = p.phi * k_b[3]

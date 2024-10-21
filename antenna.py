@@ -13,6 +13,7 @@ import constants
 import ctypes
 import plots
 import light
+import matplotlib.pyplot as plt
 
 hcnm = (h * c) / (1.0E-9)
 
@@ -47,11 +48,11 @@ def precalculate_overlap_gamma(pigment, rcs, spectrum, shift_peak):
     gamma = np.zeros(ntot)
     lines = np.zeros((ntot, len(spectrum[:, 0])))
     for i, s in enumerate(shift_peak.keys()):
-        lines[i] = get_lineshape(spectrum[:, 0], pigment, s)
+        lines[i] = absorption(spectrum[:, 0], pigment, s)
         gamma[i] = (constants.sig_chl *
                     overlap(spectrum[:, 0], spectrum[:, 1], lines[i]))
     for i in range(len(rcs)):
-        lines[n_shifts + i] = get_lineshape(spectrum[:, 0], rcs[i], 0.0)
+        lines[n_shifts + i] = absorption(spectrum[:, 0], rcs[i], 0.0)
         gamma[n_shifts + i] = (constants.sig_chl *
                     overlap(spectrum[:, 0], spectrum[:, 1],
                             lines[n_shifts + i]))
@@ -94,14 +95,14 @@ class LookupTables:
     def lineshapes(self, spectrum, peak_bounds, increment):
         peak = peak_bounds[0]
         while peak <= peak_bounds[1]:
-            l = get_lineshape(spectrum[:, 0], ["avg"], peak)
+            l = absorption(spectrum[:, 0], ["avg"], peak)
             peak += increment
 
     def gamma_calc(self, spectrum, pigments):
         lines = np.zeros(len(pigments))
         gamma = np.zeros(len(pigments))
         for i in range(len(pigments)):
-            lines[i] = get_lineshape(spectrum[:, 0], pigments[i], 0.)
+            lines[i] = absorption(spectrum[:, 0], pigments[i], 0.)
             gamma[i] = (constants.sig_chl *
                                 overlap(*spectrum, lines[i]))
         return gamma
@@ -116,16 +117,32 @@ class LookupTables:
         # s12 = -kB * np.log(n)
         return s
 
-def get_lineshape(l, pigment, shift):
+def absorption(l, pigment, shift):
     '''
     return lineshape of pigment shifted by lp
+    NB: we multiply by shift_inc outside this function: really it would make
+    more sense to change this and just use the Genome and an index, i think
     '''
     params = constants.pigment_data[pigment]
     lp = [x + shift for x in params['lp']]
     g = gauss(l, lp, params['w'], params['amp'])
     return g
 
-def gauss(l, lp, w, a = None):
+def emission(l, pigment, shift):
+    '''
+    return emission lineshape for these parameters
+    NB: we multiply by shift_inc outside this function: really it would make
+    more sense to change this and just use the Genome and an index, i think
+    '''
+    params = constants.pigment_data[pigment]
+    lp = [x + shift for x in params['lp']]
+    # reflect through the 0-0 line
+    for i in range(1, len(lp)):
+        lp[i] += 2.0 * (lp[0] - lp[i])
+    g = gauss(l, lp, params['w'], params['amp'])
+    return g
+
+def gauss(l, mu, sigma, a = None):
     '''
     return a normalised gaussian lineshape. if you give it one peak
     it'll use that, if you give it a list of peaks it'll
@@ -133,11 +150,11 @@ def gauss(l, lp, w, a = None):
     of the same length as lp.
     '''
     g = np.zeros_like(l)
-    if isinstance(lp, float):
-        g = np.exp(-1.0 * (l - lp)**2/(2.0 * w**2))
+    if isinstance(mu, float):
+        g = np.exp(-1.0 * (l - mu)**2/(2.0 * sigma**2))
     else:
-        for i in range(len(lp)):
-            g += a[i] * np.exp(-1.0 * (l - lp[i])**2/(2.0 * w[i]**2))
+        for i in range(len(mu)):
+            g += a[i] * np.exp(-1.0 * (l - mu[i])**2/(2.0 * sigma[i]**2))
     n = np.trapz(g, l)
     return g/n
 
@@ -223,25 +240,35 @@ def antenna(l, ip_y, p, debug=False):
     # 0 offset for the RC! shifts stored as integer increments, so
     # multiply by shift_inc here
     shift = np.array([0., *p.shift], dtype=np.float64) * constants.shift_inc
-    pigment = np.array([p.rc, *p.pigment], dtype='U10')
-    lines = np.zeros((p.n_s + 1, len(l)))
+    pigment = np.array([*p.rc, *p.pigment], dtype='U10')
+    a_l = np.zeros((len(pigment), len(l)))
+    norms = np.zeros(len(pigment))
+    e_l = np.zeros_like(a_l)
     gamma = np.zeros(p.n_s, dtype=np.float64)
     k_b = np.zeros(2 * p.n_s, dtype=np.float64)
     for i in range(p.n_s + 1):
-        lines[i] = get_lineshape(l, pigment[i], shift[i])
+        a_l[i] = absorption(l, pigment[i], shift[i])
+        e_l[i] = emission(l, pigment[i], shift[i])
+        norms[i] = overlap(l, a_l[i], e_l[i])
         if i > 0:
             gamma[i - 1] = (n_p[i] * constants.sig_chl *
-                            overlap(l, fp_y, lines[i]))
+                            overlap(l, fp_y, a_l[i]))
 
     for i in range(p.n_s):
-        de = overlap(l, lines[i], lines[i + 1])
+        # here's where it gets interesting. the RC is at index 0, so
+        # increasing index means moving outwards; hence, a_l[i], e_l[i + 1]
+        # is emission from the outer block and absorption by the inner block
+        # then we normalise by requiring that the overlap of the absorbing
+        # block *with an identical emitting block* should be 1.
+        inward = overlap(l, a_l[i], e_l[i + 1]) / norms[i]
+        outward = overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
+        print(f"pigment pair: {pigment[i]}, {pigment[i + 1]}. inward rate: {inward}, outward rate: {outward}")
         n = float(n_p[i]) / float(n_p[i + 1])
         dg = dG(peak(shift[i], pigment[i]),
                 peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-        rate = constants.k_hop
-        rate *= de
-        k_b[2 * i] = rate
-        k_b[(2 * i) + 1] = rate
+        # [0] index below is transfer from RC to antenna, so outward first
+        k_b[2 * i] = constants.k_hop * outward
+        k_b[(2 * i) + 1] = constants.k_hop * inward
         if dg < 0.0:
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
@@ -384,6 +411,10 @@ def antenna(l, ip_y, p, debug=False):
                 'gamma': gamma,
                 'gamma_total': np.sum(gamma),
                 'K_mat': k,
+                'a_l': a_l,
+                'e_l': e_l,
+                'norms': norms,
+                'k_b': k_b,
                 }
     else:
         return np.array([nu_e, phi_e_g, phi_e])
@@ -392,20 +423,35 @@ def antenna(l, ip_y, p, debug=False):
 
 if __name__ == '__main__':
 
-    # NB: update this
-    ts = "5800K"
-    f = "spectra/PHOENIX/Scaled_Spectrum_PHOENIX_" + ts + ".dat"
-    d = np.loadtxt(f)
+    spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
+    n_b = 2
+    pigment = ['apc', 'pc', 'r-pe']
+    n_s = len(pigment)
+    n_p = [50 for _ in range(n_s)]
+    no_shift = [0.0 for _ in range(n_s)]
+    rc = ["rc_ox"]
+    names = rc + pigment
+    # extra RC parameters are at the end of the Genome constructor
+    # so ignore them. think that's fine to do. not used here anyway
+    p = constants.Genome(n_b, n_s, n_p, no_shift,
+            pigment, rc)
 
-    # changed behaviour - now the RC's added inside antenna
-    n_b = 5
-    n_p = [90, 60, 80, 20, 50]
-    shift = [-6.0, -8.0, -5.0, 5.0, -1.0]
-    # w = [10.0, 10.0, 10.0]
-    n_s = len(n_p)
-    pigments = ['chl_a', 'chl_b', 'r_apc', 'r_pc', 'r_pe']
-    test = constants.Genome(n_b, n_s, n_p, shift, pigments)
-    plots.draw_antenna(test, "test_from_python.svg")
+    od = antenna(spectrum[:, 0], spectrum[:, 1], p, True)
+    print(f"Branch rates k_b: {od['k_b']}")
+    print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
+    print(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}")
 
-    od = antenna(d[:, 0], d[:, 1], test, True)
-    print(od)
+    fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
+    for i in range(len(names)):
+        ax[i].plot(spectrum[:, 0], od['a_l'][i],
+                color='C1', label=f"A ({names[i]})")
+        ax[i].plot(spectrum[:, 0], od['e_l'][i],
+                color='C0', label=f"F ({names[i]})")
+        ax[i].set_ylabel("intensity (arb)")
+        ax[i].legend()
+        ax[i].grid(visible=True)
+    ax[0].set_xlim([400., 800.])
+    ax[-1].set_xlabel("wavelength (nm)")
+    fig.savefig("out/antenna_test.pdf")
+    plt.close(fig)
+
