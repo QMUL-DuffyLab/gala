@@ -423,11 +423,16 @@ def antenna(l, ip_y, p, debug=False):
 
 if __name__ == '__main__':
 
+    print("antenna.py test:")
+    print("----------------")
     spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
+    print(f"Input spectrum: {output_prefix}")
+    # spectrum, output_prefix = light.spectrum_setup("red")
+    cost = 0.02
     n_b = 5
-    pigment = ['apc', 'pc', 'r-pe']
+    pigment = ['apc', 'r-pe', 'r-pe']
     n_s = len(pigment)
-    n_p = [50 for _ in range(n_s)]
+    n_p = [70 + 10 * i for i in range(n_s)]
     no_shift = [0.0 for _ in range(n_s)]
     rc = ["rc_ox"]
     names = rc + pigment
@@ -435,11 +440,14 @@ if __name__ == '__main__':
     # so ignore them. think that's fine to do. not used here anyway
     p = constants.Genome(n_b, n_s, n_p, no_shift,
             pigment, rc)
+    print(f"Genome: {p}")
 
     od = antenna(spectrum[:, 0], spectrum[:, 1], p, True)
     print(f"Branch rates k_b: {od['k_b']}")
     print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
     print(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}")
+    fit = od['nu_e'] - (cost * p.n_b * np.sum(p.n_p))
+    print(f"Fitness for cost = {cost}: {fit}")
 
     fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
     for i in range(len(names)):
