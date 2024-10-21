@@ -33,7 +33,7 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     pigment = np.array([*p.rc, *p.pigment], dtype='U10')
     a_l = np.zeros((p.n_s + 2, len(l)))
     e_l = np.zeros_like(a_l)
-    norms = np.zeros_like(a_l)
+    norms = np.zeros(len(pigment))
     gamma = np.zeros(p.n_s + 2, dtype=np.float64)
     k_b = np.zeros(2 * (p.n_s + 2), dtype=np.float64)
     for i in range(p.n_s + 2):
@@ -44,24 +44,24 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                         la.overlap(l, fp_y, a_l[i]))
 
     # NB: fix this once the normal antenna model works
-    inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
-    outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
     for i in range(p.n_s + 2):
         if i < 2:
             # RCs - overlap/dG with first subunit (3rd in list, so [2])
-            de = la.overlap(l, lines[i], lines[2])
+            inward  = la.overlap(l, a_l[i], e_l[2]) / norms[i]
+            outward = la.overlap(l, e_l[i], a_l[2]) / norms[2]
             n = float(n_p[i]) / float(n_p[2])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[2], pigment[2]), n, constants.T)
         elif i < p.n_s + 1:
             # one subunit and the next
-            de = la.overlap(l, lines[i], lines[i + 1])
+            inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
+            outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-        rate = constants.k_hop * de
-        k_b[2 * i] = rate
-        k_b[(2 * i) + 1] = rate
+        print(inward, outward)
+        k_b[2 * i] = constants.k_hop * outward
+        k_b[(2 * i) + 1] = constants.k_hop * inward
         if dg < 0.0:
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
@@ -251,6 +251,10 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                 "nu_cyc": nu_cyc,
                 "w_e": w_e,
                 "w_red": w_red,
+                'a_l': a_l,
+                'e_l': e_l,
+                'norms': norms,
+                'k_b': k_b,
                 }
     else:
         return nu_cyc / nu_lin
@@ -259,12 +263,13 @@ if __name__ == "__main__":
 
     # spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
     spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
-    n_b = 1
-    pigment = ['apc']
+    n_b = 5
+    pigment = ['apc', 'pc', 'r-pe']
     n_s = len(pigment)
     n_p = [50 for _ in range(n_s)]
     no_shift = [0.0 for _ in range(n_s)]
     rc = ["rc_ox", "rc_E"]
+    names = rc + pigment
     alpha = 1.0
     # test effect of phi
     phi = 2.0
@@ -273,6 +278,9 @@ if __name__ == "__main__":
             pigment, rc, alpha, phi, eta)
 
     od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
+    print(f"Branch rates k_b: {od['k_b']}")
+    print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
+    # print(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}")
 
     side = len(od["p_eq"])
     for i in range(side):
@@ -299,3 +307,17 @@ if __name__ == "__main__":
         for si, pi in zip(od["states"], od["p_eq"]):
             f.write(f"p_eq{si} = {pi}\n")
     
+    fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
+    for i in range(len(names)):
+        ax[i].plot(spectrum[:, 0], od['a_l'][i],
+                color='C1', label=f"A ({names[i]})")
+        ax[i].plot(spectrum[:, 0], od['e_l'][i],
+                color='C0', label=f"F ({names[i]})")
+        ax[i].legend()
+        ax[i].grid(visible=True)
+    fig.supylabel("intensity (arb)", x=0.001)
+    ax[0].set_xlim([400., 800.])
+    ax[-1].set_xlabel("wavelength (nm)")
+    fig.savefig("out/rc_antenna_lineshape_test.pdf")
+    plt.close(fig)
+

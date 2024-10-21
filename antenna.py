@@ -424,7 +424,7 @@ def antenna(l, ip_y, p, debug=False):
 if __name__ == '__main__':
 
     spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
-    n_b = 2
+    n_b = 5
     pigment = ['apc', 'pc', 'r-pe']
     n_s = len(pigment)
     n_p = [50 for _ in range(n_s)]
@@ -447,11 +447,11 @@ if __name__ == '__main__':
                 color='C1', label=f"A ({names[i]})")
         ax[i].plot(spectrum[:, 0], od['e_l'][i],
                 color='C0', label=f"F ({names[i]})")
-        ax[i].set_ylabel("intensity (arb)")
         ax[i].legend()
         ax[i].grid(visible=True)
+    fig.supylabel("intensity (arb)", x=0.001)
     ax[0].set_xlim([400., 800.])
     ax[-1].set_xlabel("wavelength (nm)")
-    fig.savefig("out/antenna_test.pdf")
+    fig.savefig("out/antenna_lineshape_test.pdf")
     plt.close(fig)
 
