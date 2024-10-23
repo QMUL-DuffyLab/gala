@@ -247,6 +247,7 @@ def antenna(l, ip_y, p, debug=False):
     gamma = np.zeros(p.n_s, dtype=np.float64)
     k_b = np.zeros(2 * p.n_s, dtype=np.float64)
     for i in range(p.n_s + 1):
+        # NB: come back to this if putting shifts back in!!
         a_l[i] = absorption(l, pigment[i], shift[i])
         e_l[i] = emission(l, pigment[i], shift[i])
         norms[i] = overlap(l, a_l[i], e_l[i])
@@ -425,16 +426,16 @@ if __name__ == '__main__':
 
     print("antenna.py test:")
     print("----------------")
-    spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
+    # spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
+    spectrum, output_prefix = light.spectrum_setup("far-red")
     print(f"Input spectrum: {output_prefix}")
-    # spectrum, output_prefix = light.spectrum_setup("red")
-    cost = 0.02
-    n_b = 5
-    pigment = ['apc', 'r-pe', 'r-pe']
+    cost = 0.01
+    n_b = 2
+    pigment = ['chl_d']
     n_s = len(pigment)
-    n_p = [70 + 10 * i for i in range(n_s)]
+    n_p = [60]
     no_shift = [0.0 for _ in range(n_s)]
-    rc = ["rc_ox"]
+    rc = ["fr_rc"]
     names = rc + pigment
     # extra RC parameters are at the end of the Genome constructor
     # so ignore them. think that's fine to do. not used here anyway
@@ -449,6 +450,8 @@ if __name__ == '__main__':
     fit = od['nu_e'] - (cost * p.n_b * np.sum(p.n_p))
     print(f"Fitness for cost = {cost}: {fit}")
 
+    plot_prefix = "out/tests/antenna_fr_chl_d"
+
     fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
     for i in range(len(names)):
         ax[i].plot(spectrum[:, 0], od['a_l'][i],
@@ -457,9 +460,32 @@ if __name__ == '__main__':
                 color='C0', label=f"F ({names[i]})")
         ax[i].legend()
         ax[i].grid(visible=True)
+
     fig.supylabel("intensity (arb)", x=0.001)
     ax[0].set_xlim([400., 800.])
     ax[-1].set_xlabel("wavelength (nm)")
-    fig.savefig("out/antenna_lineshape_test.pdf")
+    fig.savefig(f"{plot_prefix}_lineshapes.pdf")
+    plt.close(fig)
+
+    fig, ax = plt.subplots(nrows=len(od['k_b']),
+            figsize=(12,3*len(od['k_b'])), sharex=True)
+    for i in range(p.n_s):
+        ax[2 * i].plot(spectrum[:, 0], od['a_l'][i],
+                color='C1', label=f"A ({names[i]})")
+        ax[2 * i].plot(spectrum[:, 0], od['e_l'][i + 1],
+                color='C0', label=f"F ({names[i + 1]})")
+        ax[2 * i + 1].plot(spectrum[:, 0], od['a_l'][i + 1],
+                color='C1', label=f"A ({names[i + 1]})")
+        ax[2 * i + 1].plot(spectrum[:, 0], od['e_l'][i],
+                color='C0', label=f"F ({names[i]})")
+        ax[2 * i].legend(fontsize=26)
+        ax[2 * i + 1].legend(fontsize=26)
+        ax[2 * i].grid(visible=True)
+        ax[2 * i + 1].grid(visible=True)
+
+    fig.supylabel("intensity (arb)", x=0.001)
+    ax[0].set_xlim([400., 800.])
+    ax[-1].set_xlabel("wavelength (nm)")
+    fig.savefig(f"{plot_prefix}_overlaps.pdf")
     plt.close(fig)
 
