@@ -153,7 +153,7 @@ if __name__ == "__main__":
 <φ_e>    = {avgs[2]:10.4n}\t<φ_e^2>    = {avgsq[2]:10.4n}\tσ = {std[2]:10.4n}
 <f(p)>   = {avgs[3]:10.4n}\t<f(p)^2>   = {avgsq[3]:10.4n}\tσ = {std[3]:10.4n}
 <n_p>    = {avgs[4]:10.4n}\t<n_p^2>    = {avgsq[4]:10.4n}\tσ = {std[4]:10.4n}
-<λ_p>    = {avgs[5]:10.4n}\t<λ_p^2>    = {avgsq[5]:10.4n}\tσ = {std[5]:10.4n}
+<n_b n_s>= {avgs[5]:10.4n}\t<n_b n_s^2>= {avgsq[5]:10.4n}\tσ = {std[5]:10.4n}
 <n_b>    = {avgs[6]:10.4n}\t<n_b^2>    = {avgsq[6]:10.4n}\tσ = {std[6]:10.4n}
 <n_s>    = {avgs[7]:10.4n}\t<n_s^2>    = {avgsq[7]:10.4n}\tσ = {std[7]:10.4n}
 """)

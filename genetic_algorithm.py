@@ -64,6 +64,8 @@ def new(rng, init_type, **kwargs):
     NB : could have a kwargs here with a getattr call so that
     we can make random antennae with specific properties if necessary
     '''
+    # NB: RC bit will need checking/changing if we have different RC *systems*
+    # i.e. ["rc_ox", "rc_E"] for oxygenic but ["ano_rc"] only for anox
     rc = get_rand('rc', rng)
     if init_type == 'template':
         '''
@@ -106,7 +108,7 @@ def new(rng, init_type, **kwargs):
         shift[i]  = get_rand('shift', rng)
         pigment[i]  = get_rand('pigment', rng)
     return constants.Genome(nb, ns, n_p, shift, pigment,
-            rc, alpha, phi, eta)
+            [rc], alpha, phi, eta)
 
 def copy(g):
     ''' return a new identical genome. useful for testing '''

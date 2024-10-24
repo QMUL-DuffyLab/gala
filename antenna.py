@@ -239,7 +239,8 @@ def antenna(l, ip_y, p, debug=False):
     n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
     # 0 offset for the RC! shifts stored as integer increments, so
     # multiply by shift_inc here
-    shift = np.array([0., *p.shift], dtype=np.float64) * constants.shift_inc
+    shift = np.array([*[0.0 for _ in range(len(p.rc))], *p.shift],
+                     dtype=np.float64) * constants.shift_inc
     pigment = np.array([*p.rc, *p.pigment], dtype='U10')
     a_l = np.zeros((len(pigment), len(l)))
     norms = np.zeros(len(pigment))
@@ -263,7 +264,6 @@ def antenna(l, ip_y, p, debug=False):
         # block *with an identical emitting block* should be 1.
         inward = overlap(l, a_l[i], e_l[i + 1]) / norms[i]
         outward = overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
-        print(f"pigment pair: {pigment[i]}, {pigment[i + 1]}. inward rate: {inward}, outward rate: {outward}")
         n = float(n_p[i]) / float(n_p[i + 1])
         dg = dG(peak(shift[i], pigment[i]),
                 peak(shift[i + 1], pigment[i + 1]), n, constants.T)

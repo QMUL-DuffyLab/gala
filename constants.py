@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "stellar")
+output_dir = os.path.join("out")
 spectrum_prefix = 'spectra'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
@@ -33,7 +33,7 @@ tourney_k = 5 # selection tournament size
 hist_snapshot = 5 # generate histograms every hist_snapshot generations
 hist_sub_max = 10 # number of subunits to make histograms for
 max_shift = 0 # maximum shift (nm) of absorption peaks
-shift_inc = 10.0 # increment to shift lineshapes by
+shift_inc = 0.0 # increment to shift lineshapes by
 peak_binwidth = 10.0 # binwidth for histograms of peak absorption per subunit
 
 '''
@@ -46,7 +46,7 @@ function to use and hence how generation/crossover/mutation will work.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 20], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
-          'shift': np.array([0, 0], dtype=np.int32),
+          'shift': np.array([-20, 120], dtype=np.int32),
           # names must match what's in pigment_data_file!
           # 'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
           #                   "hydro_rc"]),
@@ -57,7 +57,8 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           # any pigment in this array can be picked
           # 'pigment': np.array(["averaged"])
           'pigment': np.array(["bchl_a", "chl_a", "chl_b", "chl_d",
-                               "chl_f", "apc", "pc", "r-pe", "c-pe", "b-pe"])
+                               "chl_f", "apc", "pc", "r-pe", "c-pe", "b-pe"],
+                              dtype='U10')
           }
 
 # list of parameters defined per subunit rather than per genome
@@ -79,13 +80,13 @@ with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
 # i think these should be sensible
-x_lim = [
-np.min([pigment_data[rc]['lp'][1] +
-    (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
-np.max([pigment_data[rc]['lp'][0] +
-    (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
-]
-# x_lim = [450.0, 1600.0]
+# x_lim = [
+# np.min([pigment_data[rc]['lp'][1] +
+#     (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
+# np.max([pigment_data[rc]['lp'][0] +
+#     (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
+# ]
+x_lim = [400.0, 800.0]
 
 '''
 some rates that I think are going to be fixed
