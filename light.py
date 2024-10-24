@@ -8,10 +8,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import constants
 import antenna as la
+from scipy.constants import h, c, Avogadro
 
 '''
 various helper functions to import or generate spectra
 '''
+
+def micromole_in_region(spectrum, lower, upper):
+    '''
+    calculate the light intensity in micromoles over the wavelength
+    range (lower, upper). assumes nm, but since all our spectra are
+    given in nm that shouldn't matter. can use this to increase or
+    decrease light intensity in a given range as much as we like
+    '''
+    muM = 0.0
+    for row in spectrum:
+        if row[0] >= lower and row[0] <= upper:
+            e_per_photon = h * c / (row[0] * 1e-9)
+            muM += row[1] / e_per_photon
+    return 1e6 * (muM / Avogadro)
 
 def get_phoenix_spectrum(ts):
     '''
@@ -146,6 +161,16 @@ def spectrum_setup(spectrum_type, **kwargs):
         output_prefix = "gauss_lp0_{:6.2f}".format(kwargs['lp'][0])
     else:
         raise ValueError("Invalid call to spectrum_setup.")
+
+    if "intensity" in kwargs:
+        if "region" in kwargs:
+            lower, upper = kwargs["region"]
+            muM_init = micromole_in_region(s, lower, upper)
+            s[:, 1] *= kwargs["intensity"] / muM_init
+            output_prefix += f"_{kwargs['intensity']}micromol"
+        else:
+            raise KeyError("Integration region required if giving intensity")
+
     return s, output_prefix
 
 def build(spectra_dicts):
@@ -201,11 +226,14 @@ if __name__ == "__main__":
           {'type': "filtered", 'kwargs': {'filter': "red", 'fraction': 0.5}},
           {'type': "phoenix", 'kwargs': {'temperature': 4800}},
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 50.0, "region": [400.0, 700.0]}},
+          {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 10.0, "region": [400.0, 700.0]}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
           {'type': "gauss", 'kwargs':
            {'lmin': 200.0, 'lmax': 1000.0, 'lp': [600.0, 500.0],
             'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
           ]
+
     check(sd)
     # if you only need one you can call spectrum_setup directly:
     spectrum, output_prefix = spectrum_setup("far-red", fraction=0.5)
