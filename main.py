@@ -22,7 +22,14 @@ if __name__ == "__main__":
     costs = [0.02]
     # various other examples of dicts in light.py
     spectra_dicts = [
+          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          {'type': "marine", 'kwargs': {'depth': 2.5}},
+          {'type': "marine", 'kwargs': {'depth': 5.0}},
+          {'type': "marine", 'kwargs': {'depth': 7.5}},
+          {'type': "marine", 'kwargs': {'depth': 10.0}},
+          {'type': "filtered", 'kwargs': {'filter': "red"}},
           {'type': "phoenix", 'kwargs': {'temperature': 2300}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3800}},
           ]
     light.check(spectra_dicts)
 

@@ -4,7 +4,7 @@
 @author: callum
 branched antenna with saturating reaction centre
 """
-
+import os
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
 from scipy.optimize import nnls
@@ -427,11 +427,16 @@ if __name__ == '__main__':
     print("antenna.py test:")
     print("----------------")
     # spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
-    spectrum, output_prefix = light.spectrum_setup("far-red")
+    fraction = 0.6
+    spectrum, output_prefix = light.spectrum_setup("far-red",
+                                                   fraction=fraction)
     print(f"Input spectrum: {output_prefix}")
+    outdir = os.path.join("out", "tests")
+    os.makedirs(outdir, exist_ok=True)
+    plot_prefix = os.path.join(outdir, "antenna_fr_chl_f")
     cost = 0.01
     n_b = 2
-    pigment = ['chl_d']
+    pigment = ['chl_f']
     n_s = len(pigment)
     n_p = [60]
     no_shift = [0.0 for _ in range(n_s)]
@@ -444,13 +449,19 @@ if __name__ == '__main__':
     print(f"Genome: {p}")
 
     od = antenna(spectrum[:, 0], spectrum[:, 1], p, True)
+    fit = od['nu_e'] - (cost * p.n_b * np.sum(p.n_p))
+
+    outfile = f"{plot_prefix}_{fraction}.info.txt"
+    with open(outfile, "w") as f:
+        f.write(f"Genome: {p}\n")
+        f.write(f"Branch rates k_b: {od['k_b']}\n")
+        f.write(f"Raw overlaps of F'(p) A(p): {od['norms']}\n")
+        f.write(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}\n")
+        f.write(f"Fitness for cost = {cost}: {fit}")
     print(f"Branch rates k_b: {od['k_b']}")
     print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
     print(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}")
-    fit = od['nu_e'] - (cost * p.n_b * np.sum(p.n_p))
     print(f"Fitness for cost = {cost}: {fit}")
-
-    plot_prefix = "out/tests/antenna_fr_chl_d"
 
     fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
     for i in range(len(names)):
@@ -489,3 +500,13 @@ if __name__ == '__main__':
     fig.savefig(f"{plot_prefix}_overlaps.pdf")
     plt.close(fig)
 
+    fig, ax = plt.subplots(figsize=(12,8))
+    plt.plot(spectrum[:, 0], spectrum[:, 1],
+             color=plots.incident_cols["far-red"],
+             alpha=fraction)
+    ax.set_xlim([400., 800.])
+    ax.set_xlabel("wavelength (nm)")
+    ax.set_ylabel("intensity (arb)")
+    ax.grid(visible=True)
+    fig.savefig(f"{plot_prefix}_{output_prefix}.pdf")
+    plt.close(fig)

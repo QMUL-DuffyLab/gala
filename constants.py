@@ -46,21 +46,24 @@ function to use and hence how generation/crossover/mutation will work.
 bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 20], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
-          'shift': np.array([-20, 120], dtype=np.int32),
+          'shift': np.array([0, 0], dtype=np.int32),
           # names must match what's in pigment_data_file!
-          'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
-                            "hydro_rc"]),
+          # 'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
+          #                   "hydro_rc"]),
+          'rc': np.array(["rc_ox"]),
           'alpha': np.array([0.0, 10.0], dtype=np.float64),
           'phi': np.array([0.0, 10.0], dtype=np.float64),
           'eta': np.array([0.0, 10.0], dtype=np.float64),
           # any pigment in this array can be picked
-          'pigment': np.array(["averaged"])
+          # 'pigment': np.array(["averaged"])
+          'pigment': np.array(["bchl_a", "chl_a", "chl_b", "chl_d",
+                               "chl_f", "apc", "pc", "r-pe", "c-pe", "b-pe"])
           }
 
 # list of parameters defined per subunit rather than per genome
 # the strings here *must match* the names in genome definition below
 # for the generation, crossover and mutation algorithms to work
-# pigment's still here even though there's currently only one type, because
+# leave 'pigment' in here even if there's only one type, because
 # otherwise the pigment arrays don't get updated after mutation etc.
 subunit_params = ['n_p', 'pigment', 'shift']
 
@@ -76,13 +79,13 @@ with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
 # i think these should be sensible
-# x_lim = [
-# np.min([pigment_data[rc]['lp'][1] +
-#     (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
-# np.max([pigment_data[rc]['lp'][0] +
-#     (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
-# ]
-x_lim = [450.0, 1600.0]
+x_lim = [
+np.min([pigment_data[rc]['lp'][1] +
+    (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
+np.max([pigment_data[rc]['lp'][0] +
+    (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
+]
+# x_lim = [450.0, 1600.0]
 
 '''
 some rates that I think are going to be fixed
