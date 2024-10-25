@@ -245,3 +245,7 @@ if __name__ == "__main__":
                     for filename in zf[run]:
                         archive.write(filename,
                                 arcname=os.path.basename(filename))
+            # delete the zipped files to save space/clutter
+            for run in range(constants.n_runs):
+                for filename in zf[run]:
+                    os.remove(filename)
