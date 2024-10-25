@@ -50,7 +50,7 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           # names must match what's in pigment_data_file!
           # 'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
           #                   "hydro_rc"]),
-          'rc': np.array(["rc_ox"]),
+          'rc': np.array(["rc_ox"], dtype='U10'),
           'alpha': np.array([0.0, 10.0], dtype=np.float64),
           'phi': np.array([0.0, 10.0], dtype=np.float64),
           'eta': np.array([0.0, 10.0], dtype=np.float64),

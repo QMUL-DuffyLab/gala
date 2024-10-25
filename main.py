@@ -19,10 +19,11 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    costs = [0.02]
+    costs = [0.03]
     # various other examples of dicts in light.py
     spectra_dicts = [
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 2.5}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
           {'type': "marine", 'kwargs': {'depth': 7.5}},
@@ -33,6 +34,8 @@ if __name__ == "__main__":
           ]
     light.check(spectra_dicts)
 
+    # allocate this so hopefully it doesn't allocate 1 billion times
+    nu_phi = np.zeros(3, dtype=np.float64)
     init_type = 'proto' # can be proto (single branch & block) or random
     names = ["avg", "avgsq", "best"]
     for cost in costs:
@@ -40,6 +43,9 @@ if __name__ == "__main__":
         # the zip's an iterator - need to rebuild it each time
         spectra_zip = light.build(spectra_dicts)
         for spectrum, out_name in spectra_zip:
+            pigment_list = [*constants.bounds['rc'],
+                            *constants.bounds['pigment']]
+            overlaps, gammas = la.lookups(spectrum, pigment_list)
             l    = spectrum[:, 0]
             ip_y = spectrum[:, 1]
             print("Spectrum output name: ", out_name)
@@ -90,7 +96,8 @@ if __name__ == "__main__":
                     avgsq.fill(0.0)
                     fitnesses.fill(0.0)
                     for j, p in enumerate(population):
-                        nu_phi = la.antenna(l, ip_y, p, False)
+                        nu_phi = la.antenna(l, ip_y, p,
+                                            overlaps, gammas, False)
                         '''
                         note - these are set by hand, since if I'm using
                         a non-Python kernel to do the calculations it might
@@ -246,6 +253,6 @@ if __name__ == "__main__":
                         archive.write(filename,
                                 arcname=os.path.basename(filename))
             # delete the zipped files to save space/clutter
-            for run in range(constants.n_runs):
-                for filename in zf[run]:
-                    os.remove(filename)
+            # for run in range(constants.n_runs):
+            #     for filename in zf[run]:
+            #         os.remove(filename)

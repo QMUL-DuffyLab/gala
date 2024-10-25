@@ -26,6 +26,26 @@ do each bit and then compose them in different ways depending on whether
 we have a set of named pigments, an averaged shifting one, or both
 '''
 
+def lookups(spectrum, pigment_list):
+    l = spectrum[:, 0]
+    fp_y = (spectrum[:, 1] * l) / hcnm
+    # first index is emitter, second absorber
+    abso = {p1: absorption(l, p1, 0.0) for p1 in pigment_list}
+    emis = {p1: emission(l, p1, 0.0) for p1 in pigment_list}
+    # normalise by requiring that the overlap of the absorbing
+    # block *with an identical emitting block* should be 1.
+    norm = {p1: overlap(l, abso[p1], emis[p1]) for p1 in pigment_list}
+    overlaps = {emitter: 
+                {absorber: (overlap(l, e, a) / norm[absorber])
+                for absorber, a in abso.items()}
+                for emitter, e in emis.items()
+                }
+    # for n_p = 1
+    gammas = {absorber: constants.sig_chl * overlap(l, fp_y, a)
+              for absorber, a in abso.items()}
+    return overlaps, gammas
+
+
 def precalculate_peak_locations(pigment, lmin, lmax, increment):
     op = constants.pigment_data[pigment]['lp'][0]
     # ceil in both cases - for the min, it's -ve so rounds towards zero,
@@ -227,7 +247,7 @@ def solve(k, method='fortran', debug=False):
 
     return p_eq, p_eq_res
 
-def antenna(l, ip_y, p, debug=False):
+def antenna(l, ip_y, p, overlaps, gammas, debug=False):
     '''
     branched antenna, saturating RC
     l = set of wavelengths
@@ -235,38 +255,25 @@ def antenna(l, ip_y, p, debug=False):
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
     '''
-    fp_y = (ip_y * l) / hcnm
     n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
-    # 0 offset for the RC! shifts stored as integer increments, so
-    # multiply by shift_inc here
-    shift = np.array([*[0.0 for _ in range(len(p.rc))], *p.shift],
-                     dtype=np.float64) * constants.shift_inc
+    # NB: shifts would have to be calculated here as well, if
+    # we're including them down the line
     pigment = np.array([*p.rc, *p.pigment], dtype='U10')
-    a_l = np.zeros((len(pigment), len(l)))
-    norms = np.zeros(len(pigment))
-    e_l = np.zeros_like(a_l)
     gamma = np.zeros(p.n_s, dtype=np.float64)
     k_b = np.zeros(2 * p.n_s, dtype=np.float64)
-    for i in range(p.n_s + 1):
-        # NB: come back to this if putting shifts back in!!
-        a_l[i] = absorption(l, pigment[i], shift[i])
-        e_l[i] = emission(l, pigment[i], shift[i])
-        norms[i] = overlap(l, a_l[i], e_l[i])
-        if i > 0:
-            gamma[i - 1] = (n_p[i] * constants.sig_chl *
-                            overlap(l, fp_y, a_l[i]))
 
     for i in range(p.n_s):
-        # here's where it gets interesting. the RC is at index 0, so
-        # increasing index means moving outwards; hence, a_l[i], e_l[i + 1]
-        # is emission from the outer block and absorption by the inner block
-        # then we normalise by requiring that the overlap of the absorbing
-        # block *with an identical emitting block* should be 1.
-        inward = overlap(l, a_l[i], e_l[i + 1]) / norms[i]
-        outward = overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
+        # the RC is at index 0, so increasing index means moving
+        # outwards. the first index of overlaps is the emitter, so
+        # inward is overlaps[outer_pigment][inner_pigment] and
+        # outward is overlaps[inner_pigment][outer_pigment]
+        gamma[i] = (n_p[i + len(p.rc)] * gammas[pigment[i + len(p.rc)]])
+        # NB: this will need modifying if there are multiple RCs
+        inward = overlaps[pigment[i + 1]][pigment[i]]
+        outward = overlaps[pigment[i]][pigment[i + 1]]
         n = float(n_p[i]) / float(n_p[i + 1])
-        dg = dG(peak(shift[i], pigment[i]),
-                peak(shift[i + 1], pigment[i + 1]), n, constants.T)
+        dg = dG(peak(0.0, pigment[i]),
+                peak(0.0, pigment[i + 1]), n, constants.T)
         # [0] index below is transfer from RC to antenna, so outward first
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
@@ -412,9 +419,6 @@ def antenna(l, ip_y, p, debug=False):
                 'gamma': gamma,
                 'gamma_total': np.sum(gamma),
                 'K_mat': k,
-                'a_l': a_l,
-                'e_l': e_l,
-                'norms': norms,
                 'k_b': k_b,
                 }
     else:
@@ -433,33 +437,39 @@ if __name__ == '__main__':
     print(f"Input spectrum: {output_prefix}")
     outdir = os.path.join("out", "tests")
     os.makedirs(outdir, exist_ok=True)
-    plot_prefix = os.path.join(outdir, "antenna_fr_chl_f")
+    plot_prefix = os.path.join(outdir, "antenna_fr_chl_d_lookup")
     cost = 0.01
     n_b = 2
-    pigment = ['chl_f']
+    pigment = ['chl_d']
     n_s = len(pigment)
     n_p = [60]
     no_shift = [0.0 for _ in range(n_s)]
     rc = ["fr_rc"]
     names = rc + pigment
+    overlaps, gammas = lookups(spectrum, names)
     # extra RC parameters are at the end of the Genome constructor
     # so ignore them. think that's fine to do. not used here anyway
     p = constants.Genome(n_b, n_s, n_p, no_shift,
             pigment, rc)
     print(f"Genome: {p}")
 
-    od = antenna(spectrum[:, 0], spectrum[:, 1], p, True)
+    od = antenna(spectrum[:, 0], spectrum[:, 1], p,
+                 overlaps, gammas, True)
     fit = od['nu_e'] - (cost * p.n_b * np.sum(p.n_p))
 
     outfile = f"{plot_prefix}_{fraction}.info.txt"
     with open(outfile, "w") as f:
         f.write(f"Genome: {p}\n")
+        f.write(f"overlaps: {overlaps}\n")
+        f.write(f"gammas: {gammas}\n")
+        f.write(f"gamma vec: {od['gamma']}\n")
         f.write(f"Branch rates k_b: {od['k_b']}\n")
-        f.write(f"Raw overlaps of F'(p) A(p): {od['norms']}\n")
         f.write(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}\n")
         f.write(f"Fitness for cost = {cost}: {fit}")
     print(f"Branch rates k_b: {od['k_b']}")
-    print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
+    print(f"overlaps: {overlaps}")
+    print(f"gammas: {gammas}")
+    print(f"gamma vec: {od['gamma']}")
     print(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}")
     print(f"Fitness for cost = {cost}: {fit}")
 
