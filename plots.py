@@ -294,11 +294,11 @@ def plot_best(best_file, spectrum):
     '''
     p = get_best_from_file(best_file)
     prefix = os.path.splitext(best_file)[0]
-    output_file = prefix + "_antenna.pdf"
+    output_file = prefix + "_antenna.svg" # julia plot outputs svg
     lines_file  = prefix + "_lines.pdf"
     total_file  = prefix + "_total.pdf"
 
-    julia_plot(p, output_file)
+    # julia_plot(p, output_file)
     antenna_spectra(p, spectrum[:, 0],
                          spectrum[:, 1], lines_file, total_file)
     return [output_file, lines_file, total_file]

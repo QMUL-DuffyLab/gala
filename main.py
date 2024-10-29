@@ -23,11 +23,11 @@ if __name__ == "__main__":
     # various other examples of dicts in light.py
     spectra_dicts = [
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          {'type': "marine", 'kwargs': {'depth': 1.0}},
-          {'type': "marine", 'kwargs': {'depth': 2.5}},
-          {'type': "marine", 'kwargs': {'depth': 5.0}},
-          {'type': "filtered", 'kwargs': {'filter': "red"}},
-          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          # {'type': "marine", 'kwargs': {'depth': 1.0}},
+          # {'type': "marine", 'kwargs': {'depth': 2.5}},
+          # {'type': "marine", 'kwargs': {'depth': 5.0}},
+          # {'type': "filtered", 'kwargs': {'filter': "red"}},
+          # {'type': "filtered", 'kwargs': {'filter': "far-red"}},
           # {'type': "phoenix", 'kwargs': {'temperature': 2300}},
           ]
     light.check(spectra_dicts)
@@ -233,11 +233,12 @@ if __name__ == "__main__":
                 try:
                     bestfiles = plots.plot_best(filenames['best'], spectrum)
                     zf[run].extend(bestfiles)
+                    print(bestfiles)
                 except AttributeError:
                     do_best_avg = False
 
                 avg_out_pref = prefs[0] + "_r{:1d}_spectrum".format(run)
-                zf[run].append(avg_out_pref + ".pdf")
+                zf[run].extend([avg_out_pref + ".pdf", avg_out_pref + ".dat"])
                 plots.plot_average(population, spectrum,
                         avg_out_pref,
                         xlim=constants.x_lim,
@@ -256,11 +257,12 @@ if __name__ == "__main__":
                 zipfilename = f"{outdir}/{out_name}_{run}.zip"
                 with zipfile.ZipFile(zipfilename, mode="w") as archive:
                     for filename in zf[run]:
-                        archive.write(filename,
-                                arcname=os.path.basename(filename))
+                        if os.path.isfile(filename):
+                            archive.write(filename,
+                                    arcname=os.path.basename(filename))
 
             # delete the zipped files to save space/clutter
             for run in range(constants.n_runs):
                 for filename in zf[run]:
-                    if os.path.isfile(filename)
+                    if os.path.isfile(filename):
                         os.remove(filename)
