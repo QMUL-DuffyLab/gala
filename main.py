@@ -19,18 +19,16 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    costs = [0.03]
+    costs = [0.02]
     # various other examples of dicts in light.py
     spectra_dicts = [
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
           {'type': "marine", 'kwargs': {'depth': 1.0}},
           {'type': "marine", 'kwargs': {'depth': 2.5}},
           {'type': "marine", 'kwargs': {'depth': 5.0}},
-          {'type': "marine", 'kwargs': {'depth': 7.5}},
-          {'type': "marine", 'kwargs': {'depth': 10.0}},
           {'type': "filtered", 'kwargs': {'filter': "red"}},
-          {'type': "phoenix", 'kwargs': {'temperature': 2300}},
-          {'type': "phoenix", 'kwargs': {'temperature': 3800}},
+          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
+          # {'type': "phoenix", 'kwargs': {'temperature': 2300}},
           ]
     light.check(spectra_dicts)
 
@@ -143,6 +141,8 @@ if __name__ == "__main__":
                         histfiles = stats.hist(population, gen, 
                                             run, outdir, out_name)
                         zf[run].extend(histfiles)
+                        zf[run].extend([os.path.splitext(f)[0] 
+                                        + ".pdf" for f in histfiles])
                         plots.hist_plot(*histfiles)
                         avg_plot_prefix = "{}_{:04d}_r{:1d}_spectrum".format(prefs[0], gen, run)
                         zf[run].append(f"{avg_plot_prefix}.dat")
@@ -182,6 +182,8 @@ if __name__ == "__main__":
                                             outdir, out_name)
                         plots.hist_plot(*histfiles)
                         zf[run].extend(histfiles)
+                        zf[run].extend([os.path.splitext(f)[0] 
+                                        + ".pdf" for f in histfiles])
                         break
 
                     try:
@@ -216,7 +218,8 @@ if __name__ == "__main__":
                 np.savetxt(filenames['avg'], running_avgs)
                 np.savetxt(filenames['avgsq'], running_avgsq)
                 plot_nu_phi_file = prefs[0] + "_r{:1d}_nu_phi.pdf".format(run)
-                plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 1],
+                zf[run].append(plot_nu_phi_file)
+                plots.plot_nu_phi_2(running_avgs[:, 0], running_avgs[:, 2],
                                     running_avgs[:, 3], running_avgs[:, 6],
                                     running_avgs[:, 7], plot_nu_phi_file)
 
@@ -228,12 +231,15 @@ if __name__ == "__main__":
 
                 # call julia_plot and antenna_spectra
                 try:
-                    plots.plot_best(filenames['best'], spectrum)
+                    bestfiles = plots.plot_best(filenames['best'], spectrum)
+                    zf[run].extend(bestfiles)
                 except AttributeError:
                     do_best_avg = False
 
+                avg_out_pref = prefs[0] + "_r{:1d}_spectrum".format(run)
+                zf[run].append(avg_out_pref + ".pdf")
                 plots.plot_average(population, spectrum,
-                        prefs[0] + "_r{:1d}_spectrum".format(run),
+                        avg_out_pref,
                         xlim=constants.x_lim,
                         label=r'$\left<A(\lambda)\right>$')
 
@@ -252,7 +258,9 @@ if __name__ == "__main__":
                     for filename in zf[run]:
                         archive.write(filename,
                                 arcname=os.path.basename(filename))
+
             # delete the zipped files to save space/clutter
-            # for run in range(constants.n_runs):
-            #     for filename in zf[run]:
-            #         os.remove(filename)
+            for run in range(constants.n_runs):
+                for filename in zf[run]:
+                    if os.path.isfile(filename)
+                        os.remove(filename)

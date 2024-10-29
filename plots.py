@@ -301,6 +301,7 @@ def plot_best(best_file, spectrum):
     julia_plot(p, output_file)
     antenna_spectra(p, spectrum[:, 0],
                          spectrum[:, 1], lines_file, total_file)
+    return [output_file, lines_file, total_file]
 
 def plot_lines(xs, ys, labels, colours, **kwargs):
     fig, ax = plt.subplots(figsize=(12,8))
