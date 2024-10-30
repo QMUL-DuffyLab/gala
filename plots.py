@@ -26,7 +26,6 @@ target_spectra = {
                     "pbs_a_platensis_appl_sci_2020.csv")
     }
 
-# colours to print the incident spectra with, matching paper
 incident_cols = {
         'am15_tilt': '#ff8c0099',
         'marine_z_1.0': '#00800099',
@@ -40,6 +39,15 @@ incident_cols = {
         '2800K': '#ff000099',
         '3800K': '#ff8c0099',
     }
+
+# colours to print the incident spectra with, matching paper
+def get_spectrum_colour(name):
+    for k, v in incident_cols.items():
+        if k in name: # ignore the intensity part of the output name
+            return v
+    else:
+        print("spectrum colour not found")
+        return '#99999999'
 
 def polygon_under_graph(x, y):
     """

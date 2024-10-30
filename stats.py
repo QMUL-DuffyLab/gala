@@ -174,7 +174,7 @@ def average_antenna(path, spectrum, out_name):
 
     fig, ax = plt.subplots(figsize=(9,9))
     plt.plot(spectrum[:, 0], spectrum[:, 1], label='Incident',
-            color=plots.incident_cols[out_name], lw=5.0)
+            color=plots.get_spectrum_colour(out_name), lw=5.0)
     x = avg_spectrum[:, 0]
     y = avg_spectrum[:, 1]/np.sum(avg_spectrum[:, 1])
     np.savetxt(os.path.join(path, f"{out_name}_avg_avg_spectrum.dat"),

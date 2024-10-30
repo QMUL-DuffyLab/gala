@@ -435,9 +435,8 @@ if __name__ == '__main__':
     spectrum, output_prefix = light.spectrum_setup("far-red",
                                                    fraction=fraction)
     print(f"Input spectrum: {output_prefix}")
-    outdir = os.path.join("out", "tests")
+    outdir = os.path.join("out", "antenna_test")
     os.makedirs(outdir, exist_ok=True)
-    plot_prefix = os.path.join(outdir, "antenna_fr_chl_d_lookup")
     cost = 0.01
     n_b = 2
     pigment = ['chl_d']
@@ -446,6 +445,7 @@ if __name__ == '__main__':
     no_shift = [0.0 for _ in range(n_s)]
     rc = ["fr_rc"]
     names = rc + pigment
+    plot_prefix = os.path.join(outdir, "_".join(names))
     overlaps, gammas = lookups(spectrum, names)
     # extra RC parameters are at the end of the Genome constructor
     # so ignore them. think that's fine to do. not used here anyway
@@ -457,7 +457,7 @@ if __name__ == '__main__':
                  overlaps, gammas, True)
     fit = od['nu_e'] - (cost * p.n_b * np.sum(p.n_p))
 
-    outfile = f"{plot_prefix}_{fraction}.info.txt"
+    outfile = f"{plot_prefix}_{output_prefix}_info.txt"
     with open(outfile, "w") as f:
         f.write(f"Genome: {p}\n")
         f.write(f"overlaps: {overlaps}\n")
@@ -512,7 +512,7 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(12,8))
     plt.plot(spectrum[:, 0], spectrum[:, 1],
-             color=plots.incident_cols["far-red"],
+             color=plots.get_spectrum_colour(output_prefix),
              alpha=fraction)
     ax.set_xlim([400., 800.])
     ax.set_xlabel("wavelength (nm)")
