@@ -19,7 +19,7 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    costs = [0.005]
+    costs = [0.02, 0.03]
     # various other examples of dicts in light.py
     spectra_dicts = [
           {'type': "am15", 'kwargs': {'dataset': "tilt"}},
@@ -30,9 +30,9 @@ if __name__ == "__main__":
           {'type': "filtered", 'kwargs': {'filter': "far-red"}},
           # {'type': "phoenix", 'kwargs': {'temperature': 2300}},
           ]
-    for d in spectra_dicts:
-        d["kwargs"]["intensity"] = 50.0
-        d["kwargs"]["region"] = [400.0, 700.0]
+    # for d in spectra_dicts:
+    #     d["kwargs"]["intensity"] = 300.0
+    #     d["kwargs"]["region"] = [400.0, 700.0]
     light.check(spectra_dicts)
 
     # allocate this so hopefully it doesn't allocate 1 billion times
