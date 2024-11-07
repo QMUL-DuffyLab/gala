@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 import constants
@@ -26,23 +27,13 @@ target_spectra = {
                     "pbs_a_platensis_appl_sci_2020.csv")
     }
 
-incident_cols = {
-        'am15_tilt': '#ff8c0099',
-        'marine_z_1.0': '#00800099',
-        'marine_z_2.5': '#00800099',
-        'marine_z_5.0': '#00008b99',
-        'marine_z_7.5': '#00008b99',
-        'marine_z_10.0': '#ff149399',
-        'red': '#ff000099',
-        'far-red': '#8b000099',
-        '2300K': '#8b000099',
-        '2800K': '#ff000099',
-        '3800K': '#ff8c0099',
-    }
-
 # colours to print the incident spectra with, matching paper
 def get_spectrum_colour(name):
-    for k, v in incident_cols.items():
+    cmap = mpl.colormaps["turbo"]
+    names = constants.bounds['pigment']
+    colours = [cmap(i / float(len(names))) for i in range(len(names))]
+    cdict = {n: c for n, c in zip(names, colours)}
+    for k, v in cdict.items():
         if k in name: # ignore the intensity part of the output name
             return v
     else:
@@ -61,12 +52,12 @@ def antenna_lines(p, l):
     lines = np.zeros((p.n_s, len(l)))
     total = np.zeros_like(l)
     for i in range(p.n_s):
-        pigment = pd[p.pigment[i]]
+        pigment = pd[p.pigment[i]]['abs']
         for j in range(pigment['n_gauss']):
             lines[i] += pigment['amp'][j] * np.exp(-1.0
-                    * (l - (pigment['lp'][j] +
+                    * (l - (pigment['mu'][j] +
                         (p.shift[i] * constants.shift_inc)))**2
-                    / (2.0 * (pigment['w'][j]**2)))
+                    / (2.0 * (pigment['sigma'][j]**2)))
         lines[i] /= np.sum(lines[i])
         # lines[i] /= np.max(lines[i])
         total += lines[i] * p.n_p[i]
@@ -113,7 +104,7 @@ def hist_plot(pigment_file, peak_file, n_p_file):
     if len(pnames) > 1:
         pprops = np.loadtxt(pigment_file,
                 usecols=tuple(range(1, n_s + 1)), dtype=float)
-        pigment_strings = [constants.pigment_data[p]['text'] for p in pnames]
+        pigment_strings = [constants.pigment_data[p]['abs']['text'] for p in pnames]
         n_pigments = len(pigment_strings)
         fig = plt.figure(figsize=(20, 20))
         ax = fig.add_subplot(projection='3d')
@@ -199,7 +190,7 @@ def julia_plot(p, output_file):
     why, and it kept throwing errors, so now i'm just doing this
     '''
     lps = [(p.shift[i] * constants.shift_inc) +
-           constants.pigment_data[p.pigment[i]]['lp'][0]
+           constants.pigment_data[p.pigment[i]]['abs']['mu'][0]
            for i in range(p.n_s)]
     cmd = "julia plot_antenna.jl --n_b {:d} --n_s {:d} ".format(p.n_b, p.n_s)\
     + "--lambdas " + " ".join(str(l) for l in lps)\
@@ -220,7 +211,7 @@ def antenna_spectra(p, l, ip_y,
     '''
     pd = constants.pigment_data
     lines, total = antenna_lines(p, l)
-    lps = [pd[p.pigment[i]]['lp'][0] for i in range(p.n_s)]
+    lps = [pd[p.pigment[i]]['abs']['mu'][0] for i in range(p.n_s)]
     fig, ax = plt.subplots(figsize=(12,8))
     for i in range(p.n_s):
         # generate Gaussian lineshape for given pigment
@@ -228,7 +219,7 @@ def antenna_spectra(p, l, ip_y,
         color = 'C{:1d}'.format(i)
         if draw_00:
             ax.axvline(x=lps[i], color=color, ls='--')
-        label = "Subunit {:1d}: ".format(i + 1) + pd[p.pigment[i]]['text']
+        label = f"Subunit {i + 1:1d}: {pd[p.pigment[i]]['abs']['text']}"
         plt.plot(l, lines[i]/np.max(lines[i]), label=label)
     plt.plot(l, ip_y, label="Incident")
     ax.set_xlabel(r'$ \lambda (\text{nm}) $')
@@ -402,22 +393,10 @@ def pigment_bar(pigments, outfile):
     plot a bar chart showing prevalence of each pigment as a
     function of distance from RC up to constants.hist_sub_max
     '''
-    colours = { # this might need moving somewhere, idk yet
-    'bchl_a': '#000000',
-    'chl_f': '#8b0000',
-    'chl_d': '#ff0000',
-    'chl_a': '#ff8c00',
-    'chl_b': '#ffd700',
-    'apc': '#00ff00',
-    'pc': '#008000',
-    'c-pe': '#00008b',
-    'b-pe': '#800080',
-    'r-pe': '#ff1493'
-    }
     hists = np.array([row[1:] for row in pigments])
     hists = hists / float(constants.n_runs)
     names = [row[0] for row in pigments]
-    labels = {n: constants.pigment_data[n]['text'] for n in names}
+    labels = {n: constants.pigment_data[n]['abs']['text'] for n in names}
     props = {name: hist for name, hist in zip(names, hists)}
 
     fig, ax = plt.subplots(figsize=(9,9))
@@ -425,7 +404,7 @@ def pigment_bar(pigments, outfile):
     bottom = np.zeros(len(names))
     for b, p in props.items():
         pp = ax.bar(np.arange(constants.hist_sub_max) + 1, p, 0.8,
-                label=labels[b], color=colours[b],
+                label=labels[b], color=get_spectrum_colour(b),
                 bottom=bottom, edgecolor='0.6')
         bottom += p
     ax.set_ylim([0.0, 1.01])

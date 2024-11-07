@@ -45,7 +45,7 @@ def hist(population, gen, run, outdir, out_name):
             if i < p.n_s:
                 par = constants.pigment_data[p.pigment[i]]
                 # p.shift[i] shifts the 0-0 lines
-                peak_arr[i][j] = p.shift[i] * constants.shift_inc + par['lp'][0]
+                peak_arr[i][j] = p.shift[i] * constants.shift_inc + par['abs']['mu'][0]
                 p_arr[i][j] = p.pigment[i]
                 n_p_arr[i][j] = p.n_p[i]
     peakh = [peakbins[:-1]] # len(peakbins) = len(hist) + 1
@@ -67,9 +67,9 @@ def hist(population, gen, run, outdir, out_name):
                 pcount[pigment_to_index(p_arr[i][j])] += 1
         ph.append(pcount / n_pop)
 
-    peak_file = outdir + "/" + "peak_" + suffix
-    n_p_file = outdir + "/" + "n_p_" + suffix
-    pfile = outdir + "/" + "pigment_" + suffix
+    peak_file = os.path.join(outdir, f"peak_{suffix}")
+    n_p_file = os.path.join(outdir, f"n_p_{suffix}")
+    pfile = os.path.join(outdir, f"pigment_{suffix}")
     np.savetxt(peak_file, np.transpose(np.array(peakh)))
     np.savetxt(n_p_file,
                np.column_stack((np.arange(0, constants.bounds['n_p'][1] + 1),

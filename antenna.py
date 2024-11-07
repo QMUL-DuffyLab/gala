@@ -26,7 +26,7 @@ do each bit and then compose them in different ways depending on whether
 we have a set of named pigments, an averaged shifting one, or both
 '''
 
-def lookups(spectrum, pigment_list):
+def lookups(spectrum, pigment_list, return_lineshapes=False):
     l = spectrum[:, 0]
     fp_y = (spectrum[:, 1] * l) / hcnm
     # first index is emitter, second absorber
@@ -43,11 +43,14 @@ def lookups(spectrum, pigment_list):
     # for n_p = 1
     gammas = {absorber: constants.sig_chl * overlap(l, fp_y, a)
               for absorber, a in abso.items()}
-    return overlaps, gammas
-
+    if return_lineshapes:
+        return overlaps, gammas, abso, emis
+    else:
+        return overlaps, gammas
 
 def precalculate_peak_locations(pigment, lmin, lmax, increment):
-    op = constants.pigment_data[pigment]['lp'][0]
+    # NB: this won't work, only considering absorption
+    op = constants.pigment_data[pigment]['abs']['mu'][0]
     # ceil in both cases - for the min, it's -ve so rounds towards zero,
     # for the max we want to go one step outside the range because
     # np.arange(min, max, step) generates [min, max)
@@ -63,6 +66,7 @@ def precalculate_peak_locations(pigment, lmin, lmax, increment):
     return {shift: peak for shift, peak in zip(peaks - op, peaks)}
 
 def precalculate_overlap_gamma(pigment, rcs, spectrum, shift_peak):
+    # NB: don't use this yet! needs to use emission lines
     n_shifts = len(shift_peak.keys())
     ntot = n_shifts + len(rcs)
     gamma = np.zeros(ntot)
@@ -83,69 +87,15 @@ def precalculate_overlap_gamma(pigment, rcs, spectrum, shift_peak):
             overlaps[i, j] = overlap(spectrum[:, 0], l1, l2)
     return gamma, overlaps
 
-def precalculate_delta_G(pigment, rcs, shift_peak):
-    ntot = len(shift_peak.keys()) + len(rcs)
-    rce = [constants.pigment_data[rc]['lp'][0] for rc in rcs]
-    dh = np.zeros((ntot, ntot))
-    ds = np.zeros_like(dh)
-    energies = np.zeros(n_tot)
-    for i, l1 in enumerate(shift_peak.values()):
-        energies[i] = l1
-    for i in range(len(rcs)):
-        energies[len(shift_peak.values()) + i] = rce[i]
-    for i, l1 in enumerate(energies):
-        for j, l2 in enumerate(energies):
-            dh[i, j] = hcnm * ((l1 - l2) / (l1 * l2))
-    # entropy - actually we could just calculate the lower triangle
-    # of this matrix since it's symmetric, but whatever
-    nbounds = constants.bounds['n_p']
-    for i in range(n_bounds[0], n_bounds[1] + 1):
-        for j in range(n_bounds[0], n_bounds[1] + 1):
-            n = float(i / j)
-            ds[i, j] = -kB * np.log(n)
-    return dh, ds
-
-class LookupTables:
-    def __init__(self, spectrum, pigments, rcs):
-        self.gamma = self.gamma_calc(spectrum, pigments)
-        self.h     = self.enthalpy_calc(pigments, rcs)
-        self.s     = self.entropy_calc(pigments, rcs)
-
-    @classmethod
-    def lineshapes(self, spectrum, peak_bounds, increment):
-        peak = peak_bounds[0]
-        while peak <= peak_bounds[1]:
-            l = absorption(spectrum[:, 0], ["avg"], peak)
-            peak += increment
-
-    def gamma_calc(self, spectrum, pigments):
-        lines = np.zeros(len(pigments))
-        gamma = np.zeros(len(pigments))
-        for i in range(len(pigments)):
-            lines[i] = absorption(spectrum[:, 0], pigments[i], 0.)
-            gamma[i] = (constants.sig_chl *
-                                overlap(*spectrum, lines[i]))
-        return gamma
-    def enthalpy_calc(self, pigments, rcs):
-        ntot = len(pigments) + len(rcs)
-        h = np.zeros((ntot, ntot))
-        # h12 = hcnm * ((l1 - l2) / (l1 * l2))
-        return h
-    def entropy_calc(self, pigments, rcs):
-        ntot = len(pigments) + len(rcs)
-        s = np.zeros((ntot, ntot))
-        # s12 = -kB * np.log(n)
-        return s
-
 def absorption(l, pigment, shift):
     '''
     return lineshape of pigment shifted by lp
     NB: we multiply by shift_inc outside this function: really it would make
     more sense to change this and just use the Genome and an index, i think
     '''
-    params = constants.pigment_data[pigment]
-    lp = [x + shift for x in params['lp']]
-    g = gauss(l, lp, params['w'], params['amp'])
+    params = constants.pigment_data[pigment]['abs']
+    lp = [x + shift for x in params['mu']]
+    g = gauss(l, lp, params['sigma'], params['amp'])
     return g
 
 def emission(l, pigment, shift):
@@ -154,12 +104,9 @@ def emission(l, pigment, shift):
     NB: we multiply by shift_inc outside this function: really it would make
     more sense to change this and just use the Genome and an index, i think
     '''
-    params = constants.pigment_data[pigment]
-    lp = [x + shift for x in params['lp']]
-    # reflect through the 0-0 line
-    for i in range(1, len(lp)):
-        lp[i] += 2.0 * (lp[0] - lp[i])
-    g = gauss(l, lp, params['w'], params['amp'])
+    params = constants.pigment_data[pigment]['ems']
+    lp = [x + shift for x in params['mu']]
+    g = gauss(l, lp, params['sigma'], params['amp'])
     return g
 
 def gauss(l, mu, sigma, a = None):
@@ -189,9 +136,11 @@ def dG(l1, l2, n, T):
 def peak(shift, pigment):
     '''
     returns the 0-0 line for a given index on a given individual
+    assume this is the fluorescence 0-0 line because we assume
+    ultrafast equilibriation on each block.
     '''
     params = constants.pigment_data[pigment]
-    return shift + params['lp'][0]
+    return shift + params['ems']['0-0']
 
 def solve(k, method='fortran', debug=False):
     '''

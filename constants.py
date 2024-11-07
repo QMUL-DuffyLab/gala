@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out")
+output_dir = os.path.join("out", "tests")
 spectrum_prefix = 'spectra'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
@@ -56,8 +56,8 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'eta': np.array([0.0, 10.0], dtype=np.float64),
           # any pigment in this array can be picked
           # 'pigment': np.array(["averaged"])
-          'pigment': np.array(["bchl_a", "chl_a", "chl_b", "chl_d",
-                               "chl_f", "apc", "pc", "r-pe", "c-pe", "b-pe"],
+          'pigment': np.array(["r-pe", "pe", "pc", "apc", "chl_b", "chl_a",
+              "chl_d", "chl_f", "bchl_a", "bchl_b"],
                               dtype='U10')
           }
 
@@ -81,9 +81,9 @@ with open(pigment_data_file, "r") as f:
 
 # i think these should be sensible
 # x_lim = [
-# np.min([pigment_data[rc]['lp'][1] +
+# np.min([pigment_data[rc]['abs']['mu'][-1] +
 #     (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
-# np.max([pigment_data[rc]['lp'][0] +
+# np.max([pigment_data[rc]['ems']['mu'][-1] +
 #     (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
 # ]
 x_lim = [400.0, 800.0]

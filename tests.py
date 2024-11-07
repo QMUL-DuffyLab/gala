@@ -11,6 +11,11 @@ import genetic_algorithm as ga
 import antenna as la
 import constants
 import light
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import json
+import os
+import pandas as pd
 
 def test_connected_kmat():
     '''
@@ -179,3 +184,93 @@ def test_python_fortran(n_trials=1000):
         + "Δϕ_e(γ) = {:10.6e}, Δϕ_e = {:10.6e}"), i, g.n_b, g.n_s, *diff))
 
     return [python_res, fortran_res]
+
+def test_pigment_fits(pigment_list=None):
+    with open(os.path.join("pigments", "pigment_data.json")) as f:
+        all_params = json.load(f)
+
+    outdir = os.path.join("out", "pigment_fits")
+    os.makedirs(outdir, exist_ok=True)
+    if pigment_list is not None:
+        names = pigment_list
+    else:
+        names = list(all_params.keys())
+    files = [os.path.join("pigments", f"{n}_{f}.txt") for n in names for f in ("abs", "ems")]
+    params = [all_params[n][f] for n in names for f in ("abs", "ems")]
+
+    cmap = mpl.colormaps["turbo"]
+    colours = [cmap(i / float(len(names))) for i in range(len(names))]
+    cdict = {n: c for n, c in zip(names, colours)}
+
+    xlim = [400.0, 1000.0]
+    for n, f, p in zip(np.repeat(names, 2), files, params):
+        print(n, f, p)
+        data = pd.read_csv(f, delimiter='\t', comment='#').to_numpy()
+        mu = p['mu']
+        sigma = p['sigma']
+        amp = p['amp']
+        xtest = np.arange(*xlim)
+        ytest = la.gauss(xtest, mu, sigma, amp)
+        np.savetxt(os.path.join(outdir, f"{os.path.splitext(os.path.basename(f))[0]}.txt"), np.column_stack((xtest, ytest)))
+
+        fig, ax = plt.subplots(figsize=(12,8))
+        plt.plot(xtest, ytest/np.max(ytest), label='test fit', color=cdict[n], lw=3.0)
+        plt.plot(data[:, 0], data[:, 1]/np.max(data[:, 1]), label=f"{p['text']}", lw=3.0, color='k', ls='--')
+        plt.axvline(p["0-0"], lw=2.0, ls='--', color='C0')
+        ax.set_xlabel("wavelength (nm)")
+        ax.set_xlim(xlim)
+        ax.set_ylabel("intensity (arbitrary)")
+        plt.grid(visible=True)
+        plt.legend(fontsize=20)
+        plt.savefig(os.path.join(outdir, f"{os.path.splitext(os.path.basename(f))[0]}.pdf"))
+        plt.show()
+        plt.close()
+
+def test_overlaps(spectrum, pigment_list=None):
+    with open(os.path.join("pigments", "pigment_data.json")) as f:
+        all_params = json.load(f)
+
+    outdir = os.path.join("out", "tests", "overlaps")
+    os.makedirs(outdir, exist_ok=True)
+    if pigment_list is not None:
+        names = pigment_list
+    else:
+        names = list(all_params.keys())
+
+    print(names)
+    overlaps, gammas, abso, emis = la.lookups(spectrum, names, True)
+
+    xlim = [400.0, 1000.0]
+    cmap = mpl.colormaps["turbo"]
+    colours = [cmap(i / float(len(names))) for i in range(len(names))]
+    cdict = {n: c for n, c in zip(names, colours)}
+    for i in range(len(names)):
+        fig, ax = plt.subplots(ncols=2,
+                nrows=len(names), figsize=(30, 6 * len(names)),
+                sharex=True, sharey=True)
+        plt.subplots_adjust(wspace=None, hspace=None)
+        for j in range(len(names)):
+            ni = names[i]
+            nj = names[j]
+            oae = overlaps[nj][ni]
+            ax[j][0].plot(spectrum[:, 0], abso[ni],
+                    color=cdict[ni], label=f"absorber: {ni}")
+            ax[j][0].plot(spectrum[:, 0], emis[nj],
+                    color=cdict[nj], label=f"emitter: {nj}")
+            ax[j][0].plot([], [], ' ', label=f"Overlap = {oae:6.3f}")
+            ax[j][0].legend()
+            oea = overlaps[ni][nj]
+            ax[j][1].plot(spectrum[:, 0], emis[ni],
+                    color=cdict[ni], label=f"emitter: {ni}")
+            ax[j][1].plot(spectrum[:, 0], abso[nj],
+                    color=cdict[nj], label=f"absorber: {nj}")
+            ax[j][1].plot([], [], ' ', label=f"Overlap = {oea:6.3f}")
+            ax[j][1].set_xlim(xlim)
+            ax[j][1].legend()
+
+        fig.supxlabel("wavelength (nm)")
+        fig.supylabel("intensity (arb.)")
+        plt.grid(visible=True)
+        # fig.tight_layout()
+        plt.savefig(os.path.join(outdir, f"{names[i]}_overlaps.pdf"))
+        plt.close()

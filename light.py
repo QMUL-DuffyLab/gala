@@ -156,9 +156,9 @@ def spectrum_setup(spectrum_type, **kwargs):
             output_prefix += f"_{kwargs['fraction']}"
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
-        intensity = get_gaussian(l, kwargs['lp'], kwargs['w'], kwargs['a'])
+        intensity = get_gaussian(l, kwargs['mu'], kwargs['sigma'], kwargs['a'])
         s = np.column_stack((l, intensity))
-        output_prefix = "gauss_lp0_{:6.2f}".format(kwargs['lp'][0])
+        output_prefix = "gauss_lp0_{:6.2f}".format(kwargs['mu'][0])
     else:
         raise ValueError("Invalid call to spectrum_setup.")
 
@@ -230,8 +230,8 @@ if __name__ == "__main__":
           {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 10.0, "region": [400.0, 700.0]}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
           {'type': "gauss", 'kwargs':
-           {'lmin': 200.0, 'lmax': 1000.0, 'lp': [600.0, 500.0],
-            'w': [15.0, 35.0], 'a': [1.0, 0.2]}},
+           {'lmin': 200.0, 'lmax': 1000.0, 'mu': [600.0, 500.0],
+            'sigma': [15.0, 35.0], 'a': [1.0, 0.2]}},
           ]
 
     check(sd)
