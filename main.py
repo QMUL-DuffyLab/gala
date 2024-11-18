@@ -19,19 +19,25 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    costs = [0.02, 0.03]
+    costs = [0.03, 0.02, 0.01, 0.005]
     # various other examples of dicts in light.py
     spectra_dicts = [
-          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          {'type': "marine", 'kwargs': {'depth': 1.0}},
-          {'type': "marine", 'kwargs': {'depth': 2.5}},
-          {'type': "marine", 'kwargs': {'depth': 5.0}},
-          {'type': "filtered", 'kwargs': {'filter': "red"}},
-          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
-          # {'type': "phoenix", 'kwargs': {'temperature': 2300}},
+          # {'type': "am15", 'kwargs': {'dataset': "tilt"}},
+          # {'type': "marine", 'kwargs': {'depth': 1.0}},
+          # {'type': "marine", 'kwargs': {'depth': 2.5}},
+          # {'type': "marine", 'kwargs': {'depth': 5.0}},
+          # {'type': "filtered", 'kwargs': {'filter': "red"}},
+          # {'type': "filtered", 'kwargs': {'filter': "far-red", 'fraction': 0.85}},
+          # {'type': "filtered", 'kwargs': {'filter': "far-red", 'fraction': 0.95}},
+          {'type': "phoenix", 'kwargs': {'temperature': 2300}},
+          {'type': "phoenix", 'kwargs': {'temperature': 2600}},
+          {'type': "phoenix", 'kwargs': {'temperature': 2800}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3300}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3700}},
+          {'type': "phoenix", 'kwargs': {'temperature': 3800}},
           ]
     # for d in spectra_dicts:
-    #     d["kwargs"]["intensity"] = 300.0
+    #     d["kwargs"]["intensity"] = 50.0
     #     d["kwargs"]["region"] = [400.0, 700.0]
     light.check(spectra_dicts)
 

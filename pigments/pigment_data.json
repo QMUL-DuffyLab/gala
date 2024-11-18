@@ -23,20 +23,40 @@
       "sigma": [9.00e+00, 1.5e+01],
       "text": "$ \\text{RC_E} $"
       },
-  "fr_rc": {
+  "rc_ox_frl": {
+    "abs": {
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
       "mu": [7.20e+02, 6.80e+02],
       "sigma": [9.00e+00, 1.5e+01],
       "text": "$ \\text{FRL-RC} $"
+    },
+    "ems":{
+      "n_gauss": 3,
+      "amp": [8.5e-01, 1.0e-01, 1.1e-01],
+      "mu": [7.17e+02, 7.35e+02, 7.72e+02],
+      "sigma": [9.0e+00, 1.1e+01, 2.0e+01],
+      "0-0": 7.17e+02,
+      "text": "$ \\text{RC}_{FRL} $ ems (red-shifted Chl \\emph{a})"
+    }
       },
   "ano_rc": {
+    "abs": {
       "n_gauss": 3,
       "amp": [4.00e-01, 8.00e-01, 4.00e-01],
       "mu": [8.90e+02, 8.20e+02, 7.60e+02],
       "sigma": [2.00e+01, 1.5e+01, 1.5e+01],
       "text": "$ \\text{ano-RC} $"
       },
+    "ems": {
+      "n_gauss": 2,
+      "amp": [9.0e-01, 1.5e-01],
+      "mu": [9.15e+02, 9.32e+02],
+      "sigma": [1.1e+01, 4.0e+01],
+      "0-0": 9.15e+02,
+      "text": "ano-RC ems"
+    }
+  },
   "hydro_rc": {
       "n_gauss": 2,
       "amp": [1.00e+00, 1.00e-01],
