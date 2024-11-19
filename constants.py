@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "ox_anox_comp")
+output_dir = os.path.join("out", "ox_anox_comp", "anox_no_shift")
 spectrum_prefix = 'spectra'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)

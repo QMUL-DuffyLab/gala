@@ -40,7 +40,7 @@
       "text": "$ \\text{RC}_{FRL} $ ems (red-shifted Chl \\emph{a})"
     }
       },
-  "ano_rc": {
+  "rc_anox": {
     "abs": {
       "n_gauss": 3,
       "amp": [4.00e-01, 8.00e-01, 4.00e-01],
@@ -57,7 +57,7 @@
       "text": "ano-RC ems"
     }
   },
-  "hydro_rc": {
+  "rc_hydro": {
       "n_gauss": 2,
       "amp": [1.00e+00, 1.00e-01],
       "mu": [1.500e+03, 1.460e+03],

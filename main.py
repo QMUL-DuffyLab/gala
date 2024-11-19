@@ -162,8 +162,8 @@ if __name__ == "__main__":
                                 label=r'$ \left<A(\lambda)\right> $')
 
                     # f""" looks horrible but keeps it under 80 chars
-                    print(f"""{out_name}, run {run:1d}, generation {gen:4d}:
-================
+                    print(f"""{out_name}, run {run:1d}, cost {cost}, gen {gen}:
+====================================================
 <ν_e>    = {avgs[0]:10.4n}\t<ν_e^2>    = {avgsq[0]:10.4n}\tσ = {std[0]:10.4n}
 <φ_e(γ)> = {avgs[1]:10.4n}\t<φ_e(γ)^2> = {avgsq[1]:10.4n}\tσ = {std[1]:10.4n}
 <φ_e>    = {avgs[2]:10.4n}\t<φ_e^2>    = {avgsq[2]:10.4n}\tσ = {std[2]:10.4n}
