@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "ox_anox_comp", "anox_no_shift")
+output_dir = os.path.join("out", "high_intensity")
 spectrum_prefix = 'spectra'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
@@ -48,9 +48,9 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
           'shift': np.array([-20, 120], dtype=np.int32),
           # names must match what's in pigment_data_file!
-          # 'rc': np.array(["rc_ox", "rc_E", "fr_rc", "ano_rc",
-          #                   "hydro_rc"]),
-          'rc': np.array(["rc_ox"], dtype='U10'),
+          # 'rc': np.array(["rc_ox", "rc_E", "rc_ox_frl", "rc_anox",
+          #                   "rc_hydro"]),
+          'rc': np.array(["rc_anox"], dtype='U10'),
           'alpha': np.array([0.0, 10.0], dtype=np.float64),
           'phi': np.array([0.0, 10.0], dtype=np.float64),
           'eta': np.array([0.0, 10.0], dtype=np.float64),

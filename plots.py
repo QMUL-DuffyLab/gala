@@ -407,6 +407,7 @@ def pigment_bar(pigments, outfile):
                 label=labels[b], color=get_spectrum_colour(b),
                 bottom=bottom, edgecolor='0.6')
         bottom += p
+    ax.legend()
     ax.set_ylim([0.0, 1.01])
     ax.set_yticks([0, 0.25, 0.5, 0.75])
     fig.savefig(outfile)

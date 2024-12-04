@@ -1,4 +1,5 @@
 import os
+import re
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,6 +18,42 @@ def pigment_to_index(pigment):
     so I do that check manually below
     '''
     return np.where(constants.bounds['pigment'] == pigment)[0][0]
+
+def get_average_vals_errs(basepath, cost, out_name):
+    '''
+    pull out the values and errors from the averaging procedure
+    for a given set of parameters. note that this is all obviously
+    dependent on the directories being set up as expected and the
+    formatting in the averages file being as below, otherwise the
+    regexes won't pick anything up. check for nans in the returned
+    arrays
+    '''
+    fn = os.path.join(basepath,
+            f"cost_{cost}", f"{out_name}_average_antenna_params.dat")
+    vals = np.zeros(5, dtype=np.float64)
+    errs = np.zeros_like(vals)
+    try:
+        with open(fn, "r") as f:
+            fstr = ' '.join(f.read().splitlines())
+        m = re.search(r'<nu_e> = ([0-9.]+) \+\= ([0-9.]+)', fstr)
+        vals[0] = float(m.group(1))
+        errs[0] = float(m.group(2))
+        m = re.search(r'<phi_e> = ([0-9.]+) \+\= ([0-9.]+)', fstr)
+        vals[1] = float(m.group(1))
+        errs[1] = float(m.group(2))
+        m = re.search(r'<fit> = ([0-9.]+) \+\= ([0-9.]+)', fstr)
+        vals[2] = float(m.group(1))
+        errs[2] = float(m.group(2))
+        m = re.search(r'n_b = ([0-9.]+) \+\= ([0-9.]+)', fstr)
+        vals[3] = float(m.group(1))
+        errs[3] = float(m.group(2))
+        m = re.search(r'n_s = ([0-9.]+) \+\= ([0-9.]+)', fstr)
+        vals[4] = float(m.group(1))
+        errs[4] = float(m.group(2))
+    except:
+        vals = np.nan
+        errs = np.nan
+    return vals, errs
 
 def hist(population, gen, run, outdir, out_name):
     suffix = "hist_{}_{:04d}_{:1d}.dat".format(out_name, gen, run)
