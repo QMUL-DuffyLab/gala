@@ -18,16 +18,19 @@ import light
 target_spectra = {
     # "PSII": os.path.join("spectra", "PSII.csv"),
     "PSII": os.path.join("spectra", "psii_wientjies.csv"),
+    # from Jim Barber paper
+    "BBY": os.path.join("spectra", "bby_spinach.csv"),
     "6803": os.path.join("spectra", "PCC_6803_Abs.txt"),
     "6301": os.path.join("spectra", "SP_6301_Abs.txt"),
     "FRL":  os.path.join("spectra", "frl_cells.csv"),
+    "a_marina":  os.path.join("spectra", "a_marina.csv"),
     "marine": os.path.join("spectra", "kolodny_marine_pbs.csv"),
     "red_alga": os.path.join("spectra", "l_glaciale.csv"),
     "a_platensis": os.path.join("spectra",
                     "pbs_a_platensis_appl_sci_2020.csv")
     }
 
-# colours to print the incident spectra with, matching paper
+# this is no longer a spectrum colour - what have i done here? fix
 def get_spectrum_colour(name):
     cmap = mpl.colormaps["turbo"]
     names = constants.bounds['pigment']
@@ -35,6 +38,18 @@ def get_spectrum_colour(name):
     cdict = {n: c for n, c in zip(names, colours)}
     for k, v in cdict.items():
         if k in name: # ignore the intensity part of the output name
+            return v
+    else:
+        print("spectrum colour not found")
+        return '#99999999'
+
+def get_pigment_colour(name):
+    cmap = mpl.colormaps["turbo"]
+    names = constants.bounds['pigment']
+    colours = [cmap(i / float(len(names))) for i in range(len(names))]
+    cdict = {n: c for n, c in zip(names, colours)}
+    for k, v in cdict.items():
+        if name == k: # ignore the intensity part of the output name
             return v
     else:
         print("spectrum colour not found")
@@ -396,20 +411,24 @@ def pigment_bar(pigments, outfile):
     hists = np.array([row[1:] for row in pigments])
     hists = hists / float(constants.n_runs)
     names = [row[0] for row in pigments]
-    labels = {n: constants.pigment_data[n]['abs']['text'] for n in names}
+    labels = {n: constants.pigment_data[n]['name'] for n in names}
     props = {name: hist for name, hist in zip(names, hists)}
 
-    fig, ax = plt.subplots(figsize=(9,9))
+    fig, ax = plt.subplots(figsize=(10,10))
     ax.set_xlabel("Distance from RC")
+    ax.set_ylabel("Prevalence")
     bottom = np.zeros(len(names))
     for b, p in props.items():
         pp = ax.bar(np.arange(constants.hist_sub_max) + 1, p, 0.8,
-                label=labels[b], color=get_spectrum_colour(b),
+                label=labels[b], color=get_pigment_colour(b),
                 bottom=bottom, edgecolor='0.6')
         bottom += p
-    ax.legend()
+    ax.legend(loc='upper right')
     ax.set_ylim([0.0, 1.01])
     ax.set_yticks([0, 0.25, 0.5, 0.75])
+    # add horizontal space for legend
+    ax.set_xlim([0, constants.hist_sub_max + 2])
+    ax.set_xticks([2 * i for i in range(constants.hist_sub_max // 2)])
     fig.savefig(outfile)
     plt.close()
     
