@@ -79,9 +79,6 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
         final_rc = one_rc
     elif len(rcs) == 2:
         final_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
-    else:
-        print("TOO MANY RCS!!")
-    i think that should be fine, there will never be more than two
     '''
     two_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
     n_rc = len(two_rc)
@@ -101,9 +98,12 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
             (0, 0, 0, -1, 0, 0):  constants.k_diss,
             (-1, 1, 0, 0, 0, 0):  constants.k_trap,
             (0, 0, 0, -1, 1, 0):  constants.k_trap,
-            (0, 0, -1, 0, 0, 0):  constants.k_o2,
-            (0, -1, 1, 0, 0, -1): p.eta * constants.k_lin,
-            (0, 0, 0, 0, -1, 1):  constants.k_out,
+            # k_detrap doesn't exist yet - detailed balance on k_trap
+            (1, -1, 0, 0, 0, 0):  constants.k_detrap,
+            (0, 0, 0, 1, -1, 0):  constants.k_detrap,
+            (0, -1, 1, 0, 0, 0):  constants.k_ox,
+            (0, 0, -1, 0, -1, 1): p.eta * constants.k_lin,
+            (0, 0, 0, 0, 0, -1):  constants.k_red,
             (0, 0, 0, 0, -1, 0):  k_cyc,
             }
 

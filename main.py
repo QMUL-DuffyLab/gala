@@ -20,40 +20,41 @@ if __name__ == "__main__":
     rng = np.random.default_rng()
 
     costs = [0.04, 0.03, 0.02, 0.01, 0.005]
-    templates = {
-        0.04: constants.Genome(3, 3, [70, 68, 63],
-                               [0.0, 0.0, 0.0], ['chl_b', 'pc', 'pe'], ['rc_ox']),
-        0.03: constants.Genome(3, 4, [70, 68, 65, 35],
-                               [0.0, 0.0, 0.0, 0.0],
-                               ['chl_b', 'pc', 'pc', 'pe'], ['rc_ox']),
-        0.02: constants.Genome(3, 4, [71, 70, 69, 54],
-                               [0.0, 0.0, 0.0, 0.0],
-                               ['apc', 'pc', 'pc', 'pc'], ['rc_ox']),
-        0.01: constants.Genome(4, 5, [75, 73, 75, 69, 42],
-                               [0.0, 0.0, 0.0, 0.0, 0.0],
-                               ['apc', 'pc', 'pe', 'r-pe', 'r-pe'], ['rc_ox']),
-        0.005: constants.Genome(4, 5, [69, 72, 71, 70, 53],
-                               [0.0, 0.0, 0.0, 0.0, 0.0],
-                               ['chl_b', 'pc', 'pc', 'pe', 'pe'], ['rc_ox']),
-        }
+    costs = [0.01]
+    # templates = {
+    #     0.04: constants.Genome(3, 3, [70, 68, 63],
+    #                            [0.0, 0.0, 0.0], ['chl_b', 'pc', 'pe'], ['rc_ox']),
+    #     0.03: constants.Genome(3, 4, [70, 68, 65, 35],
+    #                            [0.0, 0.0, 0.0, 0.0],
+    #                            ['chl_b', 'pc', 'pc', 'pe'], ['rc_ox']),
+    #     0.02: constants.Genome(3, 4, [71, 70, 69, 54],
+    #                            [0.0, 0.0, 0.0, 0.0],
+    #                            ['apc', 'pc', 'pc', 'pc'], ['rc_ox']),
+    #     0.01: constants.Genome(4, 5, [75, 73, 75, 69, 42],
+    #                            [0.0, 0.0, 0.0, 0.0, 0.0],
+    #                            ['apc', 'pc', 'pe', 'r-pe', 'r-pe'], ['rc_ox']),
+    #     0.005: constants.Genome(4, 5, [69, 72, 71, 70, 53],
+    #                            [0.0, 0.0, 0.0, 0.0, 0.0],
+    #                            ['chl_b', 'pc', 'pc', 'pe', 'pe'], ['rc_ox']),
+    #     }
     # various other examples of dicts in light.py
     spectra_dicts = [
           #{'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          #{'type': "marine", 'kwargs': {'depth': 1.0}},
+          {'type': "marine", 'kwargs': {'depth': 1.0}},
           #{'type': "marine", 'kwargs': {'depth': 5.0}},
           #{'type': "filtered", 'kwargs': {'filter': "red"}},
           #{'type': "filtered", 'kwargs': {'filter': "far-red"}},
           #{'type': "phoenix", 'kwargs': {'temperature': 2300}},
-          {'type': "marine", 'kwargs': {'depth': 2.5}},
+          # {'type': "marine", 'kwargs': {'depth': 2.5}},
           ]
-    # for d in spectra_dicts:
-    #     d["kwargs"]["intensity"] = 50.0
-    #     d["kwargs"]["region"] = [400.0, 700.0]
+    for d in spectra_dicts:
+        d["kwargs"]["intensity"] = 50.0
+        d["kwargs"]["region"] = [400.0, 700.0]
     light.check(spectra_dicts)
 
     # allocate this so hopefully it doesn't allocate 1 billion times
     nu_phi = np.zeros(3, dtype=np.float64)
-    init_type = 'template' # see ga.new()
+    init_type = 'proto' # see ga.new()
     names = ["avg", "avgsq", "best"]
     for cost in costs:
         print(f"Cost = {cost}. Building spectra")
@@ -98,10 +99,10 @@ if __name__ == "__main__":
                 gen = 0
                 gens_since_improvement = 0
                 # initialise population
-                print(templates[cost])
+                # print(templates[cost])
                 for j in range(constants.population_size):
-                    population[j] = ga.new(rng, init_type,
-                            antenna=templates[cost], variability=0.0)
+                    population[j] = ga.new(rng, init_type)
+                            # antenna=templates[cost], variability=0.0)
 
                 fit_max = 0.0
                 # initialise in case they all have 0 fitness
