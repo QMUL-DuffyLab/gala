@@ -407,6 +407,8 @@ def pigment_bar(pigments, outfile):
     '''
     plot a bar chart showing prevalence of each pigment as a
     function of distance from RC up to constants.hist_sub_max
+    NB: pigments here should be a pigment histogram read in,
+    not just a list of pigments or the name of the file!
     '''
     hists = np.array([row[1:] for row in pigments])
     hists = hists / float(constants.n_runs)

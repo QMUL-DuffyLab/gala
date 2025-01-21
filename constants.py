@@ -42,18 +42,22 @@ mutation uses a truncated Gaussian with these as bounds as well.
 note that specifying dtype for non-string variables is important;
 the type of the numpy arrays here is used to determine what random
 function to use and hence how generation/crossover/mutation will work.
+NB: setting them at [1,1] is slow for this really, because we don't
+actually need them. but it keeps the code as similar as possible and
+we don't really need the speed increase you'd get from removing them
 '''
-bounds = {'n_b': np.array([1, 12], dtype=np.int32),
-          'n_s': np.array([1, 20], dtype=np.int32),
-          'n_p': np.array([1, 100], dtype=np.int32),
-          'shift': np.array([-20, 120], dtype=np.int32),
-          # names must match what's in pigment_data_file!
-          # 'rc': np.array(["rc_ox", "rc_E", "rc_ox_frl", "rc_anox",
-          #                   "rc_hydro"]),
-          'rc': np.array(["rc_ox"], dtype='U10'),
+n_p_total = 200 # total number of "pigments" in the PBS
+bounds = {'n_b': np.array([1, 1], dtype=np.int32),
+          'n_s': np.array([1, 1], dtype=np.int32),
+          'n_p': np.array([72, 72], dtype=np.int32),
+          'shift': np.array([-0.0, 0.0], dtype=np.int32),
+          'a1': np.array([0, n_p_total], dtype=np.int32),
+          'a2': np.array([0, n_p_total], dtype=np.int32),
+          'a3': np.array([0, n_p_total], dtype=np.int32),
+          'rc': np.array(["ox", "frl", "anox", "exo"], dtype='U10'),
           'alpha': np.array([0.0, 10.0], dtype=np.float64),
-          'phi': np.array([0.0, 10.0], dtype=np.float64),
-          'eta': np.array([0.0, 10.0], dtype=np.float64),
+          'phi': np.array([0.0, 1.0], dtype=np.float64),
+          'eta': np.array([0.0, 1.0], dtype=np.float64),
           # any pigment in this array can be picked
           # 'pigment': np.array(["averaged"])
           'pigment': np.array(["r-pe", "pe", "pc", "apc", "chl_b", "chl_a",
@@ -93,13 +97,17 @@ some rates that I think are going to be fixed
 all given in s^{-1}
 '''
 
-k_hop    = 1.0 / 10.0E-12 # just one hopping rate between all subunits
+tau_prime = 150.0E-12 # transfer from PBS to RCs
+k_hop    = 1.0 / tau_prime # just one hopping rate between all subunits
 k_diss   = 1.0 / 1.0E-9 # Chl excited state decay rate
 k_trap   = 1.0 / 10.0E-12 # PSII trapping rate
-k_o2     = 1.0 / 400.0e-6
+# 17 kT drop for trapping; detailed balance
+# eventually this'll have to be a per-RC supersystem parameter I guess
+k_detrap = k_trap * np.exp(-17.0)
+k_ox     = 1.0 / 400.0e-6
 k_lin    = 1.0 / 10.0E-3 # PSII RC turnover rate
-k_out    = 1.0 / 10.0E-3 # PSII RC turnover rate
-k_params  = (k_diss, k_trap, k_o2, k_lin, k_out, k_hop)
+k_red    = 1.0 / 10.0E-3 # CO2 reduction
+k_params  = (k_diss, k_trap, k_ox, k_lin, k_red, k_hop)
 
 '''
 Spectral parameters
@@ -111,10 +119,13 @@ np_rc = 10 # number of pigments in reaction centre
 class Genome:
     n_b: int = 0
     n_s: int = 0
-    n_p: int = field(default_factory=lambda: np.empty([], dtype=np.int64))
-    shift: float = field(default_factory=lambda: np.empty([], dtype=np.float64))
-    pigment: str = field(default_factory=lambda: np.empty([], dtype='U10'))
-    rc: str = field(default_factory=lambda: np.empty([], dtype='U10'))
+    n_p: np.ndarray     = field(default_factory=lambda:
+                        np.empty([], dtype=np.int))
+    shift: np.ndarray   = field(default_factory=lambda:
+                        np.empty([], dtype=np.float))
+    pigment: np.ndarray = field(default_factory=lambda:
+                        np.empty([], dtype='U10'))
+    rc: str = ""
     alpha: float = 0.0
     phi: float = 0.0
     eta: float = 0.0

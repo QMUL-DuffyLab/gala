@@ -77,7 +77,7 @@ def new(rng, init_type, **kwargs):
             raise KeyError("Antenna not defined for template init")
         if 'variability' not in kwargs:
             raise KeyError("Variability not defined for template init")
-        # this has to be a copy, otherwise every single member of the 
+        # this has to be a copy, otherwise every single member of the
         # population will just be a reference to the same bit of memory
         g = copy(kwargs['antenna'])
         if rng.random() < kwargs['variability']:

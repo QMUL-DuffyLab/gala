@@ -24,13 +24,15 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
     k_cyc = p.alpha * constants.k_lin
     
     fp_y = (ip_y * l) / la.hcnm
-    # assumes constant (and equal) number of pigments in RCs
-    n_p = np.array([constants.np_rc, constants.np_rc, *p.n_p],
-            dtype=np.int32)
+    # hardcode in the RC arrangement for now. will need to sort this out
+    # for the full antenna-RC model
+    rcs = ["rc_ox", "rc_E"]
+    rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcs]
+    n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
     # 0 shift for RCs. shifts stored as integer increments, so
     # multiply by shift_inc here
     shift = np.array([0., 0., *p.shift], dtype=np.float64) * constants.shift_inc
-    pigment = np.array([*p.rc, *p.pigment], dtype='U10')
+    pigment = np.array([*rcs, *p.pigment], dtype='U10')
     a_l = np.zeros((p.n_s + 2, len(l)))
     e_l = np.zeros_like(a_l)
     norms = np.zeros(len(pigment))
@@ -52,7 +54,7 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
             n = float(n_p[i]) / float(n_p[2])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[2], pigment[2]), n, constants.T)
-        elif i < p.n_s + 1:
+        elif i >= 2 and i < p.n_s + 1:
             # one subunit and the next
             inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
@@ -98,7 +100,6 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
             (0, 0, 0, -1, 0, 0):  constants.k_diss,
             (-1, 1, 0, 0, 0, 0):  constants.k_trap,
             (0, 0, 0, -1, 1, 0):  constants.k_trap,
-            # k_detrap doesn't exist yet - detailed balance on k_trap
             (1, -1, 0, 0, 0, 0):  constants.k_detrap,
             (0, 0, 0, 1, -1, 0):  constants.k_detrap,
             (0, -1, 1, 0, 0, 0):  constants.k_ox,
@@ -234,9 +235,8 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-
     w_e = nu_lin + nu_cyc
-    w_red = w_e / (1.0 + (p.alpha * constants.k_lin / constants.k_out))
+    w_red = w_e / (1.0 + (p.alpha * constants.k_lin / constants.k_red))
     if debug:
         return {
                 "k": k,
