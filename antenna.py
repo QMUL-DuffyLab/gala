@@ -235,11 +235,11 @@ def antenna(l, ip_y, p, overlaps, gammas, debug=False):
     twa = np.zeros((2 * side, 2 * side), dtype=np.longdouble)
     k = np.zeros(((2 * side) + 1, 2 * side), dtype=ctypes.c_double,
                  order='F')
-    twa[1][0] = constants.k_out # 1e+2
+    twa[1][0] = constants.k_red # 1e+2
     twa[2][0] = constants.k_diss # 2.5e+8
     twa[2][1] = constants.k_trap # 2e+11
     twa[3][1] = constants.k_diss
-    twa[3][2] = constants.k_out
+    twa[3][2] = constants.k_red
     js = list(range(4, 2 * side, 2 * p.n_s))
     for jind, j in enumerate(js):
         # two pairs of RC <-> rates at the bottom of each branch */
@@ -251,7 +251,7 @@ def antenna(l, ip_y, p, overlaps, gammas, debug=False):
             ind = j + (2 * i)
             twa[ind][0]       = constants.k_diss
             twa[ind + 1][1]   = constants.k_diss
-            twa[ind + 1][ind] = constants.k_out
+            twa[ind + 1][ind] = constants.k_red
             if p.connected:
                 prevind = ind - (2 * p.n_s)
                 nextind = ind + (2 * p.n_s)
@@ -316,7 +316,7 @@ def antenna(l, ip_y, p, overlaps, gammas, debug=False):
         n_eq[0] += p_eq[(2 * i) + 1] # P(1_i, 1)
         if i > 0:
             n_eq[i] = p_eq[2 * i] + p_eq[(2 * i) + 1] # P(1_i, 0) + P(1_i, 1)
-    nu_e = constants.k_out * n_eq[0]
+    nu_e = constants.k_red * n_eq[0]
     phi_e_g = nu_e / (nu_e + (constants.k_diss * np.sum(n_eq[1:])))
 
     # efficiency
@@ -350,7 +350,7 @@ def antenna(l, ip_y, p, overlaps, gammas, debug=False):
         n_eq_low[0] += p_eq_low[(2 * i) + 1]
         if i > 0:
             n_eq_low[i] = p_eq_low[2 * i] + p_eq_low[(2 * i) + 1]
-    nu_e_low = constants.k_out * n_eq_low[0]
+    nu_e_low = constants.k_red * n_eq_low[0]
     phi_e = nu_e_low / (nu_e_low + (constants.k_diss * np.sum(n_eq_low[1:])))
 
     if debug:
