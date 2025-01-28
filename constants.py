@@ -43,14 +43,7 @@ all given in s^{-1}
 tau_prime = 150.0E-12 # transfer from PBS to RCs
 k_hop    = 1.0 / tau_prime # just one hopping rate between all subunits
 k_diss   = 1.0 / 1.0E-9 # Chl excited state decay rate
-k_trap   = 1.0 / 10.0E-12 # PSII trapping rate
-# 17 kT drop for trapping; detailed balance
-# eventually this'll have to be a per-RC supersystem parameter I guess
-k_detrap = k_trap * np.exp(-17.0)
-k_ox     = 1.0 / 400.0e-6
-k_lin    = 1.0 / 10.0E-3 # PSII RC turnover rate
-k_red    = 1.0 / 10.0E-3 # CO2 reduction
-k_params  = (k_diss, k_trap, k_ox, k_lin, k_red, k_hop)
+# RC specific rates are now in rc.py
 
 '''
 Spectral parameters
@@ -74,7 +67,7 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'a1': np.array([0, n_p_total], dtype=np.int32),
           'a2': np.array([0, n_p_total], dtype=np.int32),
           'a3': np.array([0, n_p_total], dtype=np.int32),
-          'rc': np.array(["rc_ox"], dtype='U10'),
+          'rc': np.array(["ox", "frl", "anox", "exo"], dtype='U10'),
           'alpha': np.array([0.0, 5.0], dtype=np.float64),
           'phi': np.array([0.0, 1.0], dtype=np.float64),
           'eta': np.array([0.0, 1.0], dtype=np.float64),

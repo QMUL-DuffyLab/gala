@@ -110,7 +110,7 @@ def new(rng, init_type, **kwargs):
         shift[i]  = get_rand('shift', rng)
         pigment[i]  = get_rand('pigment', rng)
     return constants.Genome(nb, ns, n_p, shift, pigment,
-            [rc], alpha, phi, eta)
+            rc, alpha, phi, eta)
 
 def copy(g):
     ''' return a new identical genome. useful for testing '''
