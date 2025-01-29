@@ -22,7 +22,7 @@ def parameters(pigments, gap):
     '''
     for a given set of photosystems, generate a dict of intra-RC
     processes and the lists of indices that pertain to linear and
-    cyclic electron flow respectively for use in antenna.py.
+    cyclic electron flow respectively for use in supersystem.py.
     
     quite proud of this one, actually. it might look a little gross
     but it has to be because the population changes for each process
@@ -95,7 +95,7 @@ def parameters(pigments, gap):
                         # this is not just cyclic but also detrapping!
                         # in fact if n_rc > 1 and k = 0, this is only
                         # detrapping, since ps_ox can't do cyclic.
-                        # check for "cyc" in antenna.py and insert both
+                        # check for "cyc" in supersystem.py and insert both
                         procs.update({tuple(diff): "cyc"})
                 if tuple(diff[0:2]) == (-1, 1):
                     all_zero = True
@@ -130,7 +130,7 @@ def parameters(pigments, gap):
             }
     return params
 
-rc_params = {
+params = {
     "ox":   parameters(["ps_ox", "ps_r"], 17.0),
     "frl":  parameters(["ps_ox_frl", "ps_r_frl"], 10.0),
     "anox": parameters(["ps_anox"], 14.0),
@@ -138,8 +138,8 @@ rc_params = {
 }
 
 if __name__ == "__main__":
-    for item in rc_params:
-        d = rc_params[item]
+    for item in params:
+        d = params[item]
         print("----")
         print(f"{item}:")
         print("----")

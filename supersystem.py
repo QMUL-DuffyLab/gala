@@ -1,60 +1,67 @@
-import numpy as np
 import ctypes
+import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import nnls
 from matplotlib import cm, ticker, colors
-import constants
-import antenna as la
-import light
 from scipy.constants import Boltzmann as kB
+import constants
+import light
+import antenna as la
+import rc
 
-def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
+def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     '''
-    combined antenna-RC model.
-    NB: this is probably not going to work as-is for a non-oxygenic system,
-    yet. need to think about how to implement them generally. but it works
-    for rc_ox and rc_E in the oxygenic case.
+    generate matrix for combined antenna-RC supersystem and solve it.
 
+    parameters
+    ----------
     l = set of wavelengths
     ip_y = irradiances at those wavelengths
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
     nnls = which NNLS version to use
+
+    outputs
+    -------
+    if debug == True:
+    debug: a huge dict containing various parameters that are useful to me
+    (and probably only me) in figuring out what the fuck is going on.
+    else:
+    TBC. probably nu_ch2o and nu_cyc
     '''
     k_cyc = p.alpha * constants.k_lin
     
     fp_y = (ip_y * l) / la.hcnm
-    # hardcode in the RC arrangement for now. will need to sort this out
-    # for the full antenna-RC model
-    rcs = ["rc_ox", "rc_E"]
-    rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcs]
+    rcp = rc.params[p.rc]
+    n_rc = len(rcp["pigments"])
+    rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
     n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
     # 0 shift for RCs. shifts stored as integer increments, so
     # multiply by shift_inc here
     shift = np.array([0., 0., *p.shift], dtype=np.float64) * constants.shift_inc
-    pigment = np.array([*rcs, *p.pigment], dtype='U10')
-    a_l = np.zeros((p.n_s + 2, len(l)))
+    pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
+    a_l = np.zeros((p.n_s + n_rc, len(l)))
     e_l = np.zeros_like(a_l)
     norms = np.zeros(len(pigment))
-    gamma = np.zeros(p.n_s + 2, dtype=np.float64)
-    k_b = np.zeros(2 * (p.n_s + 2), dtype=np.float64)
-    for i in range(p.n_s + 2):
+    gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
+    k_b = np.zeros(2 * (p.n_s + n_rc), dtype=np.float64)
+    for i in range(p.n_s + n_rc):
         a_l[i] = la.absorption(l, pigment[i], shift[i])
         e_l[i] = la.emission(l, pigment[i], shift[i])
         norms[i] = la.overlap(l, a_l[i], e_l[i])
         gamma[i] = (n_p[i] * constants.sig_chl *
                         la.overlap(l, fp_y, a_l[i]))
 
-    # NB: fix this once the normal antenna model works
-    for i in range(p.n_s + 2):
-        if i < 2:
-            # RCs - overlap/dG with first subunit (3rd in list, so [2])
-            inward  = la.overlap(l, a_l[i], e_l[2]) / norms[i]
-            outward = la.overlap(l, e_l[i], a_l[2]) / norms[2]
-            n = float(n_p[i]) / float(n_p[2])
+    # NB: this needs checking for logic for all types
+    for i in range(p.n_s + n_rc):
+        if i < n_rc:
+            # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
+            inward  = la.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
+            outward = la.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
+            n = float(n_p[i]) / float(n_p[n_rc])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[2], pigment[2]), n, constants.T)
-        elif i >= 2 and i < p.n_s + 1:
+        elif i >= n_rc and i < p.n_s + 1:
             # one subunit and the next
             inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
@@ -69,96 +76,72 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
 
-    '''
-    RC stuff: get the indices etc
-    '''
-    one_rc = [(0, 0, 0), (1, 0, 0), (0, 1, 0),
-              (0, 0, 1), (1, 1, 0), (1, 0, 1)]
-    # combine one_rc with itself to make the possible states of the supersystem
-    '''
-    NB: this can be modified for different RC types by something like
-    if len(rcs) == 1:
-        final_rc = one_rc
-    elif len(rcs) == 2:
-        final_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
-    '''
-    two_rc = [s1 + s2 for s1 in one_rc for s2 in one_rc]
-    n_rc = len(two_rc)
-    # assign each combination to an index for use in the array below
-    indices = {state: i for state, i in zip(two_rc, range(n_rc))}
-    two_rc = np.array(two_rc)
-    # keys in the dict here are the population differences between
-    # initial and final states, for each type of process; values are rates
-    processes = {
-            # NB: these four processes could also be transfer to and
-            # from the antenna, but we only use this dict for the RC-RC
-            # terms, and the transfer's taken care of afterwards, so
-            # this should be fine
-            (1, 0, 0, 0, 0, 0): gamma[0], # rc_ox is first in lists
-            (0, 0, 0, 1, 0, 0): gamma[1], # rc_E second
-            (-1, 0, 0, 0, 0, 0):  constants.k_diss,
-            (0, 0, 0, -1, 0, 0):  constants.k_diss,
-            (-1, 1, 0, 0, 0, 0):  constants.k_trap,
-            (0, 0, 0, -1, 1, 0):  constants.k_trap,
-            (1, -1, 0, 0, 0, 0):  constants.k_detrap,
-            (0, 0, 0, 1, -1, 0):  constants.k_detrap,
-            (0, -1, 1, 0, 0, 0):  constants.k_ox,
-            (0, 0, -1, 0, -1, 1): p.eta * constants.k_lin,
-            (0, 0, 0, 0, 0, -1):  constants.k_red,
-            (0, 0, 0, 0, -1, 0):  k_cyc,
-            }
-
-    side = n_rc * ((p.n_b * p.n_s) + 1)
+    n_rc_states = len(rcp["states"]) # total number of states of all RCs
+    side = n_rc_states * ((p.n_b * p.n_s) + n_rc + 1)
     twa = np.zeros((side, side), dtype=np.longdouble)
 
     # generate states to go with p_eq indices
     ast = []
-    empty = tuple([0 for _ in range(p.n_b * p.n_s)])
+    empty = tuple([0 for _ in range(n_rc + p.n_b * p.n_s)])
     ast.append(empty)
-    for i in range(p.n_b * p.n_s):
-        el = [0 for _ in range(p.n_b * p.n_s)]
+    for i in range(n_rc + p.n_b * p.n_s):
+        el = [0 for _ in range(n_rc + p.n_b * p.n_s)]
         el[i] = 1
         ast.append(tuple(el))
-    total_states = [s1 + tuple(s2) for s1 in ast for s2 in two_rc]
+    total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
+    total_indices = {i: total_states[i] for i in range(len(total_states))}
 
-    lindices = []
-    cycdices = []
-    js = list(range(0, side, n_rc))
+    lindices = rcp["nu_ch2o_ind"]
+    cycdices = rcp["nu_cyc_ind"]
+    js = list(range(0, side, n_rc_states))
     for jind, j in enumerate(js):
-        # jind == 0 is empty antenna, 0 + n_rc is first antenna block, etc
-        for i in range(n_rc):
-            # NB: can just generate the RC matrix once and then do
-            # for m in range(n_rc):
-            #     indf = m + j
-            #     twa[ind][indf] = t_rc[i][m]
+        # jind == 0 is empty antenna, 0 + n_rc_states is RC 1 occupied, etc
+        for i in range(n_rc_states):
             ind = i + j # total index
-            rc_state = two_rc[i] # tuple with current RC state
-            # RC rate stuff first
-            if rc_state[4] == 1 and rc_state[5] == 0:
-                # [n_^{ox}, n^{E}_e, 1, 0]
-                cycdices.append(ind)
-            if (rc_state[1] == 1 and rc_state[2] == 0
-            and rc_state[4] == 0 and rc_state[5] == 1):
-                # [n_^{ox}_e, 1, 0, n^{E}_e, 0, 1]
-                lindices.append(ind)
-            # now loop over the states again, get the population change,
-            # and insert the correct rate if it matches a process
-            for sf in two_rc:
-                diff = tuple(sf - rc_state)
-                if diff in processes:
-                    indf = indices[tuple(sf)] + j
-                    twa[ind][indf] = processes[diff]
+            initial = rcp["states"][i] # tuple with current RC state
+            for k in range(n_rc_states):
+                final = rcp["states"][k]
+                diff = tuple(final - initial)
+                if diff in rcp["procs"]:
+                    # NB: this won't work yet. need to figure detrapping/cyc
+                    # get the type of process
+                    rt = rcp["procs"][diff]
+                    indf = indices[tuple(final)] + j
+                    twa[ind][indf] = rc.rates[rt]
+                    if rt == "cyc":
+                        # this is both detrapping and cyclic
+                        # cyclic: multiply the rate by alpha etc.
+                        # alpha should no longer be a genome param!
+                        twa[ind][indf] *= p.alpha * np.sum(n_p)
+                        # detrapping:
+                        # - only possible if exciton manifold is empty
+                        # - excitation must go back to the correct photosystem
+                        if jind == 0:
+                            which_rc = np.where(np.array(diff) == -1)[0][0]//2
+                            indf = (indices[tuple(final)] + j + 
+                                    (which_rc * n_rc_states))
+                            detrap = rc.rates["trap"] * np.exp(-rcp["gap"])
+                            twa[ind][indf] = detrap
+                        
 
+            '''
+            NB: (29/01/2025) I think it's mostly fixed up to here.
+            Below it's probably still wrong because the excited state of the
+            RC is still counted in all this whereas now it should be outside
+            the rc_states loop. need to go through all this and figure it out.
+            will probably need to move some stuff (gauss, overlap calc etc.)
+            into a separate lineshapes.py file as well.
+            '''
             twa[ind][i] = constants.k_diss # dissipation from antenna
-            si = ((j // n_rc) - 1) % p.n_s
+            si = ((j // n_rc_states) - 1) % p.n_s
             twa[i][ind] = gamma[si + 2] # absorption by this block
             if si == 0:
                 # root of branch - antenna <-> RC transfer possible
                 # need to calculate the index of the final RC state:
                 # antenna-RC transfer changes the state of both
                 state = total_states[ind]
-                ans = ind // n_rc # antenna block index
-                rcs = ind % n_rc # rc index within block
+                ans = ind // n_rc_states # antenna block index
+                rcs = ind % n_rc_states # rc index within block
                 ti = (j // n_rc) - 1
                 if rc_state[0] == 0 and state[ti] == 1: # antenna -> ox possible
                     rcf = indices[(1, *rc_state[1:])]
@@ -178,8 +161,8 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
             # antenna rate stuff
             if jind > 0: # population in antenna subunit
                 if p.connected:
-                    prevind = ind - (p.n_s * n_rc)
-                    nextind = ind + (p.n_s * n_rc)
+                    prevind = ind - (p.n_s * n_rc_states)
+                    nextind = ind + (p.n_s * n_rc_states)
                     '''
                     first n_rc are for empty antenna. if we're
                     crossing the "boundary" (first <-> last)
@@ -187,9 +170,9 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                     '''
                     branch_number = jind // p.n_s
                     if branch_number == 0: # first branch
-                        prevind -= n_rc
+                        prevind -= n_rc_states
                     if branch_number == (p.n_b - 1): # final branch
-                        nextind += n_rc
+                        nextind += n_rc_states
                     # PBCs, essentially
                     if prevind < 0:
                         prevind += side
@@ -207,9 +190,9 @@ def antenna_rc(l, ip_y, p, debug=False, nnls='scipy'):
                     twa[prevind][ind] = constants.k_hop
 
                 if si > 0:
-                    twa[ind][ind - n_rc]     = k_b[(2 * si) + 3]
+                    twa[ind][ind - n_rc_states] = k_b[(2 * si) + 3]
                 if si < (p.n_s - 1):
-                    twa[ind][ind + n_rc]     = k_b[2 * (si + 2)]
+                    twa[ind][ind + n_rc_states] = k_b[2 * (si + 2)]
 
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
