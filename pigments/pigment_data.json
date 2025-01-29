@@ -1,12 +1,12 @@
 {
-  "rc_ox": {
+  "ps_ox": {
     "n_p": 35,
     "abs": {
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
       "mu": [6.80e+02, 6.40e+02],
       "sigma": [9.00e+00, 1.5e+01],
-      "text": "$ \\text{RC} $"
+      "text": "$ \\text{PS}_{\\text{ox}} $"
     },
     "ems":{
       "n_gauss": 3,
@@ -17,21 +17,22 @@
       "text": "$ \\text{RC}_ox $ ems (same as Chl \\emph{a})"
     }
       },
-  "rc_E": {
+  "ps_r": {
     "n_p": 100,
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
       "mu": [7.00e+02, 6.60e+02],
       "sigma": [9.00e+00, 1.5e+01],
-      "text": "$ \\text{RC_E} $"
+      "text": "$ \\text{PS}_{\\text{r}} $"
       },
-  "rc_ox_frl": {
+  "ps_ox_frl": {
+    "n_p": 35,
     "abs": {
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
       "mu": [7.20e+02, 6.80e+02],
       "sigma": [9.00e+00, 1.5e+01],
-      "text": "$ \\text{FRL-RC} $"
+      "text": "$ \\text{PS}_{\\text{ox-FRL}} $"
     },
     "ems":{
       "n_gauss": 3,
@@ -42,7 +43,15 @@
       "text": "$ \\text{RC}_{FRL} $ ems (red-shifted Chl \\emph{a})"
     }
       },
-  "rc_anox": {
+  "ps_r": {
+    "n_p": 100,
+      "n_gauss": 2,
+      "amp": [1.00e+00, 2.00e-01],
+      "mu": [7.40e+02, 7.00e+02],
+      "sigma": [9.00e+00, 1.5e+01],
+      "text": "$ \\text{PS}_{\\text{r-FRL}} $"
+      },
+  "ps_anox": {
     "abs": {
       "n_gauss": 3,
       "amp": [4.00e-01, 8.00e-01, 4.00e-01],
@@ -59,7 +68,7 @@
       "text": "ano-RC ems"
     }
   },
-  "rc_hydro": {
+  "ps_exo": {
       "n_gauss": 2,
       "amp": [1.00e+00, 1.00e-01],
       "mu": [1.500e+03, 1.460e+03],
