@@ -89,7 +89,6 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
         el[i] = 1
         ast.append(tuple(el))
     total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
-    total_indices = {i: total_states[i] for i in range(len(total_states))}
 
     lindices = rcp["nu_ch2o_ind"]
     cycdices = rcp["nu_cyc_ind"]
@@ -106,13 +105,16 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                     # NB: this won't work yet. need to figure detrapping/cyc
                     # get the type of process
                     rt = rcp["procs"][diff]
-                    indf = indices[tuple(final)] + j
+                    indf = rcp["indices"][tuple(final)] + j
                     twa[ind][indf] = rc.rates[rt]
                     if rt == "cyc":
                         # this is both detrapping and cyclic
                         # cyclic: multiply the rate by alpha etc.
                         # alpha should no longer be a genome param!
-                        twa[ind][indf] *= p.alpha * np.sum(n_p)
+                        if n_rc == 1:
+                            twa[ind][indf] *= (1.0 + p.alpha * np.sum(n_p))
+                        else:
+                            twa[ind][indf] *= p.alpha * np.sum(n_p)
                         # detrapping:
                         # - only possible if exciton manifold is empty
                         # - excitation must go back to the correct photosystem
@@ -131,6 +133,11 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             the rc_states loop. need to go through all this and figure it out.
             will probably need to move some stuff (gauss, overlap calc etc.)
             into a separate lineshapes.py file as well.
+
+            Also: the indices dict coming from rc.py - which way round?
+            above we want (state tuple) -> index, but for the lindices
+            and cycdices we want index -> (state tuple), i think. figure that
+            out too :)
             '''
             twa[ind][i] = constants.k_diss # dissipation from antenna
             si = ((j // n_rc_states) - 1) % p.n_s

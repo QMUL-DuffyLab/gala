@@ -59,7 +59,7 @@ def parameters(pigments, gap):
     for i in range(n_rc):
         n_states = len(one_rc)**n_rc
         states = np.array(list(map(list, itertools.product(one_rc, repeat=n_rc)))).reshape(n_states, n_rc * len(one_rc[0]))
-        indices = {j: states[j] for j in range(n_states)}
+        indices = {states[j]: j for j in range(n_states)}
     procs = {}
     nu_ch2o_ind = []
     nu_cyc_ind  = []
