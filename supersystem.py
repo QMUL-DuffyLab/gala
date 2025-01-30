@@ -29,7 +29,6 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     else:
     TBC. probably nu_ch2o and nu_cyc
     '''
-    k_cyc = p.alpha * constants.k_lin
     
     fp_y = (ip_y * l) / la.hcnm
     rcp = rc.params[p.rc]
@@ -71,6 +70,31 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
         print(inward, outward)
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
+        '''
+        the first n_rc pairs of rates are the transfer to and from
+        the excited state of the RCs and the antenna. these are
+        modified by the stoichiometry of these things. for now this
+        is hardcoded but it's definitely possible to fix, especially
+        if moving genome parameters into a file and generating from
+        that: have a JSON parameter like "array": True/False and then
+        "array_len": "n_s" or "rc", which can be used in the GA
+        '''
+        if n_rc == 1:
+            # odd - inward, even - outward
+            k_b[1] *= p.phi
+            k_b[0] *= (1.0 / p.phi)
+        elif n_rc == 2:
+            k_b[1] *= (p.phi / p.eta)
+            k_b[0] *= (p.eta / p.phi)
+            k_b[3] *= p.phi
+            k_b[2] *= (1.0 / p.phi)
+        elif n_rc == 3:
+            k_b[1] *= (p.phi / p.eta)
+            k_b[0] *= (p.eta / p.phi)
+            k_b[3] *= (p.phi / p.zeta)
+            k_b[2] *= (p.zeta / p.phi)
+            k_b[5] *= p.phi
+            k_b[4] *= (1.0 / p.phi)
         if dg < 0.0:
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
@@ -81,6 +105,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     twa = np.zeros((side, side), dtype=np.longdouble)
 
     # generate states to go with p_eq indices
+    # what order are these in? figure it out lol
     ast = []
     empty = tuple([0 for _ in range(n_rc + p.n_b * p.n_s)])
     ast.append(empty)
@@ -90,47 +115,65 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
         ast.append(tuple(el))
     total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
 
-    lindices = rcp["nu_ch2o_ind"]
-    cycdices = rcp["nu_cyc_ind"]
+    lindices = []
+    cycdices = []
     js = list(range(0, side, n_rc_states))
     for jind, j in enumerate(js):
         # jind == 0 is empty antenna, 0 + n_rc_states is RC 1 occupied, etc
+        # intra-RC processes are the same in each block
         for i in range(n_rc_states):
             ind = i + j # total index
             initial = rcp["states"][i] # tuple with current RC state
+            if i in rcp["nu_ch2o_ind"]:
+                lindices.append(ind)
+            if i in rcp["nu_cyc_ind"]:
+                cycdices.append(ind)
             for k in range(n_rc_states):
                 final = rcp["states"][k]
                 diff = tuple(final - initial)
                 if diff in rcp["procs"]:
-                    # NB: this won't work yet. need to figure detrapping/cyc
                     # get the type of process
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
+                    # set the correct element with the corresponding rate
                     twa[ind][indf] = rc.rates[rt]
+                    if rt == "trap":
+                        # find which trap state is being filled here
+                        which_rc = np.where(np.array(diff) == 1)[0][0]//2
+                        '''
+                        if jind = which_rc + 1, that means population
+                        is coming from the corresponding RC exciton state
+                        (since jind = 0 is the empty state, jind = 1 is
+                        RC 1, and so on). in that case, the above trap rate
+                        is correct. otherwise it would correspond to transfer
+                        from a different RC or an antenna block, which is
+                        not allowed, so zero it back out
+                        '''
+                        if jind != which_rc + 1:
+                            twa[ind][indf] = 0.0
                     if rt == "cyc":
                         # this is both detrapping and cyclic
                         # cyclic: multiply the rate by alpha etc.
-                        # alpha should no longer be a genome param!
+                        # we will need this below for nu(cyc)
+                        k_cyc = rc.rates["cyc"]
                         if n_rc == 1:
-                            twa[ind][indf] *= (1.0 + p.alpha * np.sum(n_p))
+                            k_cyc *= (1.0 + constants.alpha * np.sum(n_p))
+                            twa[ind][indf] = k_cyc
                         else:
-                            twa[ind][indf] *= p.alpha * np.sum(n_p)
+                            k_cyc *= constants.alpha * np.sum(n_p)
+                            twa[ind][indf] = k_cyc
                         # detrapping:
                         # - only possible if exciton manifold is empty
                         # - excitation must go back to the correct photosystem
                         if jind == 0:
                             which_rc = np.where(np.array(diff) == -1)[0][0]//2
-                            indf = (indices[tuple(final)] + j + 
+                            indf = (rcp["indices"][tuple(final)] + j + 
                                     (which_rc * n_rc_states))
                             detrap = rc.rates["trap"] * np.exp(-rcp["gap"])
                             twa[ind][indf] = detrap
                         
 
             '''
-            NB: (29/01/2025) I think it's mostly fixed up to here.
-            Below it's probably still wrong because the excited state of the
-            RC is still counted in all this whereas now it should be outside
-            the rc_states loop. need to go through all this and figure it out.
             will probably need to move some stuff (gauss, overlap calc etc.)
             into a separate lineshapes.py file as well.
 
@@ -139,43 +182,20 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             and cycdices we want index -> (state tuple), i think. figure that
             out too :)
             '''
-            twa[ind][i] = constants.k_diss # dissipation from antenna
-            si = ((j // n_rc_states) - 1) % p.n_s
-            twa[i][ind] = gamma[si + 2] # absorption by this block
-            if si == 0:
-                # root of branch - antenna <-> RC transfer possible
-                # need to calculate the index of the final RC state:
-                # antenna-RC transfer changes the state of both
-                state = total_states[ind]
-                ans = ind // n_rc_states # antenna block index
-                rcs = ind % n_rc_states # rc index within block
-                ti = (j // n_rc) - 1
-                if rc_state[0] == 0 and state[ti] == 1: # antenna -> ox possible
-                    rcf = indices[(1, *rc_state[1:])]
-                    print(f"A -> OX. {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[1]:.2e}")
-                    print(f"OX -> A. {j} {rcf} {total_states[rcf]} -> {ind} {total_states[ind]}: {k_b[0]:.2e}")
-                    # antenna <--> e^{ox}
-                    twa[ind][rcf] = (p.phi / p.eta) * k_b[1]
-                    twa[rcf][ind] = (p.eta / p.phi) * k_b[0]
-                if rc_state[3] == 0 and state[ti] == 1: # antenna -> E possible
-                    rcf = indices[(*rc_state[0:3], 1, *rc_state[4:])]
-                    # antenna <--> e^E
-                    print(f"A -> E.  {j} {ind} {total_states[ind]} -> {rcf} {total_states[rcf]}: {k_b[3]:.2e}")
-                    print(f"E -> A.  {j} {rcf} {total_states[rcf]} -> {ind} {total_states[ind]}: {k_b[2]:.2e}")
-                    twa[ind][rcf] = p.phi * k_b[3]
-                    twa[rcf][ind] = (1.0 / p.phi) * k_b[2]
+            if jind > 0:
+                # occupied exciton block -> empty due to dissipation
+                # final state index is i because RC state is unaffected
+                twa[ind][i] = constants.k_diss
+            
+            if jind > 0 and jind <= n_rc:
+                twa[i][ind] = gamma[jind - 1] # absorption by RCs
 
             # antenna rate stuff
-            if jind > 0: # population in antenna subunit
+            if jind > n_rc: # population in antenna subunit
                 if p.connected:
                     prevind = ind - (p.n_s * n_rc_states)
                     nextind = ind + (p.n_s * n_rc_states)
-                    '''
-                    first n_rc are for empty antenna. if we're
-                    crossing the "boundary" (first <-> last)
-                    we need to take this into account
-                    '''
-                    branch_number = jind // p.n_s
+                    branch_number = (jind - n_rc - 1) // p.n_s
                     if branch_number == 0: # first branch
                         prevind -= n_rc_states
                     if branch_number == (p.n_b - 1): # final branch
@@ -186,20 +206,33 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                     if nextind >= side:
                         nextind -= side
                     '''
-                    4 possible transfers to consider:
-                    - both forward and backward transfer,
-                    - from both the clockwise and anticlockwise neighbour,
-                    adjacent blocks are identical so no need to calculate dG
+                    two pairs of transfers are possible, between
+                    clockwise and anticlockwise neighbour blocks.
+                    branches are identical so dG \equiv 0
                     '''
                     twa[ind][nextind] = constants.k_hop
                     twa[nextind][ind] = constants.k_hop
                     twa[ind][prevind] = constants.k_hop
                     twa[prevind][ind] = constants.k_hop
 
-                if si > 0:
-                    twa[ind][ind - n_rc_states] = k_b[(2 * si) + 3]
-                if si < (p.n_s - 1):
-                    twa[ind][ind + n_rc_states] = k_b[2 * (si + 2)]
+                # index on branch
+                bi = (jind - n_rc - 1) % p.n_s
+                twa[i][ind] = gamma[n_rc + bi] # absorption by this block
+                if bi == 0:
+                    # root of branch - transfer to RC exciton states possible
+                    for k in range(n_rc):
+                        # transfer to RC 0 is transfer to jind 1
+                        offset = (n_rc - k) * n_rc_states
+                        # inward transfer to RC k
+                        twa[ind][ind - offset] = k_b[2 * k + 1]
+                        # outward transfer from RC k
+                        twa[ind - offset][ind] = k_b[2 * k]
+                if bi > 0:
+                    # inward along branch
+                    twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
+                if bi < (p.n_s - 1):
+                    # outward allowed
+                    twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi)]
 
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
@@ -216,17 +249,14 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     b[-1] = 1.0
     p_eq, p_eq_res = la.solve(k, method=nnls)
 
-    # need to fix this loop for branches and subunits etc
-    nu_lin = 0.0
+    nu_ch2o = 0.0
     nu_cyc = 0.0
     for i, p_i in enumerate(p_eq):
         if i in lindices:
-            nu_lin += p.eta * constants.k_lin * p_i
+            nu_ch2o += rc.rates["red"] * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-    w_e = nu_lin + nu_cyc
-    w_red = w_e / (1.0 + (p.alpha * constants.k_lin / constants.k_red))
     if debug:
         return {
                 "k": k,
@@ -237,40 +267,35 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                 "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
-                "nu_lin": nu_lin,
+                "nu_ch2o": nu_ch2o,
                 "nu_cyc": nu_cyc,
-                "w_e": w_e,
-                "w_red": w_red,
                 'a_l': a_l,
                 'e_l': e_l,
                 'norms': norms,
                 'k_b': k_b,
                 }
     else:
-        return nu_cyc / nu_lin
+        return nu_ch2o
 
 if __name__ == "__main__":
 
-    # spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
-    spectrum, output_prefix = light.spectrum_setup("marine", depth=10.0)
-    n_b = 5
-    pigment = ['apc', 'pc', 'r-pe']
+    spectrum, output_prefix = light.spectrum_setup("marine", depth=2.0)
+    n_b = 1
+    pigment = ['apc']
     n_s = len(pigment)
     n_p = [50 for _ in range(n_s)]
     no_shift = [0.0 for _ in range(n_s)]
-    rc = ["rc_ox", "rc_E"]
-    names = rc + pigment
-    alpha = 1.0
+    rc_type = "ox"
+    names = rc.params[rc_type]["pigments"] + pigment
     # test effect of phi
-    phi = 2.0
-    eta = 2.0
+    phi = 1.0
+    eta = 1.0
     p = constants.Genome(n_b, n_s, n_p, no_shift,
-            pigment, rc, alpha, phi, eta)
+            pigment, rc_type, phi, eta)
 
-    od = antenna_rc(spectrum[:, 0], spectrum[:, 1], p, True)
+    od = supersystem(spectrum[:, 0], spectrum[:, 1], p, True)
     print(f"Branch rates k_b: {od['k_b']}")
     print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
-    # print(f"nu_e, phi_e, phi_e_g: {od['nu_e']}, {od['phi_e']}, {od['phi_e_g']}")
 
     side = len(od["p_eq"])
     for i in range(side):
@@ -278,10 +303,10 @@ if __name__ == "__main__":
         rowsum = np.sum(od["k"][i, :])
         print(f"index {i}: state {od['states'][i]} sum(col[i]) = {colsum}, sum(row[i]) = {rowsum}")
     print(np.sum(od["k"][:side, :]))
-    print(f"alpha = {alpha}, phi = {phi}, eta = {eta}")
+    print(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}")
     print(f"p(0) = {od['p_eq'][0]}")
-    print(f"w_e = {od['w_e']}")
-    print(f"w_red = {od['w_red']}")
+    print(f"nu_ch2o = {od['nu_ch2o']}")
+    print(f"nu_cyc = {od['nu_cyc']}")
     print(f"sum(gamma) = {np.sum(od['gamma'])}")
     for si, pi in zip(od["states"], od["p_eq"]):
         print(f"p_eq{si} = {pi}")
@@ -289,10 +314,10 @@ if __name__ == "__main__":
     np.savetxt("out/antenna_rc_twa.dat", od["twa"])
     with open("out/antenna_rc_results.dat", "w") as f:
     # print(od)
-        f.write(f"alpha = {alpha}, phi = {phi}, eta = {eta}\n")
+        f.write(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}\n")
         f.write(f"p(0) = {od['p_eq'][0]}\n")
-        f.write(f"w_e = {od['w_e']}\n")
-        f.write(f"w_red = {od['w_red']}\n")
+        f.write(f"nu_ch2o = {od['nu_ch2o']}\n")
+        f.write(f"nu_cyc = {od['nu_cyc']}\n")
         f.write(f"sum(gamma) = {np.sum(od['gamma'])}\n")
         for si, pi in zip(od["states"], od["p_eq"]):
             f.write(f"p_eq{si} = {pi}\n")

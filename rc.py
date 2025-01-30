@@ -12,7 +12,7 @@ import itertools
 # and insert both rates in the combined antenna-RC matrix.
 rates = {
 "trap" : 1.0 / 10.0E-12,
-"ox"   : 1.0 / 1.0E-3,
+"ox"   : 1.0 / 10.0E-3,
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,
@@ -59,12 +59,12 @@ def parameters(pigments, gap):
     for i in range(n_rc):
         n_states = len(one_rc)**n_rc
         states = np.array(list(map(list, itertools.product(one_rc, repeat=n_rc)))).reshape(n_states, n_rc * len(one_rc[0]))
-        indices = {states[j]: j for j in range(n_states)}
+        indices = {tuple(states[j]): j for j in range(n_states)}
     procs = {}
     nu_ch2o_ind = []
     nu_cyc_ind  = []
     for i in range(n_states):
-        initial = indices[i]
+        initial = states[i]
         if initial[-1] == 1: # last element is always n^r_R
             nu_ch2o_ind.append(i)
         if n_rc == 1: 
@@ -75,7 +75,7 @@ def parameters(pigments, gap):
             if any(initial[trap_indices] == 1):
                 nu_cyc_ind.append(i)
         for j in range(n_states):
-            final = indices[j]
+            final = states[j]
             diff = final - initial
             for k in range(n_rc):
                 kt = 2 * k # index of the trap state of PS_k
@@ -123,7 +123,8 @@ def parameters(pigments, gap):
     params = {
             "pigments": pigments,
             "gap": gap,
-            "states": states,
+            "states": states, # use an index to return a state
+            "indices": indices, # use tuple of state to return index
             "procs": procs,
             "nu_ch2o_ind": nu_ch2o_ind,
             "nu_cyc_ind": nu_cyc_ind,
@@ -131,7 +132,7 @@ def parameters(pigments, gap):
     return params
 
 params = {
-    "ox":   parameters(["ps_ox", "ps_r"], 17.0),
+    "ox":   parameters(["ps_r", "ps_r"], 17.0),
     "frl":  parameters(["ps_ox_frl", "ps_r_frl"], 10.0),
     "anox": parameters(["ps_anox"], 14.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),

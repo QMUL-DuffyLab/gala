@@ -21,6 +21,7 @@ gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc
 population_size = 1000
 max_gen = 1000
 n_runs = 5
+alpha = 0.0 # multiplier for cyclic electron flow
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
 reproduction_strategy = 'nads' # options: 'nads', 'steady'
 conv_gen = 50 # number of generations without improvement for convergence
@@ -64,22 +65,21 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
           'n_s': np.array([1, 20], dtype=np.int32),
           'n_p': np.array([1, 100], dtype=np.int32),
           'shift': np.array([-1, 1], dtype=np.int32),
+          # any pigment in this array can be picked
+          'pigment': np.array(["r-pe", "pe", "pc", "apc", "chl_b", "chl_a",
+              "chl_d", "chl_f", "bchl_a", "bchl_b"],
+                              dtype='U10'),
+          'rc': np.array(["ox", "frl", "anox", "exo"], dtype='U10'),
           'a1': np.array([0, n_p_total], dtype=np.int32),
           'a2': np.array([0, n_p_total], dtype=np.int32),
           'a3': np.array([0, n_p_total], dtype=np.int32),
-          'rc': np.array(["ox", "frl", "anox", "exo"], dtype='U10'),
-          'alpha': np.array([0.0, 5.0], dtype=np.float64),
           'phi': np.array([0.0, 1.0], dtype=np.float64),
           'eta': np.array([0.0, 1.0], dtype=np.float64),
+          'zeta': np.array([0.0, 1.0], dtype=np.float64),
           'nu_e': np.array([0.0, 100.0], dtype=np.float64),
           'phi_e_g': np.array([0.0, 1.0], dtype=np.float64),
           'phi_e': np.array([0.0, 1.0], dtype=np.float64),
           'fitness': np.array([0.0, 100.0], dtype=np.float64),
-          # any pigment in this array can be picked
-          # 'pigment': np.array(["averaged"])
-          'pigment': np.array(["r-pe", "pe", "pc", "apc", "chl_b", "chl_a",
-              "chl_d", "chl_f", "bchl_a", "bchl_b"],
-                              dtype='U10')
           }
 
 # number of subunits to make histograms for
@@ -155,7 +155,6 @@ class Genome:
     pigment: np.ndarray = field(default_factory=lambda:
                         np.empty([], dtype='U10'))
     rc: str = ""
-    alpha: float = 0.0
     phi: float = 0.0
     eta: float = 0.0
     connected: bool = False

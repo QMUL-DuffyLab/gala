@@ -93,7 +93,11 @@ def absorption(l, pigment, shift):
     NB: we multiply by shift_inc outside this function: really it would make
     more sense to change this and just use the Genome and an index, i think
     '''
-    params = constants.pigment_data[pigment]['abs']
+    try:
+        params = constants.pigment_data[pigment]['abs']
+    except KeyError:
+        print(f"loading absorption data failed for {pigment}")
+        print(constants.pigment_data[pigment])
     lp = [x + shift for x in params['mu']]
     g = gauss(l, lp, params['sigma'], params['amp'])
     return g
@@ -104,7 +108,11 @@ def emission(l, pigment, shift):
     NB: we multiply by shift_inc outside this function: really it would make
     more sense to change this and just use the Genome and an index, i think
     '''
-    params = constants.pigment_data[pigment]['ems']
+    try:
+        params = constants.pigment_data[pigment]['ems']
+    except KeyError:
+        print(f"loading emission data failed for {pigment}")
+        print(constants.pigment_data[pigment])
     lp = [x + shift for x in params['mu']]
     g = gauss(l, lp, params['sigma'], params['amp'])
     return g

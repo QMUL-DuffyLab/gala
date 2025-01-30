@@ -19,11 +19,21 @@
       },
   "ps_r": {
     "n_p": 100,
+    "abs": {
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
       "mu": [7.00e+02, 6.60e+02],
       "sigma": [9.00e+00, 1.5e+01],
       "text": "$ \\text{PS}_{\\text{r}} $"
+    },
+    "ems":{
+      "n_gauss": 3,
+      "amp": [8.5e-01, 1.0e-01, 1.1e-01],
+      "mu": [6.97e+02, 7.15e+02, 7.52e+02],
+      "sigma": [9.0e+00, 1.1e+01, 2.0e+01],
+      "0-0": 6.97e+02,
+      "text": "$ \\text{RC}_ox $ ems (same as Chl \\emph{a})"
+    }
       },
   "ps_ox_frl": {
     "n_p": 35,
@@ -43,7 +53,7 @@
       "text": "$ \\text{RC}_{FRL} $ ems (red-shifted Chl \\emph{a})"
     }
       },
-  "ps_r": {
+  "ps_r_frl": {
     "n_p": 100,
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
