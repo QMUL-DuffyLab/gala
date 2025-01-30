@@ -37,13 +37,15 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
     # 0 shift for RCs. shifts stored as integer increments, so
     # multiply by shift_inc here
-    shift = np.array([0., 0., *p.shift], dtype=np.float64) * constants.shift_inc
+    shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
+                     dtype=np.float64)
+    shift *= constants.shift_inc
     pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
     a_l = np.zeros((p.n_s + n_rc, len(l)))
     e_l = np.zeros_like(a_l)
     norms = np.zeros(len(pigment))
     gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
-    k_b = np.zeros(2 * (p.n_s + n_rc), dtype=np.float64)
+    k_b = np.zeros(2 * (n_rc + p.n_s - 1), dtype=np.float64)
     for i in range(p.n_s + n_rc):
         a_l[i] = la.absorption(l, pigment[i], shift[i])
         e_l[i] = la.emission(l, pigment[i], shift[i])
@@ -52,15 +54,15 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         la.overlap(l, fp_y, a_l[i]))
 
     # NB: this needs checking for logic for all types
-    for i in range(p.n_s + n_rc):
+    for i in range(p.n_s + n_rc - 1):
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
             inward  = la.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = la.dG(la.peak(shift[i], pigment[i]),
-                    la.peak(shift[2], pigment[2]), n, constants.T)
-        elif i >= n_rc and i < p.n_s + 1:
+                    la.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
+        elif i >= n_rc and i < p.n_s:
             # one subunit and the next
             inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
@@ -279,9 +281,9 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
 
 if __name__ == "__main__":
 
-    spectrum, output_prefix = light.spectrum_setup("marine", depth=2.0)
+    spectrum, output_prefix = light.spectrum_setup("red")
     n_b = 1
-    pigment = ['apc']
+    pigment = ['chl_a', 'chl_b']
     n_s = len(pigment)
     n_p = [50 for _ in range(n_s)]
     no_shift = [0.0 for _ in range(n_s)]
@@ -290,8 +292,9 @@ if __name__ == "__main__":
     # test effect of phi
     phi = 1.0
     eta = 1.0
+    zeta = 1.0
     p = constants.Genome(n_b, n_s, n_p, no_shift,
-            pigment, rc_type, phi, eta)
+            pigment, rc_type, phi, eta, zeta)
 
     od = supersystem(spectrum[:, 0], spectrum[:, 1], p, True)
     print(f"Branch rates k_b: {od['k_b']}")
@@ -321,6 +324,13 @@ if __name__ == "__main__":
         f.write(f"sum(gamma) = {np.sum(od['gamma'])}\n")
         for si, pi in zip(od["states"], od["p_eq"]):
             f.write(f"p_eq{si} = {pi}\n")
+
+    print("States counted for nu(CH2O):")
+    for i in od["lindices"]:
+        print(f"{i}: {od['states'][i]}")
+    print("States counted for nu(cyc):")
+    for i in od["cycdices"]:
+        print(f"{i}: {od['states'][i]}")
     
     fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
     for i in range(len(names)):

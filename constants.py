@@ -157,6 +157,7 @@ class Genome:
     rc: str = ""
     phi: float = 0.0
     eta: float = 0.0
+    zeta: float = 0.0
     connected: bool = False
     nu_e: float = np.nan
     phi_e_g: float = np.nan
