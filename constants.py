@@ -134,7 +134,7 @@ with open(pigment_data_file, "r") as f:
 # np.max([pigment_data[rc]['ems']['mu'][-1] +
 #     (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
 # ]
-x_lim = [400.0, 800.0]
+x_lim = [400.0, 1200.0]
 
 '''
 finally the dataclass definition. the names of the members here

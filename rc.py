@@ -12,7 +12,7 @@ import itertools
 # and insert both rates in the combined antenna-RC matrix.
 rates = {
 "trap" : 1.0 / 10.0E-12,
-"ox"   : 1.0 / 10.0E-3,
+"ox"   : 1.0 / 1.0E-3,
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,

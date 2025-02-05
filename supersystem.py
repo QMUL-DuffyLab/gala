@@ -45,8 +45,9 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     e_l = np.zeros_like(a_l)
     norms = np.zeros(len(pigment))
     gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
-    k_b = np.zeros(2 * (n_rc + p.n_s - 1), dtype=np.float64)
+    k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
     for i in range(p.n_s + n_rc):
+        print(f"{i}, {pigment[i]}")
         a_l[i] = la.absorption(l, pigment[i], shift[i])
         e_l[i] = la.emission(l, pigment[i], shift[i])
         norms[i] = la.overlap(l, a_l[i], e_l[i])
@@ -54,22 +55,27 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         la.overlap(l, fp_y, a_l[i]))
 
     # NB: this needs checking for logic for all types
-    for i in range(p.n_s + n_rc - 1):
+    print("KB CALC:")
+    for i in range(p.n_s + n_rc):
+        ab = i
+        el = -1
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
             inward  = la.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
+            el = n_rc
             outward = la.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
-        elif i >= n_rc and i < p.n_s:
+        elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
+            el = i + 1
             inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-        print(inward, outward)
+        print(f"{i}, pig[{ab}] = {pigment[ab]}, pig[{el}] = {pigment[el]}, {inward}, {outward}")
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
         '''
@@ -101,6 +107,8 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
+    print("KB CALC DONE")
+    print(k_b)
 
     n_rc_states = len(rcp["states"]) # total number of states of all RCs
     side = n_rc_states * ((p.n_b * p.n_s) + n_rc + 1)
@@ -126,11 +134,13 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
         # intra-RC processes are the same in each block
         for i in range(n_rc_states):
             ind = i + j # total index
+            ts = toti[ind] # total state tuple
             initial = rcp["states"][i] # tuple with current RC state
             if i in rcp["nu_ch2o_ind"]:
                 lindices.append(ind)
             if i in rcp["nu_cyc_ind"]:
                 cycdices.append(ind)
+
             for k in range(n_rc_states):
                 final = rcp["states"][k]
                 diff = tuple(final - initial)
@@ -138,8 +148,11 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                     # get the type of process
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
+                    ts = toti[indf] # total state tuple
                     # set the correct element with the corresponding rate
-                    twa[ind][indf] = rc.rates[rt]
+                    if rt in ["ox", "lin", "red"]:
+                        twa[ind][indf] = rc.rates[rt]
+                        print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
                     if rt == "trap":
                         # find which trap state is being filled here
                         which_rc = np.where(np.array(diff) == 1)[0][0]//2
@@ -155,27 +168,31 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         if jind == which_rc + 1:
                             indf = rcp["indices"][tuple(final)]
                             twa[ind][indf] = rc.rates[rt]
+                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                            # detrapping:
+                            # - only possible if exciton manifold is empty
+                            indf = (rcp["indices"][tuple(initial)] + 
+                                    ((which_rc + 1) * n_rc_states))
+                            detrap = rc.rates["trap"] * np.exp(-rcp["gap"])
+                            twa[k][indf] = detrap
+                            rt = "detrap"
+                            print(f"{k} {toti[k]} -> {indf} {toti[indf]}: {rt}. rate {twa[k][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
                     if rt == "cyc":
                         # this is both detrapping and cyclic
                         # cyclic: multiply the rate by alpha etc.
                         # we will need this below for nu(cyc)
+                        which_rc = np.where(np.array(diff) == -1)[0][0]//2
                         k_cyc = rc.rates["cyc"]
                         if n_rc == 1:
                             k_cyc *= (1.0 + constants.alpha * np.sum(n_p))
                             twa[ind][indf] = k_cyc
-                        else:
+                            rt = "ano cyclic"
+                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                        elif n_rc > 1 and which_rc > 0:
                             k_cyc *= constants.alpha * np.sum(n_p)
                             twa[ind][indf] = k_cyc
-                        # detrapping:
-                        # - only possible if exciton manifold is empty
-                        # - excitation must go back to the correct photosystem
-                        if jind == 0:
-                            which_rc = np.where(np.array(diff) == -1)[0][0]//2
-                            indf = (rcp["indices"][tuple(final)] + j + 
-                                    (which_rc * n_rc_states))
-                            detrap = rc.rates["trap"] * np.exp(-rcp["gap"])
-                            twa[ind][indf] = detrap
-                    print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}")
+                            rt = "cyclic"
+                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
                         
 
             '''
@@ -195,7 +212,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             
             if jind > 0 and jind <= n_rc:
                 twa[i][ind] = gamma[jind - 1] # absorption by RCs
-                print(f"{toti[i]} -> {toti[ind]}: gamma")
+                print(f"{toti[i]} -> {toti[ind]}: gamma[{jind - 1}]")
 
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
@@ -233,18 +250,18 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         offset = (n_rc - k) * n_rc_states
                         # inward transfer to RC k
                         twa[ind][ind - offset] = k_b[2 * k + 1]
-                        print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k + 1}]")
+                        print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k + 1}], ind={ind}, offset={offset}")
                         # outward transfer from RC k
                         twa[ind - offset][ind] = k_b[2 * k]
-                        print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k}]")
+                        print(f"{toti[ind-offset]} -> {toti[ind]}: kb[{2 * k}], ind={ind}, offset={offset}")
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                    print(f"{toti[ind]} -> {toti[ind-n_rc_states]}: kb[{2 * (n_rc + bi)}]")
+                    print(f"{toti[ind]} -> {toti[ind-n_rc_states]}: kb[{2 * (n_rc + bi)}], bi = {bi}")
                 if bi < (p.n_s - 1):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
-                    print(f"{toti[ind]} -> {toti[ind+n_rc_states]}: kb[{2 * (n_rc + bi) + 1}]")
+                    print(f"{toti[ind]} -> {toti[ind+n_rc_states]}: kb[{2 * (n_rc + bi) + 1}], bi = {bi}")
 
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
@@ -293,11 +310,11 @@ if __name__ == "__main__":
 
     spectrum, output_prefix = light.spectrum_setup("red")
     n_b = 1
-    pigment = ['chl_a', 'chl_b']
+    pigment = ['bchl_a']
     n_s = len(pigment)
-    n_p = [50 for _ in range(n_s)]
-    no_shift = [0.0 for _ in range(n_s)]
-    rc_type = "ox"
+    n_p = [70 for _ in range(n_s)]
+    no_shift = [0 for _ in range(n_s)]
+    rc_type = "anox"
     names = rc.params[rc_type]["pigments"] + pigment
     # test effect of phi
     phi = 1.0
@@ -324,8 +341,8 @@ if __name__ == "__main__":
     for si, pi in zip(od["states"], od["p_eq"]):
         print(f"p_eq{si} = {pi}")
     print(f"k_b = {od['k_b']}")
-    np.savetxt("out/antenna_rc_twa.dat", od["twa"])
-    with open("out/antenna_rc_results.dat", "w") as f:
+    np.savetxt(f"out/antenna_{rc_type}_twa.dat", od["twa"])
+    with open(f"out/antenna_{rc_type}_results.dat", "w") as f:
     # print(od)
         f.write(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}\n")
         f.write(f"p(0) = {od['p_eq'][0]}\n")
@@ -351,8 +368,8 @@ if __name__ == "__main__":
         ax[i].legend()
         ax[i].grid(visible=True)
     fig.supylabel("intensity (arb)", x=0.001)
-    ax[0].set_xlim([400., 800.])
+    ax[0].set_xlim(constants.x_lim)
     ax[-1].set_xlabel("wavelength (nm)")
-    fig.savefig("out/rc_antenna_lineshape_test.pdf")
+    fig.savefig(f"out/{rc_type}_antenna_lineshape_test.pdf")
     plt.close(fig)
 
