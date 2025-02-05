@@ -116,6 +116,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
         el[i] = 1
         ast.append(tuple(el))
     total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
+    toti = {i: total_states[i] for i in range(len(total_states))}
 
     lindices = []
     cycdices = []
@@ -143,16 +144,17 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         # find which trap state is being filled here
                         which_rc = np.where(np.array(diff) == 1)[0][0]//2
                         '''
-                        if jind = which_rc + 1, that means population
-                        is coming from the corresponding RC exciton state
-                        (since jind = 0 is the empty state, jind = 1 is
-                        RC 1, and so on). in that case, the above trap rate
-                        is correct. otherwise it would correspond to transfer
-                        from a different RC or an antenna block, which is
-                        not allowed, so zero it back out
+                        indf above assumes that the state of the antenna
+                        doesn't change, which is not the case for trapping.
+                        so zero out the above rate and then check: if
+                        jind == which_rc + 1 we're in the correct block
+                        (the exciton is moving from the correct RC), and
+                        we go back to the empty antenna block
                         '''
-                        if jind != which_rc + 1:
-                            twa[ind][indf] = 0.0
+                        twa[ind][indf] = 0.0
+                        if jind == which_rc + 1:
+                            indf = rcp["indices"][tuple(final)]
+                            twa[ind][indf] = rc.rates[rt]
                     if rt == "cyc":
                         # this is both detrapping and cyclic
                         # cyclic: multiply the rate by alpha etc.
@@ -173,6 +175,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                                     (which_rc * n_rc_states))
                             detrap = rc.rates["trap"] * np.exp(-rcp["gap"])
                             twa[ind][indf] = detrap
+                    print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}")
                         
 
             '''
@@ -188,9 +191,11 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
                 twa[ind][i] = constants.k_diss
+                print(f"{toti[ind]} -> {toti[i]}: k_diss")
             
             if jind > 0 and jind <= n_rc:
                 twa[i][ind] = gamma[jind - 1] # absorption by RCs
+                print(f"{toti[i]} -> {toti[ind]}: gamma")
 
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
@@ -220,6 +225,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                 # index on branch
                 bi = (jind - n_rc - 1) % p.n_s
                 twa[i][ind] = gamma[n_rc + bi] # absorption by this block
+                print(f"{toti[i]} -> {toti[ind]}: gamma[{n_rc + bi}]")
                 if bi == 0:
                     # root of branch - transfer to RC exciton states possible
                     for k in range(n_rc):
@@ -227,14 +233,18 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         offset = (n_rc - k) * n_rc_states
                         # inward transfer to RC k
                         twa[ind][ind - offset] = k_b[2 * k + 1]
+                        print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k + 1}]")
                         # outward transfer from RC k
                         twa[ind - offset][ind] = k_b[2 * k]
+                        print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k}]")
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
+                    print(f"{toti[ind]} -> {toti[ind-n_rc_states]}: kb[{2 * (n_rc + bi)}]")
                 if bi < (p.n_s - 1):
                     # outward allowed
-                    twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi)]
+                    twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
+                    print(f"{toti[ind]} -> {toti[ind+n_rc_states]}: kb[{2 * (n_rc + bi) + 1}]")
 
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
