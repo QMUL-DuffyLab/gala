@@ -11,11 +11,11 @@ import itertools
 # dict because we need to know where cyclic/detrapping are
 # and insert both rates in the combined antenna-RC matrix.
 rates = {
-"trap" : 1.0 / 10.0E-12,
-"ox"   : 1.0 / 1.0E-3,
-"lin"  : 1.0 / 10.0E-3,
-"cyc"  : 1.0 / 10.0E-3,
-"red"  : 1.0 / 10.0E-3,
+"trap" : 1.0 / 1.0E-12,
+"ox"   : 1.0 / 1.0E-12,
+"lin"  : 1.0 / 1.0E-12,
+"cyc"  : 1.0 / 1.0E-12,
+"red"  : 1.0 / 1.0E-12,
 }
 
 def parameters(pigments, gap):
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         print("----")
         print(f"Pigments = {d['pigments']}")
         print(f"Energy gap = {d['gap']} k_B T")
-        print(f"Processes:")
+        print("Processes:")
         for proc in d['procs']:
             print(f"{proc} -> {d['procs'][proc]}")
         print(r"States for $\nu(CH_2O)$:")

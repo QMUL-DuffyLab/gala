@@ -33,7 +33,7 @@ mu_rate = 0.05 # proportion of genomes to mutate after each generation
 tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 max_shift = 0 # maximum shift (nm) of absorption peaks
-shift_inc = 0.0 # increment to shift lineshapes by
+shift_inc = 10.0 # increment to shift lineshapes by
 peak_binwidth = 10.0 # binwidth for histograms of peak absorption per subunit
 
 '''
@@ -41,7 +41,8 @@ some rates that I think are going to be fixed
 all given in s^{-1}
 '''
 
-tau_prime = 150.0E-12 # transfer from PBS to RCs
+# tau_prime = 150.0E-12 # transfer from PBS to RCs
+tau_prime = 1.0E-12 # transfer from PBS to RCs
 k_hop    = 1.0 / tau_prime # just one hopping rate between all subunits
 k_diss   = 1.0 / 1.0E-9 # Chl excited state decay rate
 # RC specific rates are now in rc.py

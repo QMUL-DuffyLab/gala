@@ -67,6 +67,10 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
+            print("DG:")
+            print(f"peak 1, {pigment[i]}, {la.peak(shift[i], pigment[i])}")
+            print(f"peak 1, {pigment[n_rc]}, {la.peak(shift[n_rc], pigment[n_rc])}")
+            print(f"{n_p[i]}, {n_p[n_rc]}, {constants.T}, {dg}")
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
             el = i + 1
@@ -276,7 +280,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
 
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res = la.solve(k, method=nnls)
+    p_eq, p_eq_res = la.solve(k, method='scipy')
 
     nu_ch2o = 0.0
     nu_cyc = 0.0
@@ -309,9 +313,10 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
 if __name__ == "__main__":
 
     spectrum, output_prefix = light.spectrum_setup("red")
+    print(len(spectrum[:, 0]))
     n_b = 1
-    pigment = ['bchl_a']
-    n_s = len(pigment)
+    n_s = 1
+    pigment = ['bchl_a' for _ in range(n_s)]
     n_p = [70 for _ in range(n_s)]
     no_shift = [0 for _ in range(n_s)]
     rc_type = "anox"
@@ -337,14 +342,21 @@ if __name__ == "__main__":
     print(f"p(0) = {od['p_eq'][0]}")
     print(f"nu_ch2o = {od['nu_ch2o']}")
     print(f"nu_cyc = {od['nu_cyc']}")
-    print(f"sum(gamma) = {np.sum(od['gamma'])}")
+
+    n_rc = len(rc.params[rc_type]["pigments"])
+    sg = np.sum(od['gamma'][:n_rc]) + n_b * np.sum(od['gamma'][n_rc:])
+    print(f"total excitation rate = {sg} s^-1")
+    print(f"'efficiency' = {(od['nu_ch2o'] + od['nu_cyc']) / sg}")
+    print(f"k shape = {od['k'].shape}")
     for si, pi in zip(od["states"], od["p_eq"]):
         print(f"p_eq{si} = {pi}")
     print(f"k_b = {od['k_b']}")
-    np.savetxt(f"out/antenna_{rc_type}_twa.dat", od["twa"])
+    np.savetxt(f"out/antenna_{rc_type}_twa.dat", od["twa"], fmt='%.6e')
+    np.savetxt(f"out/antenna_{rc_type}_k.dat", od["k"], fmt='%.6e')
     with open(f"out/antenna_{rc_type}_results.dat", "w") as f:
     # print(od)
         f.write(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}\n")
+        f.write(f"gamma = {od['gamma']}\n")
         f.write(f"p(0) = {od['p_eq'][0]}\n")
         f.write(f"nu_ch2o = {od['nu_ch2o']}\n")
         f.write(f"nu_cyc = {od['nu_cyc']}\n")
@@ -352,12 +364,12 @@ if __name__ == "__main__":
         for si, pi in zip(od["states"], od["p_eq"]):
             f.write(f"p_eq{si} = {pi}\n")
 
-    print("States counted for nu(CH2O):")
-    for i in od["lindices"]:
-        print(f"{i}: {od['states'][i]}")
-    print("States counted for nu(cyc):")
-    for i in od["cycdices"]:
-        print(f"{i}: {od['states'][i]}")
+    # print("States counted for nu(CH2O):")
+    # for i in od["lindices"]:
+    #     print(f"{i}: {od['states'][i]}")
+    # print("States counted for nu(cyc):")
+    # for i in od["cycdices"]:
+    #     print(f"{i}: {od['states'][i]}")
     
     fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
     for i in range(len(names)):
