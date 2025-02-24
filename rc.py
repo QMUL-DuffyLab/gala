@@ -12,10 +12,10 @@ import itertools
 # and insert both rates in the combined antenna-RC matrix.
 rates = {
 "trap" : 1.0 / 1.0E-12,
-"ox"   : 1.0 / 1.0E-12,
-"lin"  : 1.0 / 1.0E-12,
-"cyc"  : 1.0 / 1.0E-12,
-"red"  : 1.0 / 1.0E-12,
+"ox"   : 1.0 / 1.0E-3,
+"lin"  : 1.0 / 10.0E-3,
+"cyc"  : 1.0 / 10.0E-3,
+"red"  : 1.0 / 10.0E-3,
 }
 
 def parameters(pigments, gap):
@@ -132,8 +132,8 @@ def parameters(pigments, gap):
     return params
 
 params = {
-    "ox":   parameters(["ps_r", "ps_r"], 17.0),
-    "frl":  parameters(["ps_ox_frl", "ps_r_frl"], 10.0),
+    "ox":   parameters(["ps_r", "ps_r"], 10.0),
+    "frl":  parameters(["ps_r_frl", "ps_r_frl"], 10.0),
     "anox": parameters(["ps_anox"], 14.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
@@ -156,4 +156,3 @@ if __name__ == "__main__":
         for i in d['nu_cyc_ind']:
             print(f"index {i}: {d['states'][i]}")
         print()
-

@@ -41,10 +41,10 @@ some rates that I think are going to be fixed
 all given in s^{-1}
 '''
 
-# tau_prime = 150.0E-12 # transfer from PBS to RCs
-tau_prime = 1.0E-12 # transfer from PBS to RCs
-k_hop    = 1.0 / tau_prime # just one hopping rate between all subunits
-k_diss   = 1.0 / 1.0E-9 # Chl excited state decay rate
+tau_prime = 150.0E-12 # transfer from PBS to RCs
+tau_hop   = 10.0E-12 # transfer from PBS to RCs
+k_hop     = 1.0 / tau_hop # change to tau_prime for PBS simulations
+k_diss    = 1.0 / 1.0E-9 # Chl excited state decay rate
 # RC specific rates are now in rc.py
 
 '''

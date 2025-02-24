@@ -64,6 +64,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             inward  = la.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
             el = n_rc
             outward = la.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
+            print(inward, outward)
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
@@ -76,6 +77,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
             el = i + 1
             inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
+            print(inward, outward)
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
@@ -318,8 +320,8 @@ if __name__ == "__main__":
     n_s = 1
     pigment = ['bchl_a' for _ in range(n_s)]
     n_p = [70 for _ in range(n_s)]
-    no_shift = [0 for _ in range(n_s)]
-    rc_type = "anox"
+    no_shift = [30 for _ in range(n_s)]
+    rc_type = "exo"
     names = rc.params[rc_type]["pigments"] + pigment
     # test effect of phi
     phi = 1.0
@@ -351,8 +353,9 @@ if __name__ == "__main__":
     for si, pi in zip(od["states"], od["p_eq"]):
         print(f"p_eq{si} = {pi}")
     print(f"k_b = {od['k_b']}")
-    np.savetxt(f"out/antenna_{rc_type}_twa.dat", od["twa"], fmt='%.6e')
+    np.savetxt(f"out/antenna_{rc_type}_twa.dat", od["twa"], fmt='%.16e')
     np.savetxt(f"out/antenna_{rc_type}_k.dat", od["k"], fmt='%.6e')
+    np.savetxt(f"out/antenna_{rc_type}_p_eq.dat", od["p_eq"], fmt='%.16e')
     with open(f"out/antenna_{rc_type}_results.dat", "w") as f:
     # print(od)
         f.write(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}\n")
@@ -363,6 +366,7 @@ if __name__ == "__main__":
         f.write(f"sum(gamma) = {np.sum(od['gamma'])}\n")
         for si, pi in zip(od["states"], od["p_eq"]):
             f.write(f"p_eq{si} = {pi}\n")
+        f.write(f"kb = {od['k_b']}\n")
 
     # print("States counted for nu(CH2O):")
     # for i in od["lindices"]:
