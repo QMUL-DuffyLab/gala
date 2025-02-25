@@ -5,7 +5,10 @@
 
 """
 import numpy as np
+import argparse
 import itertools
+import constants
+import antenna as la
 
 # these were in constants.py but they're only needed here
 # dict because we need to know where cyclic/detrapping are
@@ -138,6 +141,157 @@ params = {
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
 
+def solve(rc_type, gamma, debug=False):
+    '''
+    parameters
+    ----------
+    `rc_type`: string corresponding to params above
+    `gamma`: total excitation rate (float) shared between photosystems
+
+    set up an RC-only system with of type `rc_type` (see params above)
+    with total excitation rate `gamma` shared equally between
+    photosystems, and solve the resulting equations using scipy NNLS
+    as in antenna.py and supersystem.py.
+    this is fairly simple - there's no transfer rates to worry about,
+    only excitation, dissipation, and the internal RC processes which
+    are all generated and indexed previously.
+    '''
+    rcp = params[rc_type]
+    n_rc = len(rcp["pigments"])
+    n_rc_states = len(rcp["states"])
+    n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
+    g_per_rc = gamma / n_rc
+    # n_rc_states for each exciton block, plus empty
+    side = n_rc_states * (n_rc + 1)
+    twa = np.zeros((side, side), dtype=np.float64)
+
+    # generate states to go with p_eq indices
+    # what order are these in? figure it out lol
+    ast = []
+    empty = tuple([0 for _ in range(n_rc)])
+    ast.append(empty)
+    for i in range(n_rc):
+        el = [0 for _ in range(n_rc)]
+        el[i] = 1
+        ast.append(tuple(el))
+    total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
+    toti = {i: total_states[i] for i in range(len(total_states))}
+
+    lindices = []
+    cycdices = []
+    js = list(range(0, side, n_rc_states))
+    for jind, j in enumerate(js):
+        # jind == 0 is empty antenna, 0 + n_rc_states is RC 1 occupied, etc
+        # intra-RC processes are the same in each block
+        for i in range(n_rc_states):
+            ind = i + j # total index
+            ts = toti[ind] # total state tuple
+            initial = rcp["states"][i] # tuple with current RC state
+            if i in rcp["nu_ch2o_ind"]:
+                lindices.append(ind)
+            if i in rcp["nu_cyc_ind"]:
+                cycdices.append(ind)
+
+            for k in range(n_rc_states):
+                final = rcp["states"][k]
+                diff = tuple(final - initial)
+                if diff in rcp["procs"]:
+                    # get the type of process
+                    rt = rcp["procs"][diff]
+                    indf = rcp["indices"][tuple(final)] + j
+                    ts = toti[indf] # total state tuple
+                    # set the correct element with the corresponding rate
+                    if rt in ["ox", "lin", "red"]:
+                        twa[ind][indf] = rates[rt]
+                        print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                    if rt == "trap":
+                        # find which trap state is being filled here
+                        which_rc = np.where(np.array(diff) == 1)[0][0]//2
+                        '''
+                        indf above assumes that the state of the antenna
+                        doesn't change, which is not the case for trapping.
+                        so zero out the above rate and then check: if
+                        jind == which_rc + 1 we're in the correct block
+                        (the exciton is moving from the correct RC), and
+                        we go back to the empty antenna block
+                        '''
+                        twa[ind][indf] = 0.0
+                        if jind == which_rc + 1:
+                            indf = rcp["indices"][tuple(final)]
+                            twa[ind][indf] = rates[rt]
+                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                            # detrapping:
+                            # - only possible if exciton manifold is empty
+                            indf = (rcp["indices"][tuple(initial)] + 
+                                    ((which_rc + 1) * n_rc_states))
+                            detrap = rates["trap"] * np.exp(-rcp["gap"])
+                            twa[k][indf] = detrap
+                            rt = "detrap"
+                            print(f"{k} {toti[k]} -> {indf} {toti[indf]}: {rt}. rate {twa[k][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                    if rt == "cyc":
+                        # this is both detrapping and cyclic
+                        # cyclic: multiply the rate by alpha etc.
+                        # we will need this below for nu(cyc)
+                        which_rc = np.where(np.array(diff) == -1)[0][0]//2
+                        k_cyc = rates["cyc"]
+                        if n_rc == 1:
+                            k_cyc *= (1.0 + constants.alpha * np.sum(n_p))
+                            twa[ind][indf] = k_cyc
+                            rt = "ano cyclic"
+                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                        elif n_rc > 1 and which_rc > 0:
+                            k_cyc *= constants.alpha * np.sum(n_p)
+                            twa[ind][indf] = k_cyc
+                            rt = "cyclic"
+                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+            if jind > 0:
+                # occupied exciton block -> empty due to dissipation
+                # final state index is i because RC state is unaffected
+                twa[ind][i] = constants.k_diss
+                print(f"{toti[ind]} -> {toti[i]}: k_diss")
+            
+            if jind > 0 and jind <= n_rc:
+                twa[i][ind] = g_per_rc # absorption by RCs
+                print(f"{toti[i]} -> {toti[ind]}: gamma[{jind - 1}]")
+
+    k = np.zeros((side + 1, side), dtype=np.float64,
+                 order='F')
+    for i in range(side):
+        for j in range(side):
+            if (i != j):
+                k[i][j]      = twa[j][i]
+                k[i][i]     -= twa[i][j]
+        # add a row for the probability constraint
+        k[side][i] = 1.0
+
+    b = np.zeros(side + 1, dtype=np.float64)
+    b[-1] = 1.0
+    p_eq, p_eq_res = la.solve(k, method='scipy')
+
+    nu_ch2o = 0.0
+    nu_cyc = 0.0
+    for i, p_i in enumerate(p_eq):
+        if i in lindices:
+            nu_ch2o += rates["red"] * p_i
+        if i in cycdices:
+            nu_cyc += k_cyc * p_i
+
+    if debug:
+        return {
+                "k": k,
+                "twa": twa,
+                "gamma": gamma,
+                "p_eq": p_eq,
+                "states": total_states,
+                "lindices": lindices,
+                "cycdices": cycdices,
+                "nu_ch2o": nu_ch2o,
+                "nu_cyc": nu_cyc,
+                }
+    else:
+        return nu_ch2o
+
+
 if __name__ == "__main__":
     for item in params:
         d = params[item]
@@ -156,3 +310,32 @@ if __name__ == "__main__":
         for i in d['nu_cyc_ind']:
             print(f"index {i}: {d['states'][i]}")
         print()
+
+    parser = argparse.ArgumentParser(
+            description="simple test of RC only with given gamma",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # required arguments
+    parser.add_argument('-r', '--rc_type', type=str, required=True,
+            help=r'Density of quenchers \rho_q')
+    parser.add_argument('-g', '--gamma', type=float, required=True,
+            help=r'Total excitation rate \gamma')
+    parser.add_argument('-d', '--debug', type=bool,
+            default=True,
+            help=f"Print debug information")
+    args = parser.parse_args()
+    print(args)
+    res = solve(args.rc_type, args.gamma, args.debug)
+    if args.debug:
+        np.savetxt(f"{args.rc_type}_twa.txt", res["twa"], fmt='%.16e')
+        np.savetxt(f"{args.rc_type}_k.txt", res["k"], fmt='%.6e')
+        np.savetxt(f"{args.rc_type}_p_eq.txt", res["p_eq"], fmt='%.16e')
+        print(f"RC type: {args.rc_type}")
+        print(f"total excitation rate: {args.gamma} s^-1")
+        print(f"p(0) = {res['p_eq'][0]}")
+        print(f"nu_ch2o = {res['nu_ch2o']}")
+        print(f"nu_cyc = {res['nu_cyc']}")
+        print(f"'efficiency' = {(res['nu_ch2o']+res['nu_cyc'])/args.gamma}")
+        side = len(res["p_eq"])
+        for si, pi in zip(res["states"], res["p_eq"]):
+            print(f"p_eq{si} = {pi}")
+
