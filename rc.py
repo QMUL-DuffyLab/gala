@@ -4,21 +4,24 @@
 @author: callum
 
 """
+import os
 import numpy as np
 import argparse
 import itertools
 import constants
+import light
 import antenna as la
 
 # these were in constants.py but they're only needed here
 # dict because we need to know where cyclic/detrapping are
 # and insert both rates in the combined antenna-RC matrix.
 rates = {
-"trap" : 1.0 / 1.0E-12,
+"trap" : 1.0 / 1.0E-6,
 "ox"   : 1.0 / 1.0E-3,
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,
+"rec"  : 1.0,
 }
 
 def parameters(pigments, gap):
@@ -70,7 +73,7 @@ def parameters(pigments, gap):
         initial = states[i]
         if initial[-1] == 1: # last element is always n^r_R
             nu_ch2o_ind.append(i)
-        if n_rc == 1: 
+        if n_rc == 1:
             if initial[0] == 1:
                 nu_cyc_ind.append(i)
         elif n_rc > 1:
@@ -107,7 +110,7 @@ def parameters(pigments, gap):
                                 all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "ox"})
-                if (n_rc > 1 and k < (n_rc - 1) and 
+                if (n_rc > 1 and k < (n_rc - 1) and
                     tuple(diff[kt + 1:kt + 4]) == (-1, -1, 1)):
                     all_zero = True
                     for m in range(len(diff)):
@@ -141,12 +144,14 @@ params = {
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
 
-def solve(rc_type, gamma, debug=False):
+def solve(rc_type, spectrum, detrap_type, debug=False):
     '''
     parameters
     ----------
     `rc_type`: string corresponding to params above
+    `spectrum`: input spectrum from light.py
     `gamma`: total excitation rate (float) shared between photosystems
+    `detrap_type`: string corresponding to detrapping regime
 
     set up an RC-only system with of type `rc_type` (see params above)
     with total excitation rate `gamma` shared equally between
@@ -159,8 +164,27 @@ def solve(rc_type, gamma, debug=False):
     rcp = params[rc_type]
     n_rc = len(rcp["pigments"])
     n_rc_states = len(rcp["states"])
-    n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
-    g_per_rc = gamma / n_rc
+    fp_y = (spectrum[:, 0] * spectrum[:, 1]) / la.hcnm
+    # NB: next two lines assume all photosystems are identical
+    n_p = constants.pigment_data[rcp["pigments"][0]]["n_p"]
+    a_l = la.absorption(spectrum[:, 0], rcp["pigments"][0], 0.0)
+    g_per_rc = (n_p * constants.sig_chl *
+            la.overlap(spectrum[:, 0], fp_y, a_l))
+
+    # detrapping regime
+    detrap = rates["trap"]
+    if detrap_type == "fast":
+        pass
+    elif detrap_type == "thermal":
+        detrap *= np.exp(-1.0) # -k_B T
+    elif detrap_type == "energy_gap":
+        detrap *= np.exp(rcp["gap"])
+    elif detrap_type == "none":
+        detrap *= 0.0 # irreversible
+    else:
+        raise ValueError("Detrapping regime should be 'fast',"
+          " 'thermal', 'energy_gap' or 'none'.")
+        
     # n_rc_states for each exciton block, plus empty
     side = n_rc_states * (n_rc + 1)
     twa = np.zeros((side, side), dtype=np.float64)
@@ -244,6 +268,7 @@ def solve(rc_type, gamma, debug=False):
                             twa[ind][indf] = k_cyc
                             rt = "cyclic"
                             print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                        # NB: add recombination block here
             if jind > 0:
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
@@ -280,7 +305,7 @@ def solve(rc_type, gamma, debug=False):
         return {
                 "k": k,
                 "twa": twa,
-                "gamma": gamma,
+                "gamma": g_per_rc,
                 "p_eq": p_eq,
                 "states": total_states,
                 "lindices": lindices,
@@ -315,27 +340,32 @@ if __name__ == "__main__":
             description="simple test of RC only with given gamma",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # required arguments
+    parser.add_argument('-t', '--temperature', type=int, required=True,
+            help=r'Stellar temperature')
     parser.add_argument('-r', '--rc_type', type=str, required=True,
             help=r'Density of quenchers \rho_q')
-    parser.add_argument('-g', '--gamma', type=float, required=True,
-            help=r'Total excitation rate \gamma')
+    parser.add_argument('-dt', '--detrap_type', type=str, required=True,
+            help=r'Detrapping regime: "fast", "thermal", "energy_gap" or "none"')
     parser.add_argument('-d', '--debug', type=bool,
             default=True,
             help=f"Print debug information")
     args = parser.parse_args()
     print(args)
-    res = solve(args.rc_type, args.gamma, args.debug)
+    spectrum, out_name = light.spectrum_setup("phoenix",
+            temperature=args.temperature)
+    res = solve(args.rc_type, spectrum, args.detrap_type, args.debug)
+    outpath = os.path.join("out", f"{args.temperature}K",
+            f"{args.rc_type}")
+    os.makedirs(outpath, exist_ok=True)
     if args.debug:
-        np.savetxt(f"{args.rc_type}_twa.txt", res["twa"], fmt='%.16e')
-        np.savetxt(f"{args.rc_type}_k.txt", res["k"], fmt='%.6e')
-        np.savetxt(f"{args.rc_type}_p_eq.txt", res["p_eq"], fmt='%.16e')
+        np.savetxt(f"{outpath}_twa.txt", res["twa"], fmt='%.16e')
+        np.savetxt(f"{outpath}_k.txt", res["k"], fmt='%.6e')
+        np.savetxt(f"{outpath}_p_eq.txt", res["p_eq"], fmt='%.16e')
         print(f"RC type: {args.rc_type}")
-        print(f"total excitation rate: {args.gamma} s^-1")
+        print(f"excitation rate per photosystem: {res['gamma']} s^-1")
         print(f"p(0) = {res['p_eq'][0]}")
         print(f"nu_ch2o = {res['nu_ch2o']}")
         print(f"nu_cyc = {res['nu_cyc']}")
-        print(f"'efficiency' = {(res['nu_ch2o']+res['nu_cyc'])/args.gamma}")
         side = len(res["p_eq"])
         for si, pi in zip(res["states"], res["p_eq"]):
             print(f"p_eq{si} = {pi}")
-
