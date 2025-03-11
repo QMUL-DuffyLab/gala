@@ -16,7 +16,7 @@ import antenna as la
 # dict because we need to know where cyclic/detrapping are
 # and insert both rates in the combined antenna-RC matrix.
 rates = {
-"trap" : 1.0 / 1.0E-6,
+"trap" : 1.0 / 10.0E-12,
 "ox"   : 1.0 / 1.0E-3,
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
@@ -144,14 +144,16 @@ params = {
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
 
-def solve(rc_type, spectrum, detrap_type, debug=False):
+def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
     '''
     parameters
     ----------
     `rc_type`: string corresponding to params above
     `spectrum`: input spectrum from light.py
-    `gamma`: total excitation rate (float) shared between photosystems
     `detrap_type`: string corresponding to detrapping regime
+    `n_p`: Number of pigments
+    `per_rc`: if True, then give n_p pigments per photosystem; if
+    False, divide n_p evenly between them
 
     set up an RC-only system with of type `rc_type` (see params above)
     with total excitation rate `gamma` shared equally between
@@ -166,7 +168,8 @@ def solve(rc_type, spectrum, detrap_type, debug=False):
     n_rc_states = len(rcp["states"])
     fp_y = (spectrum[:, 0] * spectrum[:, 1]) / la.hcnm
     # NB: next two lines assume all photosystems are identical
-    n_p = constants.pigment_data[rcp["pigments"][0]]["n_p"]
+    if not per_rc:
+        n_p /= n_rc
     a_l = la.absorption(spectrum[:, 0], rcp["pigments"][0], 0.0)
     g_per_rc = (n_p * constants.sig_chl *
             la.overlap(spectrum[:, 0], fp_y, a_l))
@@ -184,7 +187,7 @@ def solve(rc_type, spectrum, detrap_type, debug=False):
     else:
         raise ValueError("Detrapping regime should be 'fast',"
           " 'thermal', 'energy_gap' or 'none'.")
-    print(f"Detrapping rate = {detrap}")
+    # print(f"RC {rc_type}, detrap {detrap_type}, rate = {np.format_float_scientific(detrap)}")
         
     # n_rc_states for each exciton block, plus empty
     side = n_rc_states * (n_rc + 1)
@@ -293,12 +296,14 @@ def solve(rc_type, spectrum, detrap_type, debug=False):
             nu_ch2o += rates["red"] * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
+    if n_rc == 1:
+        nu_ch2o /= 2.0
 
     if debug:
         return {
                 "k": k,
                 "twa": twa,
-                "gamma": g_per_rc,
+                "gamma": g_per_rc * n_rc,
                 "p_eq": p_eq,
                 "states": total_states,
                 "lindices": lindices,
