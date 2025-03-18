@@ -152,13 +152,14 @@ params = {
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
 
-def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
+def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=False):
     '''
     parameters
     ----------
     `rc_type`: string corresponding to params above
     `spectrum`: input spectrum from light.py
     `detrap_type`: string corresponding to detrapping regime
+    `tau_diff`: float - diffusion time for whatever's being oxidised
     `n_p`: Number of pigments
     `per_rc`: if True, then give n_p pigments per photosystem; if
     False, divide n_p evenly between them
@@ -235,9 +236,12 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
                     ts = toti[indf] # total state tuple
-                    # set the correct element with the corresponding rate
-                    if rt in ["ox", "lin", "red"]:
+                    # set element with the corresponding rate
+                    if rt in ["lin", "red"]:
                         twa[ind][indf] = rates[rt]
+                    if rt == "ox":
+                        tau_ox = (tau_diff + 1.0 / rates[rt])
+                        twa[ind][indf] = 1.0 / tau_ox
                     if rt == "trap":
                         # find which trap state is being filled here
                         # 3 states per rc, so integer divide by 3
@@ -304,17 +308,21 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
 
     nu_ch2o = 0.0
     nu_cyc = 0.0
+    trap_indices = [3*i + (n_rc) for i in range(n_rc)]
     oxidised_indices = [3*i + (n_rc + 1) for i in range(n_rc)]
     reduced_indices = [3*i + (n_rc + 2) for i in range(n_rc)]
     redox = np.zeros((n_rc, 2), dtype=np.float64)
+    recomb = np.zeros(n_rc, dtype=np.float64)
 
     for i, p_i in enumerate(p_eq):
         s = toti[i]
         for j in range(n_rc):
+            if s[trap_indices[j]] == 1:
+                recomb += p_i * rates["rec"]
             if s[oxidised_indices[j]] == 1:
-                redox[j, 0] += p_eq[i]
+                redox[j, 0] += p_i
             if s[reduced_indices[j]] == 1:
-                redox[j, 1] += p_eq[i]
+                redox[j, 1] += p_i
         if i in lindices:
             nu_ch2o += rates["red"] * p_i
         if i in cycdices:
@@ -332,6 +340,8 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                 "nu_ch2o": nu_ch2o,
                 "nu_cyc": nu_cyc,
                 "redox": redox,
+                "recomb": recomb,
+                "tau_ox": tau_ox,
                 }
     else:
         return nu_ch2o
@@ -376,7 +386,4 @@ if __name__ == "__main__":
         side = len(res["p_eq"])
         for si, pi in zip(res["states"], res["p_eq"]):
             print(f"p_eq{si} = {pi}")
-        print(f"redox = {res['redox']}")
-
-    for k, v in params[args.rc_type]['procs'].items():
-        print(f"{k} = {v}")
+        print(f"redox (ox, red) for each RC = {res['redox']}")
