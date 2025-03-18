@@ -21,7 +21,7 @@ rates = {
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,
-"rec"  : 1.0,
+"rec"  : 0.0,
 }
 
 def parameters(pigments, gap):
@@ -61,7 +61,7 @@ def parameters(pigments, gap):
         get the rate of cyclic electron flow $\nu(\text{cyc})$
     '''
     n_rc = len(pigments)
-    one_rc = [[0,0], [1,0], [0,1]]
+    one_rc = [[0,0,0], [1,0,0], [0,1,0], [0,0,1]]
     for i in range(n_rc):
         n_states = len(one_rc)**n_rc
         states = np.array(list(map(list, itertools.product(one_rc, repeat=n_rc)))).reshape(n_states, n_rc * len(one_rc[0]))
@@ -71,20 +71,20 @@ def parameters(pigments, gap):
     nu_cyc_ind  = []
     for i in range(n_states):
         initial = states[i]
-        if initial[-1] == 1: # last element is always n^r_R
+        if initial[-1] == 1 or initial[-3] == 1: # n^r_R, n^r_T
             nu_ch2o_ind.append(i)
         if n_rc == 1:
             if initial[0] == 1:
                 nu_cyc_ind.append(i)
         elif n_rc > 1:
-            trap_indices = [2 * k for k in range(1, n_rc)]
+            trap_indices = [3 * k for k in range(1, n_rc)]
             if any(initial[trap_indices] == 1):
                 nu_cyc_ind.append(i)
         for j in range(n_states):
             final = states[j]
             diff = final - initial
             for k in range(n_rc):
-                kt = 2 * k # index of the trap state of PS_k
+                kt = 3 * k # index of the trap state of PS_k
                 if diff[kt] == 1:
                     all_zero = True
                     for m in range(len(diff)):
@@ -103,26 +103,34 @@ def parameters(pigments, gap):
                         # detrapping, since ps_ox can't do cyclic.
                         # check for "cyc" in supersystem.py and insert both
                         procs.update({tuple(diff): "cyc"})
-                if tuple(diff[0:2]) == (-1, 1):
+                if (tuple(diff[0:3]) == (-1, 0, 1) or
+                    tuple(diff[0:3]) == (0, -1, 0)):
                     all_zero = True
                     for m in range(len(diff)):
-                        if m >= 2 and diff[m] != 0:
+                        if m >= 3 and diff[m] != 0:
                                 all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "ox"})
-                if (n_rc > 1 and k < (n_rc - 1) and
-                    tuple(diff[kt + 1:kt + 4]) == (-1, -1, 1)):
+                if (n_rc > 1 and k < (n_rc - 1)):
+                    lin_diffs = [
+                        (-1, 1, 0, -1, 0, 1),
+                        (-1, 1, 0, 0, -1, 0),
+                        (0, 0, -1, -1, 0, 1),
+                        (0, 0, -1, 0, -1, 0),
+                        ]
+                    if (tuple(diff[kt:kt + 6]) in lin_diffs):
+                        all_zero = True
+                        for m in range(len(diff)):
+                            if m < kt or m >= kt + 6:
+                                if diff[m] != 0:
+                                    all_zero = False
+                        if all_zero:
+                            procs.update({tuple(diff): "lin"})
+                if (tuple(diff[-3:]) == (-1, 1, 0) or
+                    tuple(diff[-3:]) == (0, 0, -1)):
                     all_zero = True
                     for m in range(len(diff)):
-                        if m < kt + 1 or m > kt + 3:
-                            if diff[m] != 0:
-                                all_zero = False
-                    if all_zero:
-                        procs.update({tuple(diff): "lin"})
-                if diff[-1] == -1:
-                    all_zero = True
-                    for m in range(len(diff)):
-                        if m != len(diff) - 1 and diff[m] != 0:
+                        if m < len(diff) - 3 and diff[m] != 0:
                             all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "red"})
@@ -140,7 +148,7 @@ def parameters(pigments, gap):
 params = {
     "ox":   parameters(["ps_r", "ps_r"], 10.0),
     "frl":  parameters(["ps_r_frl", "ps_r_frl"], 10.0),
-    "anox": parameters(["ps_anox"], 14.0),
+    "anox": parameters(["ps_anox"], 10.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
 
@@ -187,7 +195,6 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
     else:
         raise ValueError("Detrapping regime should be 'fast',"
           " 'thermal', 'energy_gap' or 'none'.")
-    # print(f"RC {rc_type}, detrap {detrap_type}, rate = {np.format_float_scientific(detrap)}")
         
     # n_rc_states for each exciton block, plus empty
     side = n_rc_states * (n_rc + 1)
@@ -233,7 +240,8 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                         twa[ind][indf] = rates[rt]
                     if rt == "trap":
                         # find which trap state is being filled here
-                        which_rc = np.where(np.array(diff) == 1)[0][0]//2
+                        # 3 states per rc, so integer divide by 3
+                        which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         '''
                         indf above assumes that the state of the antenna
                         doesn't change, which is not the case for trapping.
@@ -261,6 +269,7 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                             k_cyc *= (1.0 + constants.alpha * np.sum(n_p))
                             twa[ind][indf] = k_cyc
                             rt = "ano cyclic"
+                        # first photosystem cannot do cyclic
                         elif n_rc > 1 and which_rc > 0:
                             k_cyc *= constants.alpha * np.sum(n_p)
                             twa[ind][indf] = k_cyc
@@ -279,6 +288,8 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                  order='F')
     for i in range(side):
         for j in range(side):
+            # if twa[i][j] != 0.0:
+            #     print(f"{toti[i]} -> {toti[j]} = {twa[i][j]}")
             if (i != j):
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
@@ -296,8 +307,6 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
             nu_ch2o += rates["red"] * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
-    if n_rc == 1:
-        nu_ch2o /= 2.0
 
     if debug:
         return {
@@ -326,15 +335,18 @@ if __name__ == "__main__":
             help=r'Density of quenchers \rho_q')
     parser.add_argument('-dt', '--detrap_type', type=str, required=True,
             help=r'Detrapping regime: "fast", "thermal", "energy_gap" or "none"')
+    parser.add_argument('-p', '--per_rc', type=bool,
+            default=True,
+            help=f"Print quantities per RC")
     parser.add_argument('-d', '--debug', type=bool,
             default=True,
             help=f"Print debug information")
     args = parser.parse_args()
-    print(args)
 
     spectrum, out_name = light.spectrum_setup("phoenix",
             temperature=args.temperature)
-    res = solve(args.rc_type, spectrum, args.detrap_type, args.debug)
+    res = solve(args.rc_type, spectrum, args.detrap_type, 100,
+            args.per_rc, args.debug)
     outpath = os.path.join("out", f"{args.temperature}K",
             f"{args.rc_type}")
     os.makedirs(outpath, exist_ok=True)
@@ -351,3 +363,6 @@ if __name__ == "__main__":
         side = len(res["p_eq"])
         for si, pi in zip(res["states"], res["p_eq"]):
             print(f"p_eq{si} = {pi}")
+
+    for k, v in params[args.rc_type]['procs'].items():
+        print(f"{k} = {v}")

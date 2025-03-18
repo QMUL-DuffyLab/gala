@@ -194,6 +194,7 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                             twa[ind][indf] = k_cyc
                             rt = "ano cyclic"
                             print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                        # first photosystem cannot do cyclic
                         elif n_rc > 1 and which_rc > 0:
                             k_cyc *= constants.alpha * np.sum(n_p)
                             twa[ind][indf] = k_cyc
