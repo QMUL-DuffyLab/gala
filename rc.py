@@ -21,7 +21,7 @@ rates = {
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,
-"rec"  : 0.0,
+"rec"  : 1.0,
 }
 
 def parameters(pigments, gap):
@@ -263,10 +263,12 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                     if rt == "cyc":
                         # cyclic: multiply the rate by alpha etc.
                         # we will need this below for nu(cyc)
-                        which_rc = np.where(np.array(diff) == -1)[0][0]//2
+                        which_rc = np.where(np.array(diff) == -1)[0][0]//3
                         k_cyc = rates["cyc"]
                         if n_rc == 1:
-                            k_cyc *= (1.0 + constants.alpha * np.sum(n_p))
+                            # zeta = 11 to enforce nu_CHO == nu_cyc
+                            k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
+                            # k_cyc *= (constants.alpha * np.sum(n_p))
                             twa[ind][indf] = k_cyc
                             rt = "ano cyclic"
                         # first photosystem cannot do cyclic
@@ -302,7 +304,17 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
 
     nu_ch2o = 0.0
     nu_cyc = 0.0
+    oxidised_indices = [3*i + (n_rc + 1) for i in range(n_rc)]
+    reduced_indices = [3*i + (n_rc + 2) for i in range(n_rc)]
+    redox = np.zeros((n_rc, 2), dtype=np.float64)
+
     for i, p_i in enumerate(p_eq):
+        s = toti[i]
+        for j in range(n_rc):
+            if s[oxidised_indices[j]] == 1:
+                redox[j, 0] += p_eq[i]
+            if s[reduced_indices[j]] == 1:
+                redox[j, 1] += p_eq[i]
         if i in lindices:
             nu_ch2o += rates["red"] * p_i
         if i in cycdices:
@@ -319,6 +331,7 @@ def solve(rc_type, spectrum, detrap_type, n_p, per_rc=True, debug=False):
                 "cycdices": cycdices,
                 "nu_ch2o": nu_ch2o,
                 "nu_cyc": nu_cyc,
+                "redox": redox,
                 }
     else:
         return nu_ch2o
@@ -363,6 +376,7 @@ if __name__ == "__main__":
         side = len(res["p_eq"])
         for si, pi in zip(res["states"], res["p_eq"]):
             print(f"p_eq{si} = {pi}")
+        print(f"redox = {res['redox']}")
 
     for k, v in params[args.rc_type]['procs'].items():
         print(f"{k} = {v}")

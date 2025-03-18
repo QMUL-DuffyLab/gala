@@ -16,7 +16,7 @@ import antenna as la
 
 ts = [2300, 2600, 2800, 3300, 3700, 3800, 4300, 4400, 4800, 5800] #temps
 ds = ["fast", "thermal", "energy_gap", "none"] # detrapping regimes
-rcs = ["ox", "anox", "exo"] # rc types
+rcs = ["ox", "frl", "anox", "exo"] # rc types
 
 n_p = 60
 n_dirs   = ["n_per_rc", "n_shared"]
