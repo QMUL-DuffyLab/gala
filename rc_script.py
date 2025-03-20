@@ -23,6 +23,8 @@ rc_names = ["PS_ox", "PS_r"]
 
 redox = np.zeros((len(intensities), len(tau_diffs), 4), dtype=np.float64)
 rec = np.zeros((len(intensities), len(tau_diffs), 2), dtype=np.float64)
+nu_e = np.zeros((len(intensities), len(tau_diffs)), dtype=np.float64)
+gamma = np.zeros(len(intensities), dtype=np.float64)
 outpath = os.path.join("out", "ox_intensity")
 os.makedirs(outpath, exist_ok=True)
 for i, mu_e in enumerate(intensities):
@@ -39,6 +41,8 @@ for i, mu_e in enumerate(intensities):
         print(f"recomb = {res['recomb']}")
         print()
         rec[i][j] = res['recomb']
+        nu_e[i][j] = res['nu_ch2o']
+        gamma[i] = res['gamma']
 
         redox_xr = xr.DataArray(redox,
                 coords=[intensities, tau_diffs, rc_redox],
@@ -47,15 +51,20 @@ for i, mu_e in enumerate(intensities):
         redox_xr.attrs["long_name"] = r'$ \text{Redox states} $'
         redox_xr.attrs["units"] = r'$ probabilities $'
         redox_xr.to_netcdf(os.path.join(outpath, "redoxes.nc"))
-        recomb_xr = xr.DataArray(rec, 
+        recomb_xr = xr.DataArray(rec,
                 coords=[intensities, tau_diffs, rc_names],
                 dims=["intensity", "tau_diff", "rc"])
         recomb_xr.attrs["long_name"] = r'$ \text{Recombination losses} $ '
         recomb_xr.attrs["units"] = r'$ s^{-1} $'
         recomb_xr.to_netcdf(os.path.join(outpath, "recomb.nc"))
+        nu_e_xr = xr.DataArray(nu_e,
+                coords=[intensities, tau_diffs],
+                dims=["intensity", "tau_diff"])
+        nu_e_xr.attrs["long_name"] = r'$ \text{Electron output} $ '
+        nu_e_xr.attrs["units"] = r'$ s^{-1} $'
+        nu_e_xr.to_netcdf(os.path.join(outpath, "nu_e.nc"))
         
     # plots
-    # haven't figured out how to plot these yet
     mu_xr = redox_xr.sel(intensity=mu_e)
     mu_xr.plot.line(hue="rc_redox", lw=5.0, marker='o', ms=10.0)
     ax = plt.gca()
@@ -64,6 +73,16 @@ for i, mu_e in enumerate(intensities):
     plt.tight_layout()
     plt.savefig(os.path.join(outpath, f"redox_intensity_{mu_e}.pdf"))
     plt.close()
+
+    nu_xr = nu_e_xr.sel(intensity=mu_e)
+    nu_xr.plot.line(lw=5.0, marker='o', ms=10.0)
+    ax = plt.gca()
+    ax.set_xticks(tau_diffs)
+    ax.set_xscale('log')
+    plt.tight_layout()
+    plt.savefig(os.path.join(outpath, f"nu_e_intensity_{mu_e}.pdf"))
+    plt.close()
+
 for td in tau_diffs:
     tau_xr = redox_xr.sel(tau_diff=td)
     tau_xr.plot.line(hue="rc_redox", lw=5.0, marker='o', ms=10.0)
@@ -73,6 +92,19 @@ for td in tau_diffs:
     plt.tight_layout()
     plt.savefig(os.path.join(outpath, f"redox_diffusion_{td}.pdf"))
     plt.close()
+
+fig, ax = plt.subplots(figsize=(8, 8))
+ax.plot(intensities, gamma, lw=5.0, marker='o', ms=10.0)
+ax.set_xscale('log')
+ax.set_xticks(intensities)
+ax.set_xlabel(r'intensity $ \mu E $')
+ax.set_yscale('log')
+ax.set_yticks([0.01, 0.1, 1.0, 10.0, 100.0])
+ax.set_ylabel(r'excitation rate $ \gamma s^{-1} $')
+plt.grid(visible=True)
+fig.tight_layout()
+fig.savefig(os.path.join(outpath, "gamma_intensity.pdf"))
+plt.close()
 
 def stellar_temp_rc_comp():
     '''
