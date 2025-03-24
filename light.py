@@ -5,6 +5,7 @@
 """
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import constants
 import antenna as la
@@ -54,6 +55,30 @@ def get_gaussian(l, lp, w, a):
     also make a plot of the incident spectra to go with output
     '''
     return la.gauss(l, lp, w, a)
+
+def get_colour(**kwargs):
+    '''
+    get one of the specific colour spectra from Samir's experimental
+    setup. possible choices are listed below. I'm just reading in the
+    100 muE dataset here using pandas and then normalising the
+    intensity, so the intensity must be given as well!
+    '''
+    colours = ["UV", "blue", "light_blue", "green", "orange",
+            "red", "far_red"]
+    if "colour" not in kwargs:
+        raise KeyError("Colour must be given for colour spectrum")
+    if "intensity" not in kwargs:
+        # the actual intensity normalisation is done in
+        # spectrum_setup below, so no point doing it here
+        raise KeyError("Intensity must be given for colour spectrum")
+    if kwargs["colour"] not in colours:
+        raise KeyError("Invalid colour choice passed to get_colour")
+    data = pd.read_csv(os.path.join(constants.spectrum_prefix,
+        "100_plotted_dataset.csv"))
+    x = data[f"Wavelength"].to_numpy()
+    y = data[f"{kwargs['colour']}_normalized"].to_numpy()
+    y[y < 0.0] = 0.0 # input data has some small negative values
+    return np.column_stack((x, y))
 
 def get_am15(dataset="tilt"):
     '''
@@ -144,16 +169,9 @@ def spectrum_setup(spectrum_type, **kwargs):
         output_prefix = kwargs['filter']
         if 'fraction' in kwargs:
             output_prefix += f"_{kwargs['fraction']}"
-    elif spectrum_type == "red":
-        s = get_filtered(filter='red', **kwargs)
-        output_prefix = "red"
-        if 'fraction' in kwargs:
-            output_prefix += f"_{kwargs['fraction']}"
-    elif spectrum_type == "far-red":
-        s = get_filtered(filter='far-red', **kwargs)
-        output_prefix = "far-red"
-        if 'fraction' in kwargs:
-            output_prefix += f"_{kwargs['fraction']}"
+    elif spectrum_type == "colour":
+        s = get_colour(**kwargs)
+        output_prefix = f"_{kwargs['colour']}_{kwargs['intensity']}"
     elif spectrum_type == "gauss":
         l = np.arange(kwargs['lmin'], kwargs['lmax'])
         intensity = get_gaussian(l, kwargs['mu'], kwargs['sigma'], kwargs['a'])
@@ -169,7 +187,11 @@ def spectrum_setup(spectrum_type, **kwargs):
             s[:, 1] *= kwargs["intensity"] / muM_init
             output_prefix += f"_{kwargs['intensity']}micromol"
         else:
-            raise KeyError("Integration region required if giving intensity")
+            # assume PAR over [400, 700] nm
+            lower, upper = [400.0, 700.0]
+            muM_init = micromole_in_region(s, lower, upper)
+            s[:, 1] *= kwargs["intensity"] / muM_init
+            output_prefix += f"_{kwargs['intensity']}micromol"
 
     return s, output_prefix
 
@@ -229,6 +251,7 @@ if __name__ == "__main__":
           {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 50.0, "region": [400.0, 700.0]}},
           {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 10.0, "region": [400.0, 700.0]}},
           {'type': "marine", 'kwargs': {'depth': 10.0}},
+          {'type': "colour", 'kwargs': {'colour': 'red', 'intensity': 30.0}},
           {'type': "gauss", 'kwargs':
            {'lmin': 200.0, 'lmax': 1000.0, 'mu': [600.0, 500.0],
             'sigma': [15.0, 35.0], 'a': [1.0, 0.2]}},
@@ -237,3 +260,5 @@ if __name__ == "__main__":
     check(sd)
     # if you only need one you can call spectrum_setup directly:
     spectrum, output_prefix = spectrum_setup("far-red", fraction=0.5)
+    spectrum, output_prefix = spectrum_setup("colour", colour="blue",
+            intensity=50.0)
