@@ -24,6 +24,7 @@ rc_names = ["PS_ox", "PS_r"]
 redox = np.zeros((len(intensities), len(tau_diffs), 4), dtype=np.float64)
 rec = np.zeros((len(intensities), len(tau_diffs), 2), dtype=np.float64)
 nu_e = np.zeros((len(intensities), len(tau_diffs)), dtype=np.float64)
+eff = np.zeros_like(nu_e)
 gamma = np.zeros(len(intensities), dtype=np.float64)
 outpath = os.path.join("out", "ox_intensity")
 os.makedirs(outpath, exist_ok=True)
@@ -43,27 +44,49 @@ for i, mu_e in enumerate(intensities):
         rec[i][j] = res['recomb']
         nu_e[i][j] = res['nu_ch2o']
         gamma[i] = res['gamma']
-
-        redox_xr = xr.DataArray(redox,
-                coords=[intensities, tau_diffs, rc_redox],
-                dims=["intensity", "tau_diff", "rc_redox"])
-        # give long_name as latex otherwise xarray linebreaks it
-        redox_xr.attrs["long_name"] = r'$ \text{Redox states} $'
-        redox_xr.attrs["units"] = r'$ probabilities $'
-        redox_xr.to_netcdf(os.path.join(outpath, "redoxes.nc"))
-        recomb_xr = xr.DataArray(rec,
-                coords=[intensities, tau_diffs, rc_names],
-                dims=["intensity", "tau_diff", "rc"])
-        recomb_xr.attrs["long_name"] = r'$ \text{Recombination losses} $ '
-        recomb_xr.attrs["units"] = r'$ s^{-1} $'
-        recomb_xr.to_netcdf(os.path.join(outpath, "recomb.nc"))
-        nu_e_xr = xr.DataArray(nu_e,
-                coords=[intensities, tau_diffs],
-                dims=["intensity", "tau_diff"])
-        nu_e_xr.attrs["long_name"] = r'$ \text{Electron output} $ '
-        nu_e_xr.attrs["units"] = r'$ s^{-1} $'
-        nu_e_xr.to_netcdf(os.path.join(outpath, "nu_e.nc"))
+        eff[i][j] = nu_e[i][j] / gamma[i]
         
+fig, ax = plt.subplots(figsize=(8, 8))
+ax.plot(intensities, gamma, lw=5.0, marker='o', ms=10.0)
+ax.set_xscale('log')
+ax.set_xticks(intensities)
+ax.set_xlabel(r'intensity $ \mu E $')
+ax.set_yscale('log')
+ax.set_yticks([0.01, 0.1, 1.0, 10.0, 100.0])
+ax.set_ylabel(r'excitation rate $ \gamma s^{-1} $')
+plt.grid(visible=True)
+fig.tight_layout()
+fig.savefig(os.path.join(outpath, "gamma_intensity.pdf"))
+plt.close()
+
+np.savetxt(os.path.join(outpath, "gamma.txt"), gamma)
+redox_xr = xr.DataArray(redox,
+        coords=[intensities, tau_diffs, rc_redox],
+        dims=["intensity", "tau_diff", "rc_redox"])
+# give long_name as latex otherwise xarray linebreaks it
+redox_xr.attrs["long_name"] = r'$ \text{Redox states} $'
+redox_xr.attrs["units"] = r'$ probabilities $'
+redox_xr.to_netcdf(os.path.join(outpath, "redoxes.nc"))
+recomb_xr = xr.DataArray(rec,
+        coords=[intensities, tau_diffs, rc_names],
+        dims=["intensity", "tau_diff", "rc"])
+recomb_xr.attrs["long_name"] = r'$ \text{Recombination losses} $ '
+recomb_xr.attrs["units"] = r'$ s^{-1} $'
+recomb_xr.to_netcdf(os.path.join(outpath, "recomb.nc"))
+nu_e_xr = xr.DataArray(nu_e,
+        coords=[intensities, tau_diffs],
+        dims=["intensity", "tau_diff"])
+nu_e_xr.attrs["long_name"] = r'$ \text{Electron output} $ '
+nu_e_xr.attrs["units"] = r'$ s^{-1} $'
+nu_e_xr.to_netcdf(os.path.join(outpath, "nu_e.nc"))
+eff_xr = xr.DataArray(eff,
+       coords=[intensities, tau_diffs],
+       dims=["intensity", "tau_diff"])
+eff_xr.attrs["long_name"] = r'$ \text{efficiency} $ '
+eff_xr.attrs["units"] = r'$ \% $'
+eff_xr.to_netcdf(os.path.join(outpath, "efficiency.nc"))
+
+for mu_e in intensities:
     # plots
     mu_xr = redox_xr.sel(intensity=mu_e)
     mu_xr.plot.line(hue="rc_redox", lw=5.0, marker='o', ms=10.0)
@@ -93,18 +116,20 @@ for td in tau_diffs:
     plt.savefig(os.path.join(outpath, f"redox_diffusion_{td}.pdf"))
     plt.close()
 
-fig, ax = plt.subplots(figsize=(8, 8))
-ax.plot(intensities, gamma, lw=5.0, marker='o', ms=10.0)
-ax.set_xscale('log')
-ax.set_xticks(intensities)
-ax.set_xlabel(r'intensity $ \mu E $')
-ax.set_yscale('log')
-ax.set_yticks([0.01, 0.1, 1.0, 10.0, 100.0])
-ax.set_ylabel(r'excitation rate $ \gamma s^{-1} $')
-plt.grid(visible=True)
-fig.tight_layout()
-fig.savefig(os.path.join(outpath, "gamma_intensity.pdf"))
-plt.close()
+ds = xr.Dataset(
+        data_vars=dict(
+        redox=(["intensity", "tau_diff"], redox),
+        recomb=(["intensity", "tau_diff"], rec),
+        nu_e=(["intensity", "tau_diff"], nu_e),
+        gamma=(["intensity"], gamma),
+        efficiency=(["intensity", "tau_diff"], eff),
+        ),
+        coords=dict(
+            intensity=intensities,
+            tau_diff=tau_diffs,
+            ),
+        attrs=dict(description="RC parameter dataset"))
+ds.to_netcdf(os.path.join(outpath, "whole_dataset.nc"))
 
 def stellar_temp_rc_comp():
     '''
