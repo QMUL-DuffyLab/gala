@@ -9,7 +9,8 @@ import light
 import antenna as la
 import rc
 
-def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
+def supersystem(l, ip_y, p, debug=False, nnls='scipy',
+        detrap_type="none", tau_diff=0.0):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
 
@@ -20,6 +21,8 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
     nnls = which NNLS version to use
+    detrap_type = string for what detrapping regime to simulate
+    tau_diff = diffusion time for the oxidation substrate (seconds)
 
     outputs
     -------
@@ -29,6 +32,9 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
     else:
     TBC. probably nu_ch2o and nu_cyc
     '''
+    # NB: the tau_diff and detrap_type might or might not be
+    # simulation-wide parameters later on; if not, if they need to be
+    # put into the genome somewhere i suppose
     
     fp_y = (ip_y * l) / la.hcnm
     rcp = rc.params[p.rc]
@@ -53,6 +59,20 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
         norms[i] = la.overlap(l, a_l[i], e_l[i])
         gamma[i] = (n_p[i] * constants.sig_chl *
                         la.overlap(l, fp_y, a_l[i]))
+
+    # detrapping regime
+    detrap = rc.rates["trap"]
+    if detrap_type == "fast":
+        pass
+    elif detrap_type == "thermal":
+        detrap *= np.exp(-1.0) # -k_B T
+    elif detrap_type == "energy_gap":
+        detrap *= np.exp(-rcp["gap"])
+    elif detrap_type == "none":
+        detrap *= 0.0 # irreversible
+    else:
+        raise ValueError("Detrapping regime should be 'fast',"
+          " 'thermal', 'energy_gap' or 'none'.")
 
     # NB: this needs checking for logic for all types
     print("KB CALC:")
@@ -156,12 +176,15 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                     indf = rcp["indices"][tuple(final)] + j
                     ts = toti[indf] # total state tuple
                     # set the correct element with the corresponding rate
-                    if rt in ["ox", "lin", "red"]:
+                    if rt in ["lin", "red"]:
                         twa[ind][indf] = rc.rates[rt]
-                        print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
+                    if rt == "ox":
+                        tau_ox = (tau_diff + 1.0 / rc.rates[rt])
+                        twa[ind][indf] = 1.0 / tau_ox
                     if rt == "trap":
                         # find which trap state is being filled here
-                        which_rc = np.where(np.array(diff) == 1)[0][0]//2
+                        # 3 states per rc, so integer divide by 3
+                        which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         '''
                         indf above assumes that the state of the antenna
                         doesn't change, which is not the case for trapping.
@@ -174,33 +197,30 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
                         if jind == which_rc + 1:
                             indf = rcp["indices"][tuple(final)]
                             twa[ind][indf] = rc.rates[rt]
-                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
                             # detrapping:
                             # - only possible if exciton manifold is empty
-                            indf = (rcp["indices"][tuple(initial)] + 
+                            indf = (rcp["indices"][tuple(initial)] +
                                     ((which_rc + 1) * n_rc_states))
-                            detrap = rc.rates["trap"] * np.exp(-rcp["gap"])
                             twa[k][indf] = detrap
                             rt = "detrap"
-                            print(f"{k} {toti[k]} -> {indf} {toti[indf]}: {rt}. rate {twa[k][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
                     if rt == "cyc":
-                        # this is both detrapping and cyclic
                         # cyclic: multiply the rate by alpha etc.
                         # we will need this below for nu(cyc)
-                        which_rc = np.where(np.array(diff) == -1)[0][0]//2
+                        which_rc = np.where(np.array(diff) == -1)[0][0]//3
                         k_cyc = rc.rates["cyc"]
                         if n_rc == 1:
-                            k_cyc *= (1.0 + constants.alpha * np.sum(n_p))
+                            # zeta = 11 to enforce nu_CHO == nu_cyc
+                            k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
+                            # k_cyc *= (constants.alpha * np.sum(n_p))
                             twa[ind][indf] = k_cyc
                             rt = "ano cyclic"
-                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
                         # first photosystem cannot do cyclic
                         elif n_rc > 1 and which_rc > 0:
                             k_cyc *= constants.alpha * np.sum(n_p)
                             twa[ind][indf] = k_cyc
                             rt = "cyclic"
-                            print(f"{toti[ind]} -> {toti[indf]}: {rt}. rate {twa[ind][indf]}. i = {i}, j = {j}, initial = {initial}, final = {final}")
-                        
+                        # recombination can occur from any photosystem
+                        twa[ind][indf] += rc.rates["rec"]
 
             '''
             will probably need to move some stuff (gauss, overlap calc etc.)
@@ -315,14 +335,14 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy'):
 
 if __name__ == "__main__":
 
-    spectrum, output_prefix = light.spectrum_setup("red")
+    spectrum, output_prefix = light.spectrum_setup("filtered", filter="red")
     print(len(spectrum[:, 0]))
-    n_b = 1
-    n_s = 1
-    pigment = ['bchl_a' for _ in range(n_s)]
+    n_b = 2
+    n_s = 2
+    pigment = ['chl_a' for _ in range(n_s)]
     n_p = [70 for _ in range(n_s)]
-    no_shift = [30 for _ in range(n_s)]
-    rc_type = "exo"
+    no_shift = [0 for _ in range(n_s)]
+    rc_type = "ox"
     names = rc.params[rc_type]["pigments"] + pigment
     # test effect of phi
     phi = 1.0
