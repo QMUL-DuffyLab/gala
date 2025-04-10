@@ -16,7 +16,7 @@ import antenna as la
 
 n_p = 60
 
-intensities = [1, 5, 10, 20, 50, 100, 250, 500, 1000, 2000, 10000]
+intensities = [1, 5, 10, 20, 50, 100, 250, 500, 1000, 2000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000]
 tau_diffs = [1.0, 0.5, 0.25, 0.1, 0.05, 0.025, 0.01, 0.005, 0.0025, 0.001, 0.0005, 0.00025, 0.0001]
 rc_redox = ["PS_ox_ox", "PS_ox_red", "PS_r_ox", "PS_r_red"]
 rc_names = ["PS_ox", "PS_r"]
@@ -61,59 +61,86 @@ plt.close()
 
 np.savetxt(os.path.join(outpath, "gamma.txt"), gamma)
 redox_xr = xr.DataArray(redox,
-        coords=[intensities, tau_diffs, rc_redox],
-        dims=["intensity", "tau_diff", "rc_redox"])
+        coords=[gamma, tau_diffs, rc_redox],
+        dims=["photons", "tau_diff", "rc_redox"])
 # give long_name as latex otherwise xarray linebreaks it
 redox_xr.attrs["long_name"] = r'$ \text{Redox states} $'
 redox_xr.attrs["units"] = r'$ probabilities $'
 redox_xr.to_netcdf(os.path.join(outpath, "redoxes.nc"))
 recomb_xr = xr.DataArray(rec,
-        coords=[intensities, tau_diffs, rc_names],
-        dims=["intensity", "tau_diff", "rc"])
+        coords=[gamma, tau_diffs, rc_names],
+        dims=["photons", "tau_diff", "rc"])
 recomb_xr.attrs["long_name"] = r'$ \text{Recombination losses} $ '
 recomb_xr.attrs["units"] = r'$ s^{-1} $'
 recomb_xr.to_netcdf(os.path.join(outpath, "recomb.nc"))
 nu_e_xr = xr.DataArray(nu_e,
-        coords=[intensities, tau_diffs],
-        dims=["intensity", "tau_diff"])
+        coords=[gamma, tau_diffs],
+        dims=["photons", "tau_diff"])
 nu_e_xr.attrs["long_name"] = r'$ \text{Electron output} $ '
 nu_e_xr.attrs["units"] = r'$ s^{-1} $'
 nu_e_xr.to_netcdf(os.path.join(outpath, "nu_e.nc"))
 eff_xr = xr.DataArray(eff,
-       coords=[intensities, tau_diffs],
-       dims=["intensity", "tau_diff"])
+       coords=[gamma, tau_diffs],
+       dims=["photons", "tau_diff"])
 eff_xr.attrs["long_name"] = r'$ \text{efficiency} $ '
 eff_xr.attrs["units"] = r'$ \% $'
 eff_xr.to_netcdf(os.path.join(outpath, "efficiency.nc"))
 
-for mu_e in intensities:
+for g in gamma:
     # plots
-    mu_xr = redox_xr.sel(intensity=mu_e)
+    mu_xr = redox_xr.sel(photons=g)
     mu_xr.plot.line(hue="rc_redox", lw=5.0, marker='o', ms=10.0)
     ax = plt.gca()
     ax.set_xticks(tau_diffs)
     ax.set_xscale('log')
     plt.tight_layout()
-    plt.savefig(os.path.join(outpath, f"redox_intensity_{mu_e}.pdf"))
+    plt.savefig(os.path.join(outpath, f"redox_photons_{g}.pdf"))
     plt.close()
 
-    nu_xr = nu_e_xr.sel(intensity=mu_e)
+    nu_xr = nu_e_xr.sel(photons=g)
     nu_xr.plot.line(lw=5.0, marker='o', ms=10.0)
     ax = plt.gca()
     ax.set_xticks(tau_diffs)
     ax.set_xscale('log')
     plt.tight_layout()
-    plt.savefig(os.path.join(outpath, f"nu_e_intensity_{mu_e}.pdf"))
+    plt.savefig(os.path.join(outpath, f"nu_e_photons_{g}.pdf"))
+    plt.close()
+
+    rxr = recomb_xr.sel(photons=g)
+    rxr.plot.line(hue="rc", lw=5.0, marker='o', ms=10.0)
+    ax = plt.gca()
+    ax.set_xticks(tau_diffs)
+    ax.set_xscale('log')
+    plt.tight_layout()
+    plt.savefig(os.path.join(outpath, f"recomb_photons_{g}.pdf"))
     plt.close()
 
 for td in tau_diffs:
     tau_xr = redox_xr.sel(tau_diff=td)
     tau_xr.plot.line(hue="rc_redox", lw=5.0, marker='o', ms=10.0)
     ax = plt.gca()
-    ax.set_xticks(intensities)
+    ax.set_xticks(gamma)
     ax.set_xscale('log')
     plt.tight_layout()
     plt.savefig(os.path.join(outpath, f"redox_diffusion_{td}.pdf"))
+    plt.close()
+
+    nu_xr = nu_e_xr.sel(tau_diff=td)
+    nu_xr.plot.line(lw=5.0, marker='o', ms=10.0)
+    ax = plt.gca()
+    ax.set_xticks(gamma)
+    ax.set_xscale('log')
+    plt.tight_layout()
+    plt.savefig(os.path.join(outpath, f"nu_e_tau_diff_{td}.pdf"))
+    plt.close()
+
+    rxr = recomb_xr.sel(tau_diff=td)
+    rxr.plot.line(hue="rc", lw=5.0, marker='o', ms=10.0)
+    ax = plt.gca()
+    ax.set_xticks(tau_diffs)
+    ax.set_xscale('log')
+    plt.tight_layout()
+    plt.savefig(os.path.join(outpath, f"recomb_tau_diff_{td}.pdf"))
     plt.close()
 
 ds = xr.Dataset(
