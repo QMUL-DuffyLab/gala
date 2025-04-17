@@ -146,7 +146,8 @@ def parameters(pigments, gap):
     return params
 
 params = {
-    "ox":   parameters(["ps_r", "ps_r"], 10.0),
+    "ox":   parameters(["ps_ox", "ps_r"], 10.0),
+    "ox_id":   parameters(["ps_r", "ps_r"], 10.0),
     "frl":  parameters(["ps_r_frl", "ps_r_frl"], 10.0),
     "anox": parameters(["ps_anox"], 10.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),

@@ -7,6 +7,7 @@
 import numpy as np
 import scipy.stats as ss
 import constants
+import rc as rc_setup
 
 def get_type(parameter):
     ''' get parameter type to declare numpy array correctly '''
@@ -21,7 +22,7 @@ def get_type(parameter):
         raise TypeError("get_type cannot determine parameter type.")
     return dt
 
-def get_rand(parameter, rng):
+def get_rand(parameter, rng, array_size=1):
     ''' get a single random number or choice depending on parameter '''
     bounds = constants.bounds[parameter]
     if (isinstance(bounds[0], (int, np.integer))):
@@ -64,9 +65,11 @@ def new(rng, init_type, **kwargs):
     NB : could have a kwargs here with a getattr call so that
     we can make random antennae with specific properties if necessary
     '''
-    # NB: RC bit will need checking/changing if we have different RC *systems*
-    # i.e. ["rc_ox", "rc_E"] for oxygenic but ["ano_rc"] only for anox
+    # NB: the rho_ox need some thought: they're constrained by their sum
+    # to (n_rc + 1). so will need to write a custom function in get_rand
+    # to do that, and also consider how mutation works
     rc = get_rand('rc', rng)
+    n_rc = len(rc_setup.params[rc]["pigments"])
     if init_type == 'template':
         '''
         initialise according to a template. two required kwargs:
@@ -102,21 +105,24 @@ def new(rng, init_type, **kwargs):
     n_p = np.zeros(ns, dtype=np.int32)
     shift = np.zeros(ns, dtype=np.float64)
     pigment = np.empty(ns, dtype='U10')
-    alpha = get_rand('alpha', rng)
-    phi = get_rand('phi', rng)
-    eta = get_rand('eta', rng)
+    # rho has a separate method in get_rand that returns an array
+    rho = np.zeros(n_rc + 1, dtype=np.float64)
+    aff = np.zeros(n_rc, dtype=np.float64)
     for i in range(ns):
         n_p[i] = get_rand('n_p', rng)
         shift[i]  = get_rand('shift', rng)
         pigment[i]  = get_rand('pigment', rng)
+        rho[i] = get_rand('rho', rng)
+        aff[i] = get_rand('aff', rng)
+    rho *= len(rho) / np.sum(rho) # normalisation
     return constants.Genome(nb, ns, n_p, shift, pigment,
-            rc, alpha, phi, eta)
+            rc, rho, aff)
 
 def copy(g):
     ''' return a new identical genome. useful for testing '''
     return constants.Genome(g.n_b, g.n_s, g.n_p, g.shift,
-        g.pigment, g.rc, g.alpha, g.phi, g.eta,
-        g.connected, g.nu_e, g.phi_e_g, g.phi_e, g.fitness)
+        g.pigment, g.rc, g.rho, g.aff, g.connected,
+        g.nu_e, g.phi_e_g, g.phi_e, g.fitness)
 
 def fitness(g, cost):
     '''
@@ -241,6 +247,8 @@ def crossover(child, parents, parameter, rng, subunit):
             '''
             v = [vals[j][i] for j in range(2)]
             new[i] = recombine(v, parameter, rng)
+    if parameter == "rho": # normalise
+        new *= len(new) / np.sum(new)
     setattr(child, parameter, new)
 
 def reproduction(rng, survivors, population):
@@ -281,6 +289,8 @@ def mutate(genome, parameter, rng, subunit=None):
     getattr to get the right element. we also need to check type,
     since if we're mutating n_s we need to have integer extents and
     indices into the resulting arrays.
+    NB: this won't work for rho as it is; need to think of a way of
+    this (and affinity)
     '''
     if subunit is not None:
        current = getattr(genome, parameter)[subunit]
@@ -341,7 +351,15 @@ def mutation(rng, individual):
     for p in constants.subunit_params:
         s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
         mutate(individual, p, rng, s)
-    mutate(individual, 'alpha', rng, None)
-    mutate(individual, 'phi', rng, None)
-    mutate(individual, 'eta', rng, None)
+
+    n_rc = len(rc_setup.params[individual.rc]["pigments"])
+    for i in range(n_rc + 1):
+        mutate(individual, 'rho', rng, None)
+        if i < n_rc:
+            mutate(individual, 'aff', rng, None)
+    # make sure rho is still normalised correctly. i think this is fine
+    rho = getattr(individual, 'rho')
+    rho *= len(rho) / np.sum(rho)
+    setattr(individual, 'rho', rho)
+
     return individual

@@ -33,7 +33,7 @@ mu_rate = 0.05 # proportion of genomes to mutate after each generation
 tourney_k = 5 # selection tournament size
 hist_snapshot = 25 # generate histograms every hist_snapshot generations
 max_shift = 0 # maximum shift (nm) of absorption peaks
-shift_inc = 10.0 # increment to shift lineshapes by
+shift_inc = 0.0 # increment to shift lineshapes by
 peak_binwidth = 10.0 # binwidth for histograms of peak absorption per subunit
 
 '''
@@ -71,12 +71,9 @@ bounds = {'n_b': np.array([1, 12], dtype=np.int32),
               "chl_d", "chl_f", "bchl_a", "bchl_b"],
                               dtype='U10'),
           'rc': np.array(["ox", "frl", "anox", "exo"], dtype='U10'),
-          'a1': np.array([0, n_p_total], dtype=np.int32),
-          'a2': np.array([0, n_p_total], dtype=np.int32),
-          'a3': np.array([0, n_p_total], dtype=np.int32),
-          'phi': np.array([0.0, 1.0], dtype=np.float64),
-          'eta': np.array([0.0, 1.0], dtype=np.float64),
-          'zeta': np.array([0.0, 1.0], dtype=np.float64),
+          'rho': np.array([0.0, 1.0], dtype=np.float64),
+          'aff': np.array([0.0, 100.0], dtype=np.float64),
+          'alpha': np.array([0.0, 1.0], dtype=np.float64),
           'nu_e': np.array([0.0, 100.0], dtype=np.float64),
           'phi_e_g': np.array([0.0, 1.0], dtype=np.float64),
           'phi_e': np.array([0.0, 1.0], dtype=np.float64),
@@ -98,12 +95,9 @@ binwidths = {'n_b': 1,
         'n_s': 1,
         'n_p': 1,
         'shift': 5,
-        'a1': 1,
-        'a2': 1,
-        'a3': 1,
-        'alpha': 0.1,
-        'eta': 0.01,
-        'phi': 0.01,
+        'rho': 0.01,
+        'aff': 0.01,
+        'alpha': 0.01,
         'nu_e': 1.0,
         'phi_e': 0.01,
         'phi_e_g': 0.01,
@@ -156,9 +150,11 @@ class Genome:
     pigment: np.ndarray = field(default_factory=lambda:
                         np.empty([], dtype='U10'))
     rc: str = ""
-    phi: float = 0.0
-    eta: float = 0.0
-    zeta: float = 0.0
+    rho: np.ndarray     = field(default_factory=lambda:
+                        np.empty([], dtype=np.int64))
+    aff: np.ndarray     = field(default_factory=lambda:
+                        np.empty([], dtype=np.int64))
+    alpha: float = 0.0
     connected: bool = False
     nu_e: float = np.nan
     phi_e_g: float = np.nan

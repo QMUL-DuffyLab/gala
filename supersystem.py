@@ -9,7 +9,7 @@ import light
 import antenna as la
 import rc
 
-def supersystem(l, ip_y, p, debug=False, nnls='scipy',
+def solve(l, ip_y, p, debug=False, nnls='scipy',
         detrap_type="none", tau_diff=0.0):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
@@ -113,22 +113,11 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy',
         that: have a JSON parameter like "array": True/False and then
         "array_len": "n_s" or "rc", which can be used in the GA
         '''
-        if n_rc == 1:
+        # rho is [rho_ox, rho_i, rho_r, rho_ant]
+        for i in range(n_rc):
             # odd - inward, even - outward
-            k_b[1] *= p.phi
-            k_b[0] *= (1.0 / p.phi)
-        elif n_rc == 2:
-            k_b[1] *= (p.phi / p.eta)
-            k_b[0] *= (p.eta / p.phi)
-            k_b[3] *= p.phi
-            k_b[2] *= (1.0 / p.phi)
-        elif n_rc == 3:
-            k_b[1] *= (p.phi / p.eta)
-            k_b[0] *= (p.eta / p.phi)
-            k_b[3] *= (p.phi / p.zeta)
-            k_b[2] *= (p.zeta / p.phi)
-            k_b[5] *= p.phi
-            k_b[4] *= (1.0 / p.phi)
+            k_b[2 * i] *= p.aff[i] * ((p.rho[i] * p.rho[-1]) / (n_rc + 1.0))
+            k_b[2 * i + 1] *= p.aff[i] * ((p.rho[i] * p.rho[-1]) / (n_rc + 1.0))
         if dg < 0.0:
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
@@ -175,16 +164,23 @@ def supersystem(l, ip_y, p, debug=False, nnls='scipy',
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
                     ts = toti[indf] # total state tuple
+                    print(diff)
                     # set the correct element with the corresponding rate
-                    if rt in ["lin", "red"]:
+                    if rt == "red":
                         twa[ind][indf] = rc.rates[rt]
+                    if rt == "lin":
+                        # the first place where the population decreases
+                        # is the first in the chain of linear flow
+                        which_rc = np.where(np.array(diff) == -1)[0][0]//3
+                        twa[ind][indf] = rc.rates[rt] * (p.rho[which_rc]
+                                * p.rho[which_rc + 1])
                     if rt == "ox":
                         tau_ox = (tau_diff + 1.0 / rc.rates[rt])
                         twa[ind][indf] = 1.0 / tau_ox
                     if rt == "trap":
+                        which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         # find which trap state is being filled here
                         # 3 states per rc, so integer divide by 3
-                        which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         '''
                         indf above assumes that the state of the antenna
                         doesn't change, which is not the case for trapping.
@@ -337,21 +333,19 @@ if __name__ == "__main__":
 
     spectrum, output_prefix = light.spectrum_setup("filtered", filter="red")
     print(len(spectrum[:, 0]))
-    n_b = 2
-    n_s = 2
+    n_b = 1
+    n_s = 1
     pigment = ['chl_a' for _ in range(n_s)]
     n_p = [70 for _ in range(n_s)]
     no_shift = [0 for _ in range(n_s)]
     rc_type = "ox"
     names = rc.params[rc_type]["pigments"] + pigment
-    # test effect of phi
-    phi = 1.0
-    eta = 1.0
-    zeta = 1.0
+    rho = [1.0, 1.0, 1.0] # equal stoichiometry
+    aff = [1.0, 1.0] # ps_ox, ps_r affinity
     p = constants.Genome(n_b, n_s, n_p, no_shift,
-            pigment, rc_type, phi, eta, zeta)
+            pigment, rc_type, rho, aff)
 
-    od = supersystem(spectrum[:, 0], spectrum[:, 1], p, True)
+    od = solve(spectrum[:, 0], spectrum[:, 1], p, True)
     print(f"Branch rates k_b: {od['k_b']}")
     print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
 
@@ -361,7 +355,7 @@ if __name__ == "__main__":
         rowsum = np.sum(od["k"][i, :])
         print(f"index {i}: state {od['states'][i]} sum(col[i]) = {colsum}, sum(row[i]) = {rowsum}")
     print(np.sum(od["k"][:side, :]))
-    print(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}")
+    print(f"alpha = {constants.alpha}, rho = {rho}, aff = {aff}")
     print(f"p(0) = {od['p_eq'][0]}")
     print(f"nu_ch2o = {od['nu_ch2o']}")
     print(f"nu_cyc = {od['nu_cyc']}")
@@ -379,7 +373,7 @@ if __name__ == "__main__":
     np.savetxt(f"out/antenna_{rc_type}_p_eq.dat", od["p_eq"], fmt='%.16e')
     with open(f"out/antenna_{rc_type}_results.dat", "w") as f:
     # print(od)
-        f.write(f"alpha = {constants.alpha}, phi = {phi}, eta = {eta}\n")
+        f.write(f"alpha = {constants.alpha}, rho = {rho}, affinity = {aff}\n")
         f.write(f"gamma = {od['gamma']}\n")
         f.write(f"p(0) = {od['p_eq'][0]}\n")
         f.write(f"nu_ch2o = {od['nu_ch2o']}\n")
