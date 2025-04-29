@@ -4,6 +4,8 @@
 @author: callum
 """
 import os
+import sys
+import inspect
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -274,7 +276,8 @@ def build(spectra_dicts):
     spectra = []
     out_prefs = []
     for sp in spectra_dicts:
-        s, out_pref = spectrum_setup(sp['type'], **sp['kwargs'])
+        fn = getattr(sys.modules[__name__], sp['type'])
+        s, out_pref = spectrum_setup(fn, **sp['kwargs'])
         spectra.append(s)
         out_prefs.append(out_pref)
     return zip(spectra, out_prefs)
@@ -287,7 +290,7 @@ def check(spectra_dicts):
     outputs the plots using the output prefix that'll be generated as well.
     '''
     zipped = build(spectra_dicts)
-    outdir = os.path.join(constants.output_dir, "light_test")
+    outdir = os.path.join(constants.output_dir)
     os.makedirs(outdir, exist_ok=True)
     for spectrum, out_pref in zipped:
         np.savetxt(os.path.join(outdir,
@@ -307,13 +310,13 @@ if __name__ == "__main__":
     examples of dicts - run `python light.py` to get spectra/plots
     '''
     sd = [
-          {'type': filtered, 'kwargs': {'filter': "red", 'fraction': 0.5}},
-          {'type': phoenix, 'kwargs': {'Tstar': 4800}},
-          {'type': stellar, 'kwargs': {'Tstar': 5770, 'Rstar': 6.957E8, 'a': 1.0, 'attenuation': 0.0}},
-          {'type': am15, 'kwargs': {'dataset': "tilt", "intensity": 50.0, "region": [400.0, 700.0]}},
-          {'type': marine, 'kwargs': {'depth': 10.0}},
-          {'type': colour, 'kwargs': {'colour': 'red', 'intensity': 30.0}},
-          {'type': gaussian, 'kwargs':
+          {'type': 'filtered', 'kwargs': {'filter': "red", 'fraction': 0.5}},
+          {'type': 'phoenix', 'kwargs': {'Tstar': 4800}},
+          {'type': 'stellar', 'kwargs': {'Tstar': 5770, 'Rstar': 6.957E8, 'a': 1.0, 'attenuation': 0.0}},
+          {'type': 'am15', 'kwargs': {'dataset': "tilt", "intensity": 50.0, "region": [400.0, 700.0]}},
+          {'type': 'marine', 'kwargs': {'depth': 10.0}},
+          {'type': 'colour', 'kwargs': {'colour': 'red', 'intensity': 30.0}},
+          {'type': 'gaussian', 'kwargs':
            {'mu': [600.0, 500.0],
                'sigma': [15.0, 35.0], 'a': [1.0, 0.2], 'intensity': 100.0}},
           ]
