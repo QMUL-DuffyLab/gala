@@ -87,11 +87,12 @@ def stellar(**kwargs):
     a *= AU # convert to metres
     lambdas = np.linspace(*constants.x_lim, constants.nx)
     # spectral irradiance (W m^{-2} nm^{-1})
+    lambdas *= 1e-9 # convert to SI
     sp = 1.0E-9 * np.pi * ((2.0 * h * c**2 / lambdas**5.0)
     / (np.exp(h * c / (lambdas * Boltzmann * T)) -1.))
     # irradiance at distance a
     irr = sp * (R / a)**2
-    return np.column_stack((lambdas, irr)), output_prefix
+    return np.column_stack((lambdas * 1e9, irr)), output_prefix
     
 def gaussian(**kwargs):
     '''
