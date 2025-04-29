@@ -122,14 +122,9 @@ and PhotochemCAD
 with open(pigment_data_file, "r") as f:
     pigment_data = json.load(f)
 
-# i think these should be sensible
-# x_lim = [
-# np.min([pigment_data[rc]['abs']['mu'][-1] +
-#     (bounds['shift'][0] * shift_inc) for rc in bounds['rc']]),
-# np.max([pigment_data[rc]['ems']['mu'][-1] +
-#     (bounds['shift'][1] * shift_inc) for rc in bounds['rc']])
-# ]
-x_lim = [400.0, 1200.0]
+x_lim = [400.0, 2000.0]
+dx = 1.0
+nx = int((x_lim[1] - x_lim[0]) / dx)
 
 '''
 finally the dataclass definition. the names of the members here

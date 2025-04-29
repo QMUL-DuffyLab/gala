@@ -9,10 +9,28 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import constants
 import antenna as la
-from scipy.constants import h, c, Avogadro
+from scipy.constants import h, c, Avogadro, Boltzmann
 
+# AU in metres for stellar spectra
+AU = 149597870700
 '''
-various helper functions to import or generate spectra
+various helper functions to import or generate spectra.
+I've tried to be reasonably consistent here: each different kind of
+spectrum has its own function with (hopefully) a fairly obvious name.
+Each one takes **kwargs, and the functions check that any required
+arguments are there with a try: except KeyError: block. if not,
+they print out what the function expects and what it got, then re-raise.
+The reason for this is so that I can write one wrapper function,
+spectrum_setup, which just takes the function name and the required
+arguments and returns the spectrum and output prefix for the files,
+which hopefully makes it easier for the user.
+
+TO DO:
+- figure out a more consistent way of dealing with optional
+arguments or arguments for which there's a choice of options.
+- standardise the docstrings
+- write a little helper bit in spectrum_setup that returns the list of
+possible functions? maybe using inspect.get_members or something, idk yet
 '''
 
 def micromole_in_region(spectrum, lower, upper):
@@ -29,75 +47,131 @@ def micromole_in_region(spectrum, lower, upper):
             muM += row[1] / e_per_photon
     return 1e6 * (muM / Avogadro)
 
-def get_phoenix_spectrum(ts):
+def phoenix(**kwargs):
     '''
-    return scaled PHOENIX spectrum representing star of given temperature
+    return scaled PHOENIX spectrum for star of given temperature
     '''
-    return np.loadtxt(os.path.join(constants.spectrum_prefix,
+    try:
+        T = kwargs["Tstar"]
+    except KeyError:
+        print("Invalid kwargs in light.phoenix()")
+        print("Expected: 'Tstar'")
+        print(f"Got: {kwargs}")
+        raise
+    output_prefix = f"phoenix_{T:4d}K"
+    spectrum = np.loadtxt(os.path.join(constants.spectrum_prefix,
             "PHOENIX",
-            'Scaled_Spectrum_PHOENIX_{:4d}K.dat'.format(ts)))
+            f"Scaled_Spectrum_PHOENIX_{T:4d}K.dat"))
+    return spectrum, output_prefix
 
-def get_cwf(mu_e = 1.0):
+def stellar(**kwargs):
     '''
-    get cool white fluorescent spectrum with given intensity
-    in micro Einsteins - the spectrum in the file's normalised to 1μE.
-    taken from http://dx.doi.org/10.13031/2013.13868
+    Generate irradiance for arbitrary star at arbitrary distance.
+    kwargs:
+    - Tstar:       temperature of star in K
+    - Rstar:       radius of star
+    - a:           orbital distance (semi-major axis) in AU
+    - attenuation: attenuation factor (should be in [0, 1])
     '''
-    l, fluo = np.loadtxt(os.path.join(constants.spectrum_prefix,
-            'anderson_2003_cool_white_fluo.csv'), unpack=True)
-    return np.column_stack((l, mu_e * fluo))
-
-def get_gaussian(l, lp, w, a):
+    try:
+        T = kwargs["Tstar"]
+        R = kwargs["Rstar"]
+        a = kwargs["a"]
+        att = kwargs["attenuation"]
+    except KeyError:
+        print("Invalid kwargs in light.stellar()")
+        print("Expected: 'Tstar', 'Rstar', 'a', 'attenuation'")
+        print(f"Got: {kwargs}")
+        raise
+    output_prefix = f"stellar_{T:6.4f}_a_{a:6.4f}AU"
+    a *= AU # convert to metres
+    lambdas = np.linspace(*constants.x_lim, constants.nx)
+    # spectral irradiance (W m^{-2} nm^{-1})
+    sp = 1.0E-9 * np.pi * ((2.0 * h * c**2 / lambdas**5.0)
+    / (np.exp(h * c / (lambdas * Boltzmann * T)) -1.))
+    # irradiance at distance a
+    irr = sp * (R / a)**2
+    return np.column_stack((lambdas, irr)), output_prefix
+    
+def gaussian(**kwargs):
     '''
     return a normalised lineshape made up of Gaussians.
     TO DO: figure out micro einstein normalisation
     and how it should format its output files - should probably
     also make a plot of the incident spectra to go with output
     '''
-    return la.gauss(l, lp, w, a)
+    try:
+        mu = kwargs["mu"]
+        sigma = kwargs["sigma"]
+        a = kwargs["a"]
+        intensity = kwargs["intensity"]
+    except KeyError:
+        print("Invalid kwargs in light.gaussian()")
+        print("Expected: 'mu', 'sigma', 'a', 'intensity'")
+        print(f"Got: {kwargs}")
+        raise
+    # this will be a mess if these are lists
+    output_prefix = f"gauss_{a}_{mu}_{sigma}_{intensity}"
+    lambdas = np.linspace(*constants.x_lim, constants.nx)
+    gauss = la.gauss(lambdas, mu, sigma, a)
+    return np.column_stack((lambdas, gauss)), output_prefix
 
-def get_colour(**kwargs):
+def colour(**kwargs):
     '''
     get one of the specific colour spectra from Samir's experimental
     setup. possible choices are listed below. I'm just reading in the
     100 muE dataset here using pandas and then normalising the
-    intensity, so the intensity must be given as well!
+    intensity.
+    Note that the intensity normalisation is done outside these
+    functions in the wrapper because we can apply it to any spectrum,
+    but it should always be given for these! Raise an error if it isn't.
     '''
+    try:
+        col = kwargs["colour"]
+        intensity = kwargs["intensity"]
+    except KeyError:
+        print("Invalid kwargs in light.colour()")
+        print("Expected: 'colour', 'intensity'")
+        print(f"Got: {kwargs}")
+        raise
     colours = ["UV", "blue", "light_blue", "green", "orange",
             "red", "far_red"]
-    if "colour" not in kwargs:
-        raise KeyError("Colour must be given for colour spectrum")
-    if "intensity" not in kwargs:
-        # the actual intensity normalisation is done in
-        # spectrum_setup below, so no point doing it here
-        raise KeyError("Intensity must be given for colour spectrum")
-    if kwargs["colour"] not in colours:
-        raise KeyError("Invalid colour choice passed to get_colour")
+    if col not in colours:
+        raise KeyError("Invalid colour choice in light.colour()")
+    output_prefix = f"colour_{col}"
     data = pd.read_csv(os.path.join(constants.spectrum_prefix,
         "100_plotted_dataset.csv"))
     x = data[f"Wavelength"].to_numpy()
-    y = data[f"{kwargs['colour']}_normalized"].to_numpy()
+    y = data[f"{col}_normalized"].to_numpy()
     y[y < 0.0] = 0.0 # input data has some small negative values
-    return np.column_stack((x, y))
+    return np.column_stack((x, y)), output_prefix
 
-def get_am15(dataset="tilt"):
+def am15(**kwargs):
     '''
     return relevant am15 dataset. standard spectrum. taken from
     https://www.nrel.gov/grid/solar-resource/spectra-am1.5.html
     '''
+    try:
+        dataset = kwargs["dataset"]
+    except KeyError:
+        print("Invalid kwargs in light.am15()")
+        print("Expected: 'dataset'")
+        print(f"Got: {kwargs}")
+        raise
     d = np.loadtxt(os.path.join(constants.spectrum_prefix,
                     "ASTMG173.csv"), skiprows=2, delimiter=",")
     if dataset == "tilt":
-        am15 = np.column_stack((d[:, 0], d[:, 2]))
+        spectrum = np.column_stack((d[:, 0], d[:, 2]))
     elif dataset == "ext":
-        am15 = np.column_stack((d[:, 0], d[:, 1]))
+        spectrum = np.column_stack((d[:, 0], d[:, 1]))
     elif dataset == "circum":
-        am15 = np.column_stack((d[:, 0], d[:, 3]))
+        spectrum = np.column_stack((d[:, 0], d[:, 3]))
     else:
-        raise KeyError("Invalid column key provided to get_am15")
-    return am15
+        raise KeyError("Invalid column key provided to am15")
+    output_prefix = f"am15_{dataset}"
+    return spectrum, output_prefix
 
-def get_marine(**kwargs):
+def marine(**kwargs):
     '''
     simple function to take am1.5 spectrum and approximate
     light attenuation as a function of wavelength in water.
@@ -105,95 +179,87 @@ def get_marine(**kwargs):
     note that we (currently) ignore gilvin/tripton/phytoplankton terms
     since we're not trying to model any specific ocean precisely.
     '''
+    try:
+        depth = kwargs['depth']
+    except KeyError:
+        print("Invalid kwargs in light.marine()")
+        print("Expected: 'depth'")
+        print(f"Got: {kwargs}")
+        raise
     if 'dataset' in kwargs:
-        am15 = get_am15(kwargs['dataset'])
+        spectrum, _ = am15(**kwargs)
     else:
-        am15 = get_am15()
-    if 'depth' in kwargs:
-        z = kwargs['depth']
-    else:
-        raise KeyError("Marine spectrum must be given depth parameter")
+        spectrum, _ = am15(dataset="tilt")
+    output_prefix = f"marine_depth_{depth}"
     water = np.loadtxt(os.path.join(constants.spectrum_prefix,
                        "water_absorption.csv"), skiprows=1, delimiter=",")
-    water_interp = np.interp(am15[:, 0], water[:, 0], water[:, 1])
-    ilz = am15[:, 1] * np.exp(-1.0 * z * water_interp)
-    return np.column_stack((am15[:, 0], ilz))
+    water_interp = np.interp(spectrum[:, 0], water[:, 0], water[:, 1])
+    ilz = spectrum[:, 1] * np.exp(-1.0 * depth * water_interp)
+    return np.column_stack((spectrum[:, 0], ilz)), output_prefix
 
-def get_filtered(**kwargs):
+def filtered(**kwargs):
     '''
     return a red or far-red filtered AM1.5 spectrum.
     digitised from the red and far-red filters in
     https://dx.doi.org/10.1007/s11120-016-0309-z (Fig. S1)
     '''
+    try:
+        fil = kwargs['filter']
+    except KeyError:
+        print("Invalid kwargs in light.filtered()")
+        print("Expected: 'filter'")
+        print(f"Got: {kwargs}")
+        raise
     if 'dataset' in kwargs:
-        am15 = get_am15(kwargs['dataset'])
+        spectrum, _ = am15(**kwargs)
     else:
-        am15 = get_am15()
-    if 'filter' not in kwargs:
-        raise KeyError("Filtered spectrum must have filter kwarg")
-    if kwargs['filter'] == "red":
+        spectrum, _ = am15(dataset="tilt")
+    if fil in ['red', 'far_red']:
         f = np.loadtxt(os.path.join(constants.spectrum_prefix,
-            "filter_red.csv"), delimiter=',')
-    if kwargs['filter'] == "far-red":
-        f = np.loadtxt(os.path.join(constants.spectrum_prefix,
-            "filter_far_red.csv"), delimiter=',')
-    f_interp = np.interp(am15[:, 0], f[:, 0], f[:, 1])
+            f"filter_{fil}.csv"), delimiter=',')
+    else:
+        raise KeyError("Invalid filter {fil} provided to light.filtered()")
+    f_interp = np.interp(spectrum[:, 0], f[:, 0], f[:, 1])
+    output_prefix = f"filtered_{fil}"
     if 'fraction' in kwargs:
         frac = kwargs['fraction']
+        output_prefix += f"_fraction_{frac}"
     else:
         frac = 1.
     # (1 - frac) unfiltered + frac * filtered
-    transmitted = (1.0 - frac) * am15[:, 1] + frac * am15[:, 1] * f_interp
-    return np.column_stack((am15[:, 0], transmitted))
+    transmitted = (((1.0 - frac) * spectrum[:, 1])
+            + (frac * spectrum[:, 1] * f_interp))
+    return np.column_stack((spectrum[:, 0], transmitted)), output_prefix
 
 def spectrum_setup(spectrum_type, **kwargs):
     '''
     wrap the above functions and return a consistent tuple.
-    the actual function call could maybe be streamlined a bit
-    but the output prefix is dependent on specific kwargs
+    in principle changing the intensity of the spectrum has nothing
+    to do with what kind of spectrum it is, so i have just done the
+    intensity normalisation here and added it to the output prefix
+    if it's present; i think that's the most consistent way of doing
+    things.
     '''
-    if spectrum_type == "phoenix":
-        s = get_phoenix_spectrum(kwargs['temperature'])
-        output_prefix = "{:4d}K".format(kwargs['temperature'])
-    elif spectrum_type == "fluo":
-        s = get_cwf(kwargs['mu_e'])
-        output_prefix = "cwf_{:8.3e}_mu_ein".format(kwargs['mu_e'])
-    elif spectrum_type == "am15":
-        s = get_am15(kwargs['dataset'])
-        output_prefix = "am15_{}".format(kwargs['dataset'])
-    elif spectrum_type == "marine":
-        s = get_marine(**kwargs)
-        output_prefix = "marine_z_{}".format(kwargs['depth'])
-    elif spectrum_type == "filtered":
-        s = get_filtered(**kwargs)
-        output_prefix = kwargs['filter']
-        if 'fraction' in kwargs:
-            output_prefix += f"_{kwargs['fraction']}"
-    elif spectrum_type == "colour":
-        s = get_colour(**kwargs)
-        output_prefix = f"_{kwargs['colour']}_{kwargs['intensity']}"
-    elif spectrum_type == "gauss":
-        l = np.arange(kwargs['lmin'], kwargs['lmax'])
-        intensity = get_gaussian(l, kwargs['mu'], kwargs['sigma'], kwargs['a'])
-        s = np.column_stack((l, intensity))
-        output_prefix = "gauss_lp0_{:6.2f}".format(kwargs['mu'][0])
-    else:
-        raise ValueError("Invalid call to spectrum_setup.")
+    try:
+        spectrum, output_prefix = spectrum_type(**kwargs)
+    except NameError:
+        print("invalid spectrum type passed to light.spectrum_setup().")
+        raise
 
     if "intensity" in kwargs:
         if "region" in kwargs:
             lower, upper = kwargs["region"]
-            muM_init = micromole_in_region(s, lower, upper)
-            s[:, 1] *= kwargs["intensity"] / muM_init
-            output_prefix += f"_{kwargs['intensity']}micromol"
+            muM_init = micromole_in_region(spectrum, lower, upper)
+            spectrum[:, 1] *= kwargs["intensity"] / muM_init
+            output_prefix += f"_{kwargs['intensity']}muE"
         else:
             # assume PAR over [400, 700] nm
+            print("spectrum_setup: intensity but no region given. Assuming [400, 700]nm")
             lower, upper = [400.0, 700.0]
-            muM_init = micromole_in_region(s, lower, upper)
-            s[:, 1] *= kwargs["intensity"] / muM_init
-            output_prefix += f"_{kwargs['intensity']}micromol"
-
-    return s, output_prefix
+            muM_init = micromole_in_region(spectrum, lower, upper)
+            spectrum[:, 1] *= kwargs["intensity"] / muM_init
+            output_prefix += f"_{kwargs['intensity']}muE"
+    return spectrum, output_prefix
 
 def build(spectra_dicts):
     '''
@@ -219,22 +285,19 @@ def check(spectra_dicts):
     we're interested in, but only for the plot; the whole spectrum's kept.
     outputs the plots using the output prefix that'll be generated as well.
     '''
-    z = build(spectra_dicts)
-    os.makedirs(constants.output_dir, exist_ok=True)
-    for spectrum, out_pref in z:
-        np.savetxt(os.path.join(constants.output_dir,
+    zipped = build(spectra_dicts)
+    outdir = os.path.join(constants.output_dir, "light_test")
+    os.makedirs(outdir, exist_ok=True)
+    for spectrum, out_pref in zipped:
+        np.savetxt(os.path.join(outdir,
                   f"{out_pref}_spectrum.dat"), spectrum)
         fig, ax = plt.subplots(figsize=(12, 8))
         plt.plot(spectrum[:, 0], spectrum[:, 1])
-        smin = np.min(spectrum[:, 0])
-        smax = np.max(spectrum[:, 0])
-        xmin = 200.0 if smin < 200.0 else smin
-        xmax = 1000.0 if smax > 1000.0 else smax
-        ax.set_xlabel(r'$ \lambda (\text{nm}) $')
-        ax.set_xlim([xmin, xmax])
-        ax.set_ylabel(r'Intensity')
+        ax.set_xlabel("wavelength (nm)")
+        ax.set_xlim(constants.x_lim)
+        ax.set_ylabel(r'intensity')
         ax.set_title(out_pref)
-        fig.savefig(os.path.join(constants.output_dir,
+        fig.savefig(os.path.join(outdir,
                     f"{out_pref}_test_plot.pdf"))
         plt.close()
 
@@ -243,22 +306,18 @@ if __name__ == "__main__":
     examples of dicts - run `python light.py` to get spectra/plots
     '''
     sd = [
-          {'type': "fluo", 'kwargs': {'mu_e': 100.0}},
-          {'type': "filtered", 'kwargs': {'filter': "far-red"}},
-          {'type': "filtered", 'kwargs': {'filter': "red", 'fraction': 0.5}},
-          {'type': "phoenix", 'kwargs': {'temperature': 4800}},
-          {'type': "am15", 'kwargs': {'dataset': "tilt"}},
-          {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 50.0, "region": [400.0, 700.0]}},
-          {'type': "am15", 'kwargs': {'dataset': "tilt", "intensity": 10.0, "region": [400.0, 700.0]}},
-          {'type': "marine", 'kwargs': {'depth': 10.0}},
-          {'type': "colour", 'kwargs': {'colour': 'red', 'intensity': 30.0}},
-          {'type': "gauss", 'kwargs':
-           {'lmin': 200.0, 'lmax': 1000.0, 'mu': [600.0, 500.0],
-            'sigma': [15.0, 35.0], 'a': [1.0, 0.2]}},
+          {'type': filtered, 'kwargs': {'filter': "red", 'fraction': 0.5}},
+          {'type': phoenix, 'kwargs': {'Tstar': 4800}},
+          {'type': stellar, 'kwargs': {'Tstar': 5770, 'Rstar': 6.957E8, 'a': 1.0, 'attenuation': 0.0}},
+          {'type': am15, 'kwargs': {'dataset': "tilt", "intensity": 50.0, "region": [400.0, 700.0]}},
+          {'type': marine, 'kwargs': {'depth': 10.0}},
+          {'type': colour, 'kwargs': {'colour': 'red', 'intensity': 30.0}},
+          {'type': gaussian, 'kwargs':
+           {'mu': [600.0, 500.0],
+               'sigma': [15.0, 35.0], 'a': [1.0, 0.2], 'intensity': 100.0}},
           ]
 
     check(sd)
-    # if you only need one you can call spectrum_setup directly:
-    spectrum, output_prefix = spectrum_setup("far-red", fraction=0.5)
-    spectrum, output_prefix = spectrum_setup("colour", colour="blue",
-            intensity=50.0)
+    # if you only need one you can call spectrum_setup directly like so:
+    spectrum, output_prefix = spectrum_setup(colour,
+            colour="blue", intensity=50.0)
