@@ -55,7 +55,7 @@ def parameters(pigments, gap):
         necessarily distinguishable from the point of view of the RC,
         but they have different rates and we need to insert them in 
         different places, so we can't just insert one number.
-        - nu_ch2o_ind: indices of the RC states we need to sum over
+        - nu_e_ind: indices of the RC states we need to sum over
         to get the rate of carbon fixation $\nu(CH_2O)$
         - nu_cyc_ind: indices of the RC states we need to sum over to
         get the rate of cyclic electron flow $\nu(\text{cyc})$
@@ -67,12 +67,12 @@ def parameters(pigments, gap):
         states = np.array(list(map(list, itertools.product(one_rc, repeat=n_rc)))).reshape(n_states, n_rc * len(one_rc[0]))
         indices = {tuple(states[j]): j for j in range(n_states)}
     procs = {}
-    nu_ch2o_ind = []
+    nu_e_ind = []
     nu_cyc_ind  = []
     for i in range(n_states):
         initial = states[i]
         if initial[-1] == 1 or initial[-3] == 1: # n^r_R, n^r_T
-            nu_ch2o_ind.append(i)
+            nu_e_ind.append(i)
         if n_rc == 1:
             if initial[0] == 1:
                 nu_cyc_ind.append(i)
@@ -140,7 +140,7 @@ def parameters(pigments, gap):
             "states": states, # use an index to return a state
             "indices": indices, # use tuple of state to return index
             "procs": procs,
-            "nu_ch2o_ind": nu_ch2o_ind,
+            "nu_e_ind": nu_e_ind,
             "nu_cyc_ind": nu_cyc_ind,
             }
     return params
@@ -224,7 +224,7 @@ def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=Fals
             ind = i + j # total index
             ts = toti[ind] # total state tuple
             initial = rcp["states"][i] # tuple with current RC state
-            if i in rcp["nu_ch2o_ind"]:
+            if i in rcp["nu_e_ind"]:
                 lindices.append(ind)
             if i in rcp["nu_cyc_ind"]:
                 cycdices.append(ind)
@@ -307,7 +307,7 @@ def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=Fals
     b[-1] = 1.0
     p_eq, p_eq_res = la.solve(k, method='scipy')
 
-    nu_ch2o = 0.0
+    nu_e = 0.0
     nu_cyc = 0.0
     trap_indices = [3*i + (n_rc) for i in range(n_rc)]
     oxidised_indices = [3*i + (n_rc + 1) for i in range(n_rc)]
@@ -325,7 +325,7 @@ def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=Fals
             if s[reduced_indices[j]] == 1:
                 redox[j, 1] += p_i
         if i in lindices:
-            nu_ch2o += rates["red"] * p_i
+            nu_e += rates["red"] * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
@@ -338,15 +338,14 @@ def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=Fals
                 "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
-                "nu_ch2o": nu_ch2o,
+                "nu_e": nu_e,
                 "nu_cyc": nu_cyc,
                 "redox": redox,
                 "recomb": recomb,
                 "tau_ox": tau_ox,
                 }
     else:
-        return nu_ch2o
-
+        return nu_e
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -382,7 +381,7 @@ if __name__ == "__main__":
         print(f"RC type: {args.rc_type}")
         print(f"excitation rate per photosystem: {res['gamma']} s^-1")
         print(f"p(0) = {res['p_eq'][0]}")
-        print(f"nu_ch2o = {res['nu_ch2o']}")
+        print(f"nu_e = {res['nu_e']}")
         print(f"nu_cyc = {res['nu_cyc']}")
         side = len(res["p_eq"])
         for si, pi in zip(res["states"], res["p_eq"]):

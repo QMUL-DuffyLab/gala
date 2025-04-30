@@ -218,13 +218,27 @@ def hists(population, hist_functions, plot_functions, prefix, run, gen):
     
     '''
     outfiles = []
+    '''
+    we want to split the stats by RC type; they're doing different kinds of
+    photosynthesis and we want to investigate how those perform relative to
+    each other, so generate a set of subpopulations and run stats on those
+    '''
+    n_rc_types = len(constants.bounds["rc"])
+    sublists = [[] for i in range(n_rc_types)]
+    for i in range(len(population)):
+        for j in range(n_rc_types):
+            if population[i].rc == constants.bounds["rc"][j]:
+                sublists[j].append(population[i])
+    subpops = {constants.bounds["rc"][j]:
+                      sublists[j] for j in range(n_rc_types)}
     for field in dataclasses.fields(constants.Genome):
         if hist_functions[field.name] is not None:
-            outfile = f"{prefix}_{field.name}_{run}_{gen}.txt"
-            hist_functions[field.name](population, field.name, outfile)
-            outfiles.append(outfile)
-            plotfile = plot_functions[field.name](outfile, field.name)
-            outfiles.append(plotfile)
+            for rc_type, subpop in subpops.items():
+                outfile = f"{prefix}_{rc_type}_{field.name}_{run}_{gen}.txt"
+                hist_functions[field.name](subpop, field.name, outfile)
+                outfiles.append(outfile)
+                plotfile = plot_functions[field.name](outfile, field.name)
+                outfiles.append(plotfile)
     return outfiles
 
 def average_finals(prefix, plot_functions, spectrum):

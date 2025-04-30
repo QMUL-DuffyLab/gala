@@ -30,7 +30,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
     debug: a huge dict containing various parameters that are useful to me
     (and probably only me) in figuring out what the fuck is going on.
     else:
-    TBC. probably nu_ch2o and nu_cyc
+    TBC. probably nu_e and nu_cyc
     '''
     # NB: the tau_diff and detrap_type might or might not be
     # simulation-wide parameters later on; if not, if they need to be
@@ -53,7 +53,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
     gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
     k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
     for i in range(p.n_s + n_rc):
-        print(f"{i}, {pigment[i]}")
+        # print(f"{i}, {pigment[i]}")
         a_l[i] = la.absorption(l, pigment[i], shift[i])
         e_l[i] = la.emission(l, pigment[i], shift[i])
         norms[i] = la.overlap(l, a_l[i], e_l[i])
@@ -75,7 +75,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
           " 'thermal', 'energy_gap' or 'none'.")
 
     # NB: this needs checking for logic for all types
-    print("KB CALC:")
+    # print("KB CALC:")
     for i in range(p.n_s + n_rc):
         ab = i
         el = -1
@@ -84,24 +84,24 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
             inward  = la.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
             el = n_rc
             outward = la.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
-            print(inward, outward)
+            # print(inward, outward)
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
-            print("DG:")
-            print(f"peak 1, {pigment[i]}, {la.peak(shift[i], pigment[i])}")
-            print(f"peak 1, {pigment[n_rc]}, {la.peak(shift[n_rc], pigment[n_rc])}")
-            print(f"{n_p[i]}, {n_p[n_rc]}, {constants.T}, {dg}")
+            # print("DG:")
+            # print(f"peak 1, {pigment[i]}, {la.peak(shift[i], pigment[i])}")
+            # print(f"peak 1, {pigment[n_rc]}, {la.peak(shift[n_rc], pigment[n_rc])}")
+            # print(f"{n_p[i]}, {n_p[n_rc]}, {constants.T}, {dg}")
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
             el = i + 1
             inward  = la.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
             outward = la.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
-            print(inward, outward)
+            # print(inward, outward)
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = la.dG(la.peak(shift[i], pigment[i]),
                     la.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-        print(f"{i}, pig[{ab}] = {pigment[ab]}, pig[{el}] = {pigment[el]}, {inward}, {outward}")
+        # print(f"{i}, pig[{ab}] = {pigment[ab]}, pig[{el}] = {pigment[el]}, {inward}, {outward}")
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
         '''
@@ -122,8 +122,8 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
-    print("KB CALC DONE")
-    print(k_b)
+    # print("KB CALC DONE")
+    # print(k_b)
 
     n_rc_states = len(rcp["states"]) # total number of states of all RCs
     side = n_rc_states * ((p.n_b * p.n_s) + n_rc + 1)
@@ -151,7 +151,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
             ind = i + j # total index
             ts = toti[ind] # total state tuple
             initial = rcp["states"][i] # tuple with current RC state
-            if i in rcp["nu_ch2o_ind"]:
+            if i in rcp["nu_e_ind"]:
                 lindices.append(ind)
             if i in rcp["nu_cyc_ind"]:
                 cycdices.append(ind)
@@ -164,7 +164,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
                     ts = toti[indf] # total state tuple
-                    print(diff)
+                    # print(diff)
                     # set the correct element with the corresponding rate
                     if rt == "red":
                         twa[ind][indf] = rc.rates[rt]
@@ -201,7 +201,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                             rt = "detrap"
                     if rt == "cyc":
                         # cyclic: multiply the rate by alpha etc.
-                        # we will need this below for nu(cyc)
+                        # we will need this below for nu_cyc
                         which_rc = np.where(np.array(diff) == -1)[0][0]//3
                         k_cyc = rc.rates["cyc"]
                         if n_rc == 1:
@@ -231,11 +231,11 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
                 twa[ind][i] = constants.k_diss
-                print(f"{toti[ind]} -> {toti[i]}: k_diss")
+                # print(f"{toti[ind]} -> {toti[i]}: k_diss")
             
             if jind > 0 and jind <= n_rc:
                 twa[i][ind] = gamma[jind - 1] # absorption by RCs
-                print(f"{toti[i]} -> {toti[ind]}: gamma[{jind - 1}]")
+                # print(f"{toti[i]} -> {toti[ind]}: gamma[{jind - 1}]")
 
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
@@ -265,7 +265,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                 # index on branch
                 bi = (jind - n_rc - 1) % p.n_s
                 twa[i][ind] = gamma[n_rc + bi] # absorption by this block
-                print(f"{toti[i]} -> {toti[ind]}: gamma[{n_rc + bi}]")
+                # print(f"{toti[i]} -> {toti[ind]}: gamma[{n_rc + bi}]")
                 if bi == 0:
                     # root of branch - transfer to RC exciton states possible
                     for k in range(n_rc):
@@ -273,19 +273,18 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                         offset = (n_rc - k) * n_rc_states
                         # inward transfer to RC k
                         twa[ind][ind - offset] = k_b[2 * k + 1]
-                        print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k + 1}], ind={ind}, offset={offset}")
+                        # print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k + 1}], ind={ind}, offset={offset}")
                         # outward transfer from RC k
                         twa[ind - offset][ind] = k_b[2 * k]
-                        print(f"{toti[ind-offset]} -> {toti[ind]}: kb[{2 * k}], ind={ind}, offset={offset}")
+                        # print(f"{toti[ind-offset]} -> {toti[ind]}: kb[{2 * k}], ind={ind}, offset={offset}")
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                    print(f"{toti[ind]} -> {toti[ind-n_rc_states]}: kb[{2 * (n_rc + bi)}], bi = {bi}")
+                    # print(f"{toti[ind]} -> {toti[ind-n_rc_states]}: kb[{2 * (n_rc + bi)}], bi = {bi}")
                 if bi < (p.n_s - 1):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
-                    print(f"{toti[ind]} -> {toti[ind+n_rc_states]}: kb[{2 * (n_rc + bi) + 1}], bi = {bi}")
-
+                    # print(f"{toti[ind]} -> {toti[ind+n_rc_states]}: kb[{2 * (n_rc + bi) + 1}], bi = {bi}")
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
@@ -300,12 +299,39 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
     p_eq, p_eq_res = la.solve(k, method='scipy')
+    if p_eq == None:
+        print("NNLS failure. Genome details:")
+        print(p)
+        raise RuntimeError
 
-    nu_ch2o = 0.0
+    # nu_e === nu_ch2o here; we treat them as identical
+    nu_e = 0.0
     nu_cyc = 0.0
+    trap_indices = [-(3 + 3*i) for i in range(n_rc)]
+    oxidised_indices = [-(2 + 3*i) for i in range(n_rc)]
+    reduced_indices = [-(1 + 3*i) for i in range(n_rc)]
+    redox = np.zeros((n_rc, 2), dtype=np.float64)
+    recomb = np.zeros(n_rc, dtype=np.float64)
+    trap_states = []
+    ox_states = []
+    red_states = []
+    # print(trap_indices)
+    # print(oxidised_indices)
+    # print(reduced_indices)
     for i, p_i in enumerate(p_eq):
+        s = toti[i]
+        for j in range(n_rc):
+            if s[trap_indices[j]] == 1:
+                recomb += p_i * rc.rates["rec"]
+                trap_states.append(s)
+            if s[oxidised_indices[j]] == 1:
+                redox[j, 0] += p_i
+                ox_states.append(s)
+            if s[reduced_indices[j]] == 1:
+                redox[j, 1] += p_i
+                red_states.append(s)
         if i in lindices:
-            nu_ch2o += rc.rates["red"] * p_i
+            nu_e += rc.rates["red"] * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
@@ -319,7 +345,10 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                 "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
-                "nu_ch2o": nu_ch2o,
+                "trap_states": trap_states,
+                "ox_states": ox_states,
+                "red_states": red_states,
+                "nu_e": nu_e,
                 "nu_cyc": nu_cyc,
                 'a_l': a_l,
                 'e_l': e_l,
@@ -327,13 +356,13 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                 'k_b': k_b,
                 }
     else:
-        return nu_ch2o
+        return (nu_e, nu_cyc, redox, recomb)
 
 if __name__ == "__main__":
 
     spectrum, output_prefix = light.spectrum_setup("filtered", filter="red")
     print(len(spectrum[:, 0]))
-    n_b = 1
+    n_b = 2
     n_s = 1
     pigment = ['chl_a' for _ in range(n_s)]
     n_p = [70 for _ in range(n_s)]
@@ -357,13 +386,13 @@ if __name__ == "__main__":
     print(np.sum(od["k"][:side, :]))
     print(f"alpha = {constants.alpha}, rho = {rho}, aff = {aff}")
     print(f"p(0) = {od['p_eq'][0]}")
-    print(f"nu_ch2o = {od['nu_ch2o']}")
+    print(f"nu_e = {od['nu_e']}")
     print(f"nu_cyc = {od['nu_cyc']}")
 
     n_rc = len(rc.params[rc_type]["pigments"])
     sg = np.sum(od['gamma'][:n_rc]) + n_b * np.sum(od['gamma'][n_rc:])
     print(f"total excitation rate = {sg} s^-1")
-    print(f"'efficiency' = {(od['nu_ch2o'] + od['nu_cyc']) / sg}")
+    print(f"'efficiency' = {(od['nu_e'] + od['nu_cyc']) / sg}")
     print(f"k shape = {od['k'].shape}")
     for si, pi in zip(od["states"], od["p_eq"]):
         print(f"p_eq{si} = {pi}")
@@ -376,19 +405,28 @@ if __name__ == "__main__":
         f.write(f"alpha = {constants.alpha}, rho = {rho}, affinity = {aff}\n")
         f.write(f"gamma = {od['gamma']}\n")
         f.write(f"p(0) = {od['p_eq'][0]}\n")
-        f.write(f"nu_ch2o = {od['nu_ch2o']}\n")
+        f.write(f"nu_e = {od['nu_e']}\n")
         f.write(f"nu_cyc = {od['nu_cyc']}\n")
         f.write(f"sum(gamma) = {np.sum(od['gamma'])}\n")
         for si, pi in zip(od["states"], od["p_eq"]):
             f.write(f"p_eq{si} = {pi}\n")
         f.write(f"kb = {od['k_b']}\n")
 
-    # print("States counted for nu(CH2O):")
-    # for i in od["lindices"]:
-    #     print(f"{i}: {od['states'][i]}")
-    # print("States counted for nu(cyc):")
-    # for i in od["cycdices"]:
-    #     print(f"{i}: {od['states'][i]}")
+    print("States counted for nu(CH2O):")
+    for i in od["lindices"]:
+        print(f"{i}: {od['states'][i]}")
+    print("States counted for nu(cyc):")
+    for i in od["cycdices"]:
+        print(f"{i}: {od['states'][i]}")
+    print("Trap states")
+    for s in od["trap_states"]:
+        print(f"{s}")
+    print("Oxidised states")
+    for s in od["ox_states"]:
+        print(f"{s}")
+    print("Reduced states")
+    for s in od["red_states"]:
+        print(f"{s}")
     
     fig, ax = plt.subplots(nrows=len(names), figsize=(12,12), sharex=True)
     for i in range(len(names)):

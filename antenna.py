@@ -195,13 +195,11 @@ def solve(k, method='fortran', debug=False):
 
     elif method == 'scipy':
         try:
-            p_eq, p_eq_res = nnls(k, b)
+            p_eq, p_eq_res = nnls(k, b, maxiter=1000)
         except RuntimeError:
             p_eq = None
             p_eq_res = None
-            if debug:
-                print("RuntimeError - nnls reached iteration limit")
-
+            print("NNLS RuntimeError - reached iteration limit")
     return p_eq, p_eq_res
 
 def antenna(l, ip_y, p, overlaps, gammas, debug=False):

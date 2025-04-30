@@ -40,8 +40,6 @@ from scipy.constants import h, c, Avogadro, Boltzmann
 
 # AU in metres for stellar spectra
 AU = 149597870700
-'''
-'''
 
 def micromole_in_region(spectrum, lower, upper):
     '''
@@ -93,7 +91,7 @@ def stellar(**kwargs):
         print("Expected: 'Tstar', 'Rstar', 'a', 'attenuation'")
         print(f"Got: {kwargs}")
         raise
-    output_prefix = f"stellar_{T:6.4f}_a_{a:6.4f}AU"
+    output_prefix = f"stellar_{T:4d}_a_{a:6.4f}AU"
     a *= AU # convert to metres
     lambdas = np.linspace(*constants.x_lim, constants.nx)
     # spectral irradiance (W m^{-2} nm^{-1})
@@ -252,7 +250,9 @@ def spectrum_setup(spectrum_type, **kwargs):
     things.
     '''
     try:
-        spectrum, output_prefix = spectrum_type(**kwargs)
+        # get the corresponding function passed as a str via getattr
+        fn = getattr(sys.modules[__name__], spectrum_type)
+        spectrum, output_prefix = fn(**kwargs)
     except NameError:
         print("invalid spectrum type passed to light.spectrum_setup().")
         raise
@@ -284,9 +284,7 @@ def build(spectra_dicts):
     spectra = []
     out_prefs = []
     for sp in spectra_dicts:
-        # get the corresponding function passed as a str via getattr
-        fn = getattr(sys.modules[__name__], sp['type'])
-        s, out_pref = spectrum_setup(fn, **sp['kwargs'])
+        s, out_pref = spectrum_setup(sp['type'], **sp['kwargs'])
         spectra.append(s)
         out_prefs.append(out_pref)
     return zip(spectra, out_prefs)

@@ -13,6 +13,7 @@ import pandas as pd
 import constants
 import genetic_algorithm as ga
 import antenna as la
+import supersystem
 import plots
 import stats
 import light
@@ -20,27 +21,27 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
+    cost = 0.02 # temp
     # various other examples of dicts in light.py
     spectra_dicts = [
-            {'type': 'stellar', 'kwargs': {'Tstar': 5772, 'Rstar': 6.957e8, 'a': 1.0, 'attenuation': 0.0}},
+            {'type': 'stellar', 'kwargs': 
+             {'Tstar': 5772, 'Rstar': 6.957e8, 'a': 1.0, 'attenuation': 0.0}},
           ]
     light.check(spectra_dicts)
 
     dist_funcs, plot_funcs, scalars = stats.stat_parameters()
 
     # allocate this so hopefully it doesn't allocate 1 billion times
-    nu_phi = np.zeros(3, dtype=np.float64)
     init_type = 'proto' # see ga.new()
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
         pigment_list = [*constants.bounds['rc'],
                         *constants.bounds['pigment']]
-        overlaps, gammas = la.lookups(spectrum, pigment_list)
         l    = spectrum[:, 0]
         ip_y = spectrum[:, 1]
         print("Spectrum output name: ", out_name)
         outdir = os.path.join(constants.output_dir)
-        print("Output dir: {}".format(outdir))
+        print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
         os.makedirs(outdir, exist_ok=True)
@@ -71,8 +72,7 @@ if __name__ == "__main__":
             best = population[0]
             while gen < constants.max_gen:
                 for j, p in enumerate(population):
-                    nu_phi = la.antenna(l, ip_y, p,
-                                        overlaps, gammas, False)
+                    nu_e, nu_cyc, redox, recomb = supersystem.solve(l, ip_y, p)
                     '''
                     note - these are set by hand, since if I'm using
                     a non-Python kernel to do the calculations it might
@@ -80,12 +80,8 @@ if __name__ == "__main__":
                     can't update class members. might be worth adding
                     a function to wrap this though, i guess
                     '''
-                    p.nu_e  = nu_phi[0]
-                    # nu_phi[1] is the high intensity result,
-                    # nu_phi[2] is the limit at low intensity
-                    p.phi_e_g = nu_phi[1]
-                    p.phi_e = nu_phi[2]
-                    p.fitness = ga.fitness(p)
+                    p.nu_e = nu_e
+                    p.fitness = ga.fitness(p, cost)
                     fitnesses[j] = p.fitness
                     if (fitnesses[j] > fit_max):
                         fit_max = fitnesses[j]
