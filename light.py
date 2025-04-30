@@ -2,6 +2,31 @@
 """
 12/03/2024
 @author: callum
+
+light.py
+various helper functions to import or generate spectra.
+I've tried to be reasonably consistent here: each different kind of
+spectrum has its own function with (hopefully) a fairly obvious name.
+Each one takes **kwargs, and the functions check that any required
+arguments are there with a try/except block of the form
+```
+try: 
+    required_parameter = kwargs['required_parameter']
+except KeyError: 
+    print("invalid parameter") # print out relevant stuff here
+    raise # re-raise the exception
+```
+The reason for this is so that I can write one wrapper function,
+spectrum_setup, which just takes the function name and the required
+arguments and returns the spectrum and output prefix for the files,
+which hopefully makes it easier for the user.
+
+TO DO:
+- figure out a more consistent way of dealing with optional
+arguments or arguments for which there's a choice of options.
+- standardise the docstrings
+- write a little helper bit in spectrum_setup that returns the list of
+possible functions? maybe using inspect.get_members or something, idk yet
 """
 import os
 import sys
@@ -16,23 +41,6 @@ from scipy.constants import h, c, Avogadro, Boltzmann
 # AU in metres for stellar spectra
 AU = 149597870700
 '''
-various helper functions to import or generate spectra.
-I've tried to be reasonably consistent here: each different kind of
-spectrum has its own function with (hopefully) a fairly obvious name.
-Each one takes **kwargs, and the functions check that any required
-arguments are there with a try: except KeyError: block. if not,
-they print out what the function expects and what it got, then re-raise.
-The reason for this is so that I can write one wrapper function,
-spectrum_setup, which just takes the function name and the required
-arguments and returns the spectrum and output prefix for the files,
-which hopefully makes it easier for the user.
-
-TO DO:
-- figure out a more consistent way of dealing with optional
-arguments or arguments for which there's a choice of options.
-- standardise the docstrings
-- write a little helper bit in spectrum_setup that returns the list of
-possible functions? maybe using inspect.get_members or something, idk yet
 '''
 
 def micromole_in_region(spectrum, lower, upper):
@@ -276,6 +284,7 @@ def build(spectra_dicts):
     spectra = []
     out_prefs = []
     for sp in spectra_dicts:
+        # get the corresponding function passed as a str via getattr
         fn = getattr(sys.modules[__name__], sp['type'])
         s, out_pref = spectrum_setup(fn, **sp['kwargs'])
         spectra.append(s)
