@@ -112,9 +112,12 @@ def new(rng, init_type, **kwargs):
         n_p[i] = get_rand('n_p', rng)
         shift[i]  = get_rand('shift', rng)
         pigment[i]  = get_rand('pigment', rng)
+    for i in range(n_rc + 1):
         rho[i] = get_rand('rho', rng)
-        aff[i] = get_rand('aff', rng)
+        if i < n_rc:
+            aff[i] = get_rand('aff', rng)
     rho *= len(rho) / np.sum(rho) # normalisation
+    aff /= aff[-1] # affinity for ps_r always = 1
     return constants.Genome(nb, ns, n_p, shift, pigment,
             rc, rho, aff)
 

@@ -299,7 +299,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
     p_eq, p_eq_res = la.solve(k, method='scipy')
-    if p_eq == None:
+    if p_eq_res == None:
         print("NNLS failure. Genome details:")
         print(p)
         raise RuntimeError
