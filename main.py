@@ -71,8 +71,11 @@ if __name__ == "__main__":
             # initialise in case they all have 0 fitness
             best = population[0]
             while gen < constants.max_gen:
+                solver_failures = 0
                 for j, p in enumerate(population):
-                    nu_e, nu_cyc, redox, recomb = supersystem.solve(l, ip_y, p)
+                    nu_e, nu_cyc, redox, recomb, fail = supersystem.solve(l, ip_y, p)
+                    if fail < 0:
+                        solver_failures += 1
                     '''
                     note - these are set by hand, since if I'm using
                     a non-Python kernel to do the calculations it might
@@ -88,17 +91,20 @@ if __name__ == "__main__":
                         best = ga.copy(population[j])
                         gens_since_improvement = 0
                 # avgs for current generation
-                ca = stats.scalar_stats(population, scalars) 
+                ca = stats.scalar_stats(population, scalars)
                 avgs.append(ca)
                 print(f"Run {run}, gen {gen}:")
                 for s in scalars:
                     serr = f"{s}_err"
                     print(f"<{s}> = {ca[s]} +- {ca[serr]}")
+                print(f"solver failures: {solver_failures}")
                 print("")
                 if (gen % constants.hist_snapshot == 0):
                     # bar charts/histograms of Genome parameters
+                    print("doing stats")
                     zf[run].extend(stats.hists(population, dist_funcs,
-                                         plot_funcs, prefix, run, gen))
+                                         plot_funcs, prefix, run, gen,
+                                         do_plots=False))
                     # average absorption spectrum
                     avg_plot_prefix = f"{prefix}_{run}_{gen}_avg_spectrum"
                     zf[run].extend(plots.plot_average(population,

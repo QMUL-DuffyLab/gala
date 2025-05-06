@@ -4,8 +4,8 @@ $(info $(PREFIX))
 FC    = gfortran
 FLAGS = -std=f2018 -ffree-form
 FFLAGS = -Wall -Werror -pedantic -fcheck=all -I$(PREFIX)/include
-LDFLAGS = -L$(PREFIX)/lib -llapack -lblas -ljsonfortran -Wl,-rpath-link=$(PREFIX)/lib
-SOURCES = nnls.f antenna.f
+LDFLAGS = -L$(PREFIX)/lib -llapack -lblas -Wl,-rpath-link=$(PREFIX)/lib
+SOURCES = nnls.f90
 
 # if SHARED = 1 compile nnls module as a shared library
 # if SHARED = 0 compile standalone program to debug

@@ -10,6 +10,15 @@ import constants
 import plots
 import genetic_algorithm as ga
 
+'''
+NB: this isn't finished yet. ideally we want to keep track of whichever
+genome parameters are important, plus whichever other parameters are important
+(nu_e, etc.), and then put them all together and just call the stats functions
+once and let this module sort out which averaging functions need to be applied
+to which parameter. but i haven't fully sorted out how that's gonna work yet.
+'''
+things_to_average = ['n_b', 'n_s', 'rho', 'pigment']
+
 def stat_parameters():
     '''
     for an instance of dataclass Genome, return the set of
@@ -198,7 +207,8 @@ def string_dist(population, name, outfile):
     s.to_csv(outfile)
     return
 
-def hists(population, hist_functions, plot_functions, prefix, run, gen):
+def hists(population, hist_functions, plot_functions, prefix, run, gen,
+        do_plots=True):
     '''
     calculate distributions of parameters based on type.
     for float and array parameters, do histograms, otherwise
@@ -232,13 +242,15 @@ def hists(population, hist_functions, plot_functions, prefix, run, gen):
     subpops = {constants.bounds["rc"][j]:
                       sublists[j] for j in range(n_rc_types)}
     for field in dataclasses.fields(constants.Genome):
-        if hist_functions[field.name] is not None:
-            for rc_type, subpop in subpops.items():
-                outfile = f"{prefix}_{rc_type}_{field.name}_{run}_{gen}.txt"
-                hist_functions[field.name](subpop, field.name, outfile)
-                outfiles.append(outfile)
-                plotfile = plot_functions[field.name](outfile, field.name)
-                outfiles.append(plotfile)
+        if field.name in things_to_average:
+            if hist_functions[field.name] is not None:
+                for rc_type, subpop in subpops.items():
+                    outfile = f"{prefix}_{rc_type}_{field.name}_{run}_{gen}.txt"
+                    hist_functions[field.name](subpop, field.name, outfile)
+                    outfiles.append(outfile)
+                    if do_plots:
+                        plotfile = plot_functions[field.name](outfile, field.name)
+                        outfiles.append(plotfile)
     return outfiles
 
 def average_finals(prefix, plot_functions, spectrum):

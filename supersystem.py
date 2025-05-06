@@ -9,7 +9,7 @@ import light
 import antenna as la
 import rc
 
-def solve(l, ip_y, p, debug=False, nnls='scipy',
+def solve(l, ip_y, p, debug=False, nnls='fortran',
         detrap_type="none", tau_diff=0.0):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
@@ -298,11 +298,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
 
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res = la.solve(k, method='scipy')
-    if p_eq_res == None:
-        print("NNLS failure. Genome details:")
-        print(p)
-        raise RuntimeError
+    p_eq, p_eq_res = la.solve(k, method='fortran')
 
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
@@ -318,6 +314,19 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
     # print(trap_indices)
     # print(oxidised_indices)
     # print(reduced_indices)
+
+    '''
+    check here whether the solver actually found a solution or not.
+    do it here because redox and recomb have to be allocated, otherwise
+    the shapes of the returned values would differ based on the
+    success/failure of the solver, and we don't want that.
+    if it failed, return a tuple that tells main.py it failed
+    '''
+    if p_eq_res == None:
+        print("NNLS failure. Genome details:")
+        print(p)
+        return (nu_e, nu_cyc, redox, recomb, -1)
+
     for i, p_i in enumerate(p_eq):
         s = toti[i]
         for j in range(n_rc):
@@ -356,7 +365,7 @@ def solve(l, ip_y, p, debug=False, nnls='scipy',
                 'k_b': k_b,
                 }
     else:
-        return (nu_e, nu_cyc, redox, recomb)
+        return (nu_e, nu_cyc, redox, recomb, 0)
 
 if __name__ == "__main__":
 
