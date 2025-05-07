@@ -2,43 +2,202 @@
 """
 22/11/2023
 @author: callum
-"""
 
+GA version 2, 7/5/25 - dataclass itself and various other things are
+just generated as needed from the dict genome_parameters.
+
+NB: this currently depends on the fact that rc and n_s are defined
+in the dict genome_parameters before the things that depend on them;
+it doesn't actually check when generating a new genome (i.e. the
+"affects" parameter in there currently does nothing). 
+There's probably a way to do this more cleverly, 
+but I haven't figured it out yet. Unsure it's necessary.
+"""
+import dataclasses
 import numpy as np
 import scipy.stats as ss
 import constants
-import rc as rc_setup
+import rc as rcm
+
+genome_parameters = {
+    'rc': {
+        'type'   : str,
+        'array'  : False,
+        'default' : '',
+        'affects' : ['rho', 'aff'],
+        'bounds' : ['ox', 'frl', 'anox', 'exo'],
+        'norm'   : None
+    },
+    'n_b': {
+        'type'   : int,
+        'default': 0,
+        'array'  : False,
+        'bounds' : [1, 12],
+        'norm'   : None,
+    },
+    'n_s': {
+        'type'   : int,
+        'default': 0,
+        'array'  : False,
+        'affects': ['n_p', 'shift', 'pigment'],
+        'bounds' : [1, 10],
+        'norm'   : None,
+    },
+    'n_p': {
+        'type'    : int,
+        'array'   : True,
+        'size'    : lambda g: getattr(g, "n_s"),
+        'depends' : 'n_s',
+        'bounds'  : [1, 100],
+        'norm'    : None,
+    },
+    'shift': {
+        'type'    : int,
+        'array'   : True,
+        'size'    : lambda g: getattr(g, "n_s"),
+        'bounds'  : [-1, 1],
+        'norm'    : None,
+    },
+    'pigment': {
+        'type'    : 'U10',
+        'array'   : True,
+        'size'    : lambda g: getattr(g, "n_s"),
+        'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
+        'norm'    : None,
+    },
+    'rho': {
+        'type'    : float,
+        'array'   : True,
+        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
+        # note that this is a bit fake - upper bound must just be
+        # >= the largest possible sum
+        'bounds'  : [0.1, 5.0],
+        'norm'    : lambda p: p * (len(p) / np.sum(p)),
+    },
+    'aff': {
+        'type'    : float,
+        'array'   : True,
+        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')],
+        'bounds'  : [0.1, 10.0],
+        'norm'    : lambda p: p / p[-1],
+    },
+}
+
+# construct a new dataclass definition from the dict given above
+# this (hopefully) makes it easier to see what is in the genome
+# as well as to change it where necessary.
+fields = []
+for key in genome_parameters:
+    tt = genome_parameters[key]["type"]
+    if genome_parameters[key]["array"]:
+        fields.append((key, np.ndarray,
+            dataclasses.field(default_factory=lambda:np.empty([], dtype=tt))))
+    else:    
+        fields.append((key, tt, dataclasses.field(default=genome_parameters[key]["default"])))
+Genome = dataclasses.make_dataclass('Genome', fields)
 
 def get_type(parameter):
     ''' get parameter type to declare numpy array correctly '''
-    test = constants.bounds[parameter][0]
-    if (isinstance(test, (int, np.integer))):
+    b = genome_parameters[parameter]['bounds']
+    if (isinstance(b[0], (int, np.integer))):
         dt = np.int32
-    elif (isinstance(test, (float, np.float64))):
+    elif (isinstance(b[0], (float, np.float64))):
         dt = np.float64
-    elif (isinstance(test, (str, np.str_))):
+    elif (isinstance(b[0], (str, np.str_))):
         dt = 'U10'
     else:
         raise TypeError("get_type cannot determine parameter type.")
     return dt
 
-def get_rand(parameter, rng, array_size=1):
-    ''' get a single random number or choice depending on parameter '''
-    bounds = constants.bounds[parameter]
-    if (isinstance(bounds[0], (int, np.integer))):
-        r = rng.integers(*bounds, endpoint=True)
-    elif (isinstance(bounds[0], (float, np.float64))):
-        r = rng.uniform(*bounds)
-    elif (isinstance(bounds[0], (str, np.str_))):
-        r = rng.choice(bounds)
+def get_rand(rng, parameter):
+    '''
+    get a single random value based on the type
+    of the given bounds of the parameter. note that
+    even though we give a variable type in the dict,
+    it's not used here, because the dtype of pigment is
+    actually U10 for numpy reasons and the type check
+    will fail there. so just make sure that the
+    bounds are the correct type; they should be anyway.
+    note - numpy must be doing some internal conversion
+    somewhere but i'm not sure how it works exactly. do
+    not look the gift horse in the mouth.
+    '''
+    b = genome_parameters[parameter]['bounds']
+    if isinstance(b[0], (int, np.integer)):
+        r = rng.integers(*b, endpoint=True)
+    elif isinstance(b[0], (float, np.float64)):
+        r = rng.uniform(*b)
+    elif isinstance(b[0], (str, np.str_)):
+        r = rng.choice(b)
     else:
-        raise TypeError("get_rand cannot determine parameter type.")
+        t = genome_parameters[param]['type']
+        raise TypeError(f"get_rand failed on {param}, type {t}")
     return r
+
+def new(rng, **kwargs):
+    '''
+    create a new instance of the dataclass defined above.
+    there are a few ways of doing this: firstly, you can
+    supply a kwarg "template", which should be an instance
+    of the *same* dataclass defined above, and it'll just
+    be copied in. to go with that, you can also add a
+    kwarg "variability" as a float between 0 and 1,
+    which controls the likelihood of mutation.
+    
+    otherwise, you can pass kwargs with values to "clamp"
+    those parameters. for example, to force every instance
+    to have one branch and one subunit in the antenna,
+    add `**{"n_b": 1, "n_s": 1}`. the code will set those
+    and then loop over the remaining parameters and randomise
+    '''
+    g = Genome()
+    if 'template' in kwargs:
+        g = Genome(kwargs['template'])
+        if 'variability' in kwargs:
+            if rng.random() < kwargs['variability']:
+                mutation(rng, g)
+        return g
+    
+    for k, v in kwargs.items():
+        setattr(g, k, v)
+    # now set the other things randomly. the reason for the dict
+    # comprehension being like this rather than just a set
+    # subtraction is that we want to keep ordering - see the
+    # module docstring comment about parameter dependency
+    other_params = {k: genome_parameters[k] for k in
+                    genome_parameters.keys() if k not in kwargs.keys()}
+    for name, param in other_params.items():
+        if param['array']:
+            p = np.zeros(param['size'](g), dtype=param['type'])
+            for i in range(param['size'](g)):
+                p[i] = get_rand(rng, name)
+            if param['norm'] is not None:
+                p = param['norm'](p)
+            setattr(g, name, p)
+        else:
+            setattr(g, name, get_rand(rng, name))
+    return g
+
+def copy(g):
+    '''
+    return a copy of g
+    '''
+    h = Genome()
+    for key in genome_parameters.keys():
+        setattr(h, key, getattr(g, key))
+    return h
+
+def fitness(g, nu_e, cost):
+    '''
+    hmm.
+    '''
+    return (nu_e - cost * ((g.n_b * np.sum(g.n_p)) 
+                           + np.sum(rcm.params[g.rc]['n_p'])))
 
 def fill_arrays(rng, parent_values, res_length, parameter):
     '''
-    the number of subunits a child has might be smaller
-    or larger than one or both of its parents. we make sure
+    the length of a subunit/RC dependent array a child has might be
+    smaller or larger than one or both of its parents. we make sure
     we have two arrays of the relevant parameter that are
     the right length for the child and then perform recombination
     elementwise on those. fill_arrays takes the values from
@@ -58,101 +217,18 @@ def fill_arrays(rng, parent_values, res_length, parameter):
                 result[j][i] = parent_values[j][len(parent_values[j]) - 1]
     return result
 
-def new(rng, init_type, **kwargs):
+def tournament(rng, population, fitnesses, k, cost):
     '''
-    Initialise one individual from our population.
-    Multiple ways of doing this, controlled by string arg init_type.
-    NB : could have a kwargs here with a getattr call so that
-    we can make random antennae with specific properties if necessary
+    tournament selection with tournament size k.
+    return the most fit individual after k random samples
     '''
-    # NB: the rho_ox need some thought: they're constrained by their sum
-    # to (n_rc + 1). so will need to write a custom function in get_rand
-    # to do that, and also consider how mutation works
-    rc = get_rand('rc', rng)
-    n_rc = len(rc_setup.params[rc]["pigments"])
-    if init_type == 'template':
-        '''
-        initialise according to a template. two required kwargs:
-        'template' -> an instance of constants.Genome as the template
-        'variability' -> [0.0, 1.0], mutation rate of the template.
-        '''
-        if 'antenna' not in kwargs:
-            raise KeyError("Antenna not defined for template init")
-        if 'variability' not in kwargs:
-            raise KeyError("Variability not defined for template init")
-        # this has to be a copy, otherwise every single member of the
-        # population will just be a reference to the same bit of memory
-        g = copy(kwargs['antenna'])
-        if rng.random() < kwargs['variability']:
-            g = mutation(rng, kwargs['antenna'])
-        return g
-    if init_type == 'proto':
-        '''
-        Assumes every individual at the start is an
-        identically structured prototypical antenna with
-        one branch and one subunit, random n_p and pigment
-        '''
-        nb = 1
-        ns = 1
-    elif init_type == 'random': # random initialisation
-        '''
-        Each branch is (currently) assumed to be identical!
-        First randomise n_branches, then n_subunits.
-        Then generate n_s random subunits
-        '''
-        nb = get_rand('n_b', rng)
-        ns = get_rand('n_s', rng)
-    n_p = np.zeros(ns, dtype=np.int32)
-    shift = np.zeros(ns, dtype=np.float64)
-    pigment = np.empty(ns, dtype='U10')
-    # rho has a separate method in get_rand that returns an array
-    rho = np.zeros(n_rc + 1, dtype=np.float64)
-    aff = np.zeros(n_rc, dtype=np.float64)
-    for i in range(ns):
-        n_p[i] = get_rand('n_p', rng)
-        shift[i]  = get_rand('shift', rng)
-        pigment[i]  = get_rand('pigment', rng)
-    for i in range(n_rc + 1):
-        rho[i] = get_rand('rho', rng)
-        if i < n_rc:
-            aff[i] = get_rand('aff', rng)
-    rho *= len(rho) / np.sum(rho) # normalisation
-    aff /= aff[-1] # affinity for ps_r always = 1
-    return constants.Genome(nb, ns, n_p, shift, pigment,
-            rc, rho, aff)
-
-def copy(g):
-    ''' return a new identical genome. useful for testing '''
-    return constants.Genome(g.n_b, g.n_s, g.n_p, g.shift,
-        g.pigment, g.rc, g.rho, g.aff, g.connected,
-        g.nu_e, g.phi_e_g, g.phi_e, g.fitness)
-
-def fitness(g, cost):
-    '''
-    g: instance of constants.Genome
-    cost: cost per pigment. once we fix this it can be removed
-    from here and selection below, and turned back into a constant.
-    obviously higher electron output is what's primarily wanted,
-    but the bigger the antenna is, the more of those electrons
-    have to be used building and maintaining the antenna, so
-    we subtract a certain amount per pigment as our proxy for fitness.
-
-    we set a hard limit of zero fitness here; in principle we could
-    allow negative fitness values to allow the system to get out of a
-    bad initial place in the fitness surface, but this would mess with the
-    selection procedure below, so it's (currently) not allowed.
-    '''
-    f = (g.nu_e - (cost * g.n_b * np.sum(g.n_p)))
-    return f if f > 0.0 else 0.0
-
-def tournament(population, k, rng, cost):
     fit_max = 0.0
     for i in range(k):
         ind = rng.integers(constants.population_size)
         winner = ind # if they all have 0 fitness, just take the first
         p = population[ind]
-        if (fitness(p, cost) > fit_max):
-            fit_max = fitness(p, cost)
+        if (fitnesses[ind] > fit_max):
+            fit_max = fitnesses[ind]
             winner = ind
     return population[winner]
 
@@ -195,50 +271,63 @@ def selection(rng, population, fitnesses, cost):
     elif constants.selection_strategy == 'tournament':
         survivors = []
         for i in range(n_survivors):
-            survivors.append(tournament(population, constants.tourney_k, rng, cost))
+            survivors.append(tournament(rng, population, fitnesses,
+                                        constants.tourney_k, cost))
     else:
         raise ValueError("Invalid selection strategy")
     return survivors
 
-def recombine(vals, parameter, rng):
+def recombine(rng, vals, parameter):
     '''
     perform intermediate recombination of parameters
     where possible, and a straight choice in the case of
-    pigment type, for a single subunit.
+    pigment type, for a single array element
     '''
     d = constants.d_recomb
-    bounds = constants.bounds[parameter]
+    bounds = genome_parameters[parameter]['bounds']
     if parameter == 'pigment' or parameter == 'rc': # binary choice
         new = rng.choice(vals)
     else:
         b = rng.uniform(-d, 1 + d)
         new = vals[0] * b + vals[1] * (1 - b)
-        while new < bounds[0] or new > bounds[1]:
-            b = rng.uniform(-d, 1 + d)
-            new = vals[0] * b + vals[1] * (1 - b)
+        tries = 1
+        # NB: this is a bit of a stopgap, and i'm not sure if it's
+        # acceptable to do in general or not. basically my current
+        # thinking is that if there's a norm defined, then applying
+        # that should always produce an acceptable result, so don't
+        # worry about the bounds here. but idk
+        if genome_parameters[parameter]['norm'] is None:
+            while new < bounds[0] or new > bounds[1]:
+                b = rng.uniform(-d, 1 + d)
+                new = vals[0] * b + vals[1] * (1 - b)
+                tries += 1
+                if tries > 100:
+                    print(f"{parameter}, {tries}, {new}, {vals}, {b}, {bounds}")
         if isinstance(bounds[0], (int, np.integer)):
             new = np.round(new).astype(int)
     return new
 
-def crossover(child, parents, parameter, rng, subunit):
+def crossover(rng, child, parents, parameter):
     '''
     '''
     parent_vals = [getattr(p, parameter) for p in parents]
     dt = get_type(parameter)
-    if subunit:
+    if genome_parameters[parameter]['array']:
         '''
-        if this is a per-subunit parameter, the number of subunits on
+        if this is an array parameter, the size of the array on
         the child might be larger or smaller than one or both parents,
         so we generate two arrays of the correct size to recombine from.
-        see fill_arrays for more explanation
+        see fill_arrays for more explanation.
+        note that the current size of the array might be wrong if
+        RC type or n_s has changed, so check what size it *should* be
         '''
-        s = child.n_s
+        s = genome_parameters[parameter]['size'](child)
         vals = fill_arrays(rng, parent_vals, s, parameter)
     else:
         s = 1
         vals = parent_vals
     if s == 1:
-        new = recombine(vals, parameter, rng)
+        new = recombine(rng, vals, parameter)
     else:
         new = np.zeros(s, dtype=dt)
         for i in range(s):
@@ -249,9 +338,9 @@ def crossover(child, parents, parameter, rng, subunit):
             which significantly reduces the possible variation
             '''
             v = [vals[j][i] for j in range(2)]
-            new[i] = recombine(v, parameter, rng)
-    if parameter == "rho": # normalise
-        new *= len(new) / np.sum(new)
+            new[i] = recombine(rng, v, parameter)
+    if genome_parameters[parameter]['norm'] is not None: # normalise
+        new = genome_parameters[parameter]['norm'](new)
     setattr(child, parameter, new)
 
 def reproduction(rng, survivors, population):
@@ -280,39 +369,35 @@ def reproduction(rng, survivors, population):
         # pick two different parents from the survivors
         p_i = rng.choice(len(survivors), 2, replace=False)
         parents = [survivors[p_i[i]] for i in range(2)]
-        crossover(child, parents, 'n_b', rng, False)
-        crossover(child, parents, 'n_s', rng, False)
-        for p in constants.subunit_params:
-            crossover(child, parents, p, rng, True)
+        for parameter in genome_parameters:
+            crossover(rng, child, parents, parameter)
     return population
 
-def mutate(genome, parameter, rng, subunit=None):
+def mutate(rng, genome, parameter, index=None):
     '''
     mutate a parameter with a given name.
     getattr/setattr can be used to get the right dataclass fields.
-    if the parameter we're mutating is a per-subunit one, index into
+    if the parameter we're mutating is an array, index into
     getattr to get the right element. we also need to check type,
     since if we're mutating n_s we need to have integer extents and
     indices into the resulting arrays.
-    NB: this won't work for rho as it is; need to think of a way of
-    this (and affinity)
     '''
-    if subunit is not None:
-       current = getattr(genome, parameter)[subunit]
+    if index is not None:
+        current = getattr(genome, parameter)[index]
     else:
-       current = getattr(genome, parameter)
+        current = getattr(genome, parameter)
+    bounds = genome_parameters[parameter]['bounds']
     if parameter == 'pigment' or parameter == 'rc':
-        new = rng.choice(constants.bounds[parameter])
+        new = rng.choice(bounds)
     else:
-        b = constants.bounds[parameter]
-        scale = (b[1] - b[0]) * constants.mu_width
-        b = (constants.bounds[parameter] - current) / (scale)
+        scale = (bounds[1] - bounds[0]) * constants.mu_width
+        b = (bounds - current) / (scale)
         new = ss.truncnorm.rvs(b[0], b[1], loc=current,
                                scale=scale, random_state=rng)
         if isinstance(current, (int, np.integer)):
             new = new.round().astype(int)
-    if subunit is not None:
-        getattr(genome, parameter)[subunit] = new
+    if index is not None:
+        getattr(genome, parameter)[index] = new
     else:
         setattr(genome, parameter, new)
 
@@ -328,50 +413,138 @@ def mutation(rng, individual):
     I think it's acceptable to just loop over all parameters since they
     are all independent quantities?
     '''
-    mutate(individual, 'n_b', rng, None)
-    # n_s - we also have to update arrays here
-    # bit ugly but i haven't thought of a neater way yet
-    current = individual.n_s
-    mutate(individual, 'n_s', rng, None)
-    new = individual.n_s
-    if current < new:
-        # add subunits as necessary
-        # NB: we assume new subunits are copies of the tail subunit
-        for p in constants.subunit_params:
-            c = getattr(individual, p)
-            # i think setting refcheck to false is fine?
-            # it seems to work, and i only reference it here
-            c.resize(new, refcheck=False)
-            for i in range(new - current):
-                c[-(i + 1)] = c[current - 1]
-    elif current > new:
-        # delete the last (new - current) elements
-        for p in constants.subunit_params:
-            np.delete(getattr(individual, p), new - current)
-    # now pick a random subunit to apply these mutations to.
-    # note that this is also a choice about how the algorithm works,
-    # and it's not the only possible way to apply a mutation!
-    for p in constants.subunit_params:
-        s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
-        mutate(individual, p, rng, s)
-
-    # assume the RC's fixed for a given genome
-    current_n_rc = len(rc_setup.params[individual.rc]["pigments"])
-    mutate(individual, 'rc', rng, None)
-    new_n_rc = len(rc_setup.params[individual.rc]["pigments"])
-    if current_n_rc < new_n_rc:
-        individual.rc.resize(new_n_rc + 1, refcheck=False)
-        individual.aff.resize(new_n_rc, refcheck=False)
-    elif current_n_rc > new_n_rc:
-        np.delete(individual.rho, (new_n_rc + 1) - (current_n_rc + 1))
-        np.delete(individual.aff, (new_n_rc) - (current_n_rc))
-    for i in range(new_n_rc + 1):
-        mutate(individual, 'rho', rng, None)
-        if i < new_n_rc:
-            mutate(individual, 'aff', rng, None)
-    # make sure rho is still normalised correctly. i think this is fine
-    rho = getattr(individual, 'rho')
-    rho *= len(rho) / np.sum(rho)
-    setattr(individual, 'rho', rho)
-
+    for name, param in genome_parameters.items():
+        if param['array']:
+            # check the size first - has it changed?
+            current = getattr(individual, name)
+            current_size = len(current)
+            new_size = param['size'](individual)
+            if current_size != new_size:
+                current.resize(new_size, refcheck=False)
+                if new_size > current_size:
+                    # resize pads with zeros - fill with copies
+                    # of the last element instead
+                    for i in range(new_size - current_size):
+                        current[-(i + 1)] = current[current_size - 1]
+            # the way i've had it set up is to only mutate
+            # one element of each array; this is just one
+            # choice. maybe chat to chris about it, but for now
+            # copy the previous behaviour
+            setattr(individual, name, current)
+            index = rng.integers(0, new_size)
+            mutate(rng, individual, name, index)
+        else:
+            mutate(rng, individual, name, None)
+        if param['norm'] is not None:
+            setattr(individual, name,
+                    param['norm'](getattr(individual, name)))
     return individual
+
+def evolve(rng, population, fitnesses, cost):
+    '''
+    apply the whole GA and return the next generation
+    '''
+    survivors = selection(rng, population, fitnesses, cost)
+    population = reproduction(rng, survivors, population)
+    n_mutations = 0
+    for j in range(constants.population_size):
+        p = rng.random()
+        if p < constants.mu_rate:
+            population[j] = mutation(rng, population[j])
+            n_mutations += 1
+    return population
+
+def test_parameters(individual):
+    '''
+    check that everything is as it should be
+    add any other assertions we can make here
+    NB: this doesn't work for rho and aff in particular,
+    since the normalisation can pull individual elements
+    out of the bounds. is there a way to fix that? need to
+    think.
+    '''
+    for name, param in genome_parameters.items():
+        val = getattr(individual, name)
+        b = param['bounds']
+        if param['array']:
+            assert param['size'](individual) == len(val),\
+            f"{name}, {len(val)}, {param['size'](individual)}"
+            if param['norm'] is not None:
+                assert np.all(param['norm'](val) - val < 1e-6),\
+                    f"norm failed for {name}: {val}, {param['norm'](val)}"
+            else:
+                for i, vi in enumerate(val):
+                    if isinstance(vi, (str, np.str_)):
+                        assert vi in b, f"{vi} not in {b}"
+                    else:
+                        assert vi >= b[0] and vi <= b[1],\
+                        f"bounds:{name}, {val}, {i}, {vi}, {b}" 
+        else:
+            if isinstance(val, (str, np.str_)):
+                assert val in b, f"{val} not in {b}"
+            else:
+                assert val >= b[0] and val <= b[1],\
+                f"bounds: {name}, {val}, {b}" 
+
+if __name__ == "__main__":
+    '''
+    need to do this testing stuff properly. calculate the fitnesses
+    properly, do the algorithm properly, run it for 20 generations, do
+    the stats
+    '''
+    n = constants.population_size
+    test_gens = 10
+    cost = 0.02
+    rng = np.random.default_rng()
+    fitnesses  = np.array([100 * rng.random()
+        for _ in range(n)])
+    # test random generation
+    random_pop = []
+    for i in range(n):
+        random_pop.append(new(rng))
+
+    for i, genome in enumerate(random_pop):
+        try:
+            test_parameters(genome)
+        except AssertionError:
+            print("Assertion failed in check_parameters.")
+            print(f"Genome {i}: {genome}")
+            raise
+    print("initial random population passed assertions.")
+    for i in range(test_gens):
+        old_pop = [copy(g) for g in random_pop]
+        random_pop = evolve(rng, random_pop, fitnesses, cost)
+        for j, genome in enumerate(random_pop):
+            try:
+                test_parameters(genome)
+            except AssertionError:
+                print("Assertion failed in check_parameters.")
+                print(f"Genome {j}: {genome}")
+                print(f"Genome {j} before mutation: {old_pop[j]}")
+                raise
+        print(f"random population passed assertions at gen {i}.")
+
+    # test proto generation
+    random_pop = [new(rng, **{'n_b': 1, 'n_s': 1})
+            for _ in range(n)]
+
+    for i, genome in enumerate(random_pop):
+        try:
+            test_parameters(genome)
+        except AssertionError:
+            print("Assertion failed in check_parameters.")
+            print(f"Genome {i}: {genome}")
+            raise
+    print("initial proto population passed assertions.")
+    for i in range(test_gens):
+        old_pop = [copy(g) for g in random_pop]
+        random_pop = evolve(rng, random_pop, fitnesses, cost)
+        for j, genome in enumerate(random_pop):
+            try:
+                test_parameters(genome)
+            except AssertionError:
+                print("Assertion failed in check_parameters.")
+                print(f"Genome {j}: {genome}")
+                print(f"Genome {j} before mutation: {old_pop[j]}")
+                raise
+        print(f"proto population passed assertions at gen {i}.")

@@ -239,29 +239,6 @@ def solve(l, ip_y, p, debug=False, nnls='fortran',
 
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
-                if p.connected:
-                    prevind = ind - (p.n_s * n_rc_states)
-                    nextind = ind + (p.n_s * n_rc_states)
-                    branch_number = (jind - n_rc - 1) // p.n_s
-                    if branch_number == 0: # first branch
-                        prevind -= n_rc_states
-                    if branch_number == (p.n_b - 1): # final branch
-                        nextind += n_rc_states
-                    # PBCs, essentially
-                    if prevind < 0:
-                        prevind += side
-                    if nextind >= side:
-                        nextind -= side
-                    '''
-                    two pairs of transfers are possible, between
-                    clockwise and anticlockwise neighbour blocks.
-                    branches are identical so dG \equiv 0
-                    '''
-                    twa[ind][nextind] = constants.k_hop
-                    twa[nextind][ind] = constants.k_hop
-                    twa[ind][prevind] = constants.k_hop
-                    twa[prevind][ind] = constants.k_hop
-
                 # index on branch
                 bi = (jind - n_rc - 1) % p.n_s
                 twa[i][ind] = gamma[n_rc + bi] # absorption by this block

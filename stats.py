@@ -41,8 +41,8 @@ def stat_parameters():
     dist_functions = {}
     plot_functions = {}
     scalars = []
-    g = constants.Genome() # i think we need to make one to do isinstance below
-    for field in dataclasses.fields(constants.Genome):
+    g = ga.Genome() # i think we need to make one to do isinstance below
+    for field in dataclasses.fields(ga.Genome):
         attr = getattr(g, field.name)
         if isinstance(attr, np.ndarray):
             dist_functions[field.name] = array_dist

@@ -31,12 +31,11 @@ if __name__ == "__main__":
 
     dist_funcs, plot_funcs, scalars = stats.stat_parameters()
 
-    # allocate this so hopefully it doesn't allocate 1 billion times
-    init_type = 'proto' # see ga.new()
+    init_kwargs = {'n_b': 1, 'n_s': 1} # see ga.new()
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
-        pigment_list = [*constants.bounds['rc'],
-                        *constants.bounds['pigment']]
+        # NB: overlaps and stuff should be calculated here
+        # if we're doing that
         l    = spectrum[:, 0]
         ip_y = spectrum[:, 1]
         print("Spectrum output name: ", out_name)
@@ -51,7 +50,9 @@ if __name__ == "__main__":
         zf = [ [] for _ in range(constants.n_runs)]
         for run in range(constants.n_runs):
             end_run = False
-            population = [None for _ in range(constants.population_size)]
+            # initialise population
+            population = [ga.new(rng, **init_kwargs)
+                    for _ in range(constants.population_size)]
             fitnesses = np.zeros(constants.population_size)
             best_file = f"{prefix}_best_{run}.txt"
             with open(best_file, "w") as f:
@@ -63,29 +64,17 @@ if __name__ == "__main__":
             rfm = deque(maxlen=constants.conv_gen)
             gen = 0
             gens_since_improvement = 0
-            # initialise population
-            for j in range(constants.population_size):
-                population[j] = ga.new(rng, init_type)
-
             fit_max = 0.0
             # initialise in case they all have 0 fitness
             best = population[0]
             while gen < constants.max_gen:
                 solver_failures = 0
                 for j, p in enumerate(population):
+                    # NB: wrap these up somehow for stat calc
                     nu_e, nu_cyc, redox, recomb, fail = supersystem.solve(l, ip_y, p)
                     if fail < 0:
                         solver_failures += 1
-                    '''
-                    note - these are set by hand, since if I'm using
-                    a non-Python kernel to do the calculations it might
-                    not be aware of the dataclass structure and so
-                    can't update class members. might be worth adding
-                    a function to wrap this though, i guess
-                    '''
-                    p.nu_e = nu_e
-                    p.fitness = ga.fitness(p, cost)
-                    fitnesses[j] = p.fitness
+                    fitnesses[j] = ga.fitness(p, nu_e, cost)
                     if (fitnesses[j] > fit_max):
                         fit_max = fitnesses[j]
                         best = ga.copy(population[j])
@@ -113,6 +102,11 @@ if __name__ == "__main__":
                             xlim=constants.x_lim,
                             label=r'$ \left<A(\lambda)\right> $'))
 
+                with open(best_file, "a") as f:
+                    f.write(str(best).strip('\n'))
+                    f.write("\n")
+                f.close()
+
                 # check convergence before applying GA
                 rfm.append(ca['fitness'])
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
@@ -125,24 +119,15 @@ if __name__ == "__main__":
                     or gens_since_improvement > constants.conv_gen):
                     print("Converged at gen {}".format(gen))
                     break
-
                 try:
-                    survivors = ga.selection(rng, population, fitnesses, cost)
+                    population = ga.evolve(rng, population,
+                            fitnesses, cost)
                 except ValueError:
-                    print("Resetting and trying again.")
+                    print("Selection failed. Resetting")
                     end_run = True
                     do_averages = False
                     break
 
-                with open(best_file, "a") as f:
-                    f.write(str(best).strip('\n'))
-                    f.write("\n")
-                f.close()
-                population = ga.reproduction(rng, survivors, population)
-                for j in range(constants.population_size):
-                    p = rng.random()
-                    if p < constants.mu_rate:
-                        population[j] = ga.mutation(rng, population[j])
                 gen += 1
                 gens_since_improvement += 1
 
