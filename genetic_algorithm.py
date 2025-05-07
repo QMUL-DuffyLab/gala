@@ -266,6 +266,8 @@ def reproduction(rng, survivors, population):
         n_carried = 0
     elif constants.reproduction_strategy == 'steady':
         n_carried = len(survivors)
+    elif constants.reproduction_strategy == 'tournament':
+        n_carried = len(survivors)
     else:
         raise ValueError("Invalid reproduction strategy")
 
@@ -326,8 +328,6 @@ def mutation(rng, individual):
     I think it's acceptable to just loop over all parameters since they
     are all independent quantities?
     '''
-    # assume the RC's fixed for a given genome
-    # mutate(individual, 'rc', rng, None)
     mutate(individual, 'n_b', rng, None)
     # n_s - we also have to update arrays here
     # bit ugly but i haven't thought of a neater way yet
@@ -355,10 +355,19 @@ def mutation(rng, individual):
         s = rng.integers(1, individual.n_s) if individual.n_s > 1 else 0
         mutate(individual, p, rng, s)
 
-    n_rc = len(rc_setup.params[individual.rc]["pigments"])
-    for i in range(n_rc + 1):
+    # assume the RC's fixed for a given genome
+    current_n_rc = len(rc_setup.params[individual.rc]["pigments"])
+    mutate(individual, 'rc', rng, None)
+    new_n_rc = len(rc_setup.params[individual.rc]["pigments"])
+    if current_n_rc < new_n_rc:
+        individual.rc.resize(new_n_rc + 1, refcheck=False)
+        individual.aff.resize(new_n_rc, refcheck=False)
+    elif current_n_rc > new_n_rc:
+        np.delete(individual.rho, (new_n_rc + 1) - (current_n_rc + 1))
+        np.delete(individual.aff, (new_n_rc) - (current_n_rc))
+    for i in range(new_n_rc + 1):
         mutate(individual, 'rho', rng, None)
-        if i < n_rc:
+        if i < new_n_rc:
             mutate(individual, 'aff', rng, None)
     # make sure rho is still normalised correctly. i think this is fine
     rho = getattr(individual, 'rho')

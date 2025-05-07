@@ -136,6 +136,7 @@ def parameters(pigments, gap):
                         procs.update({tuple(diff): "red"})
     params = {
             "pigments": pigments,
+            "n_p": [constants.pigment_data[p]['n_p'] for p in pigments],
             "gap": gap,
             "states": states, # use an index to return a state
             "indices": indices, # use tuple of state to return index
@@ -152,6 +153,8 @@ params = {
     "anox": parameters(["ps_anox"], 10.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
+
+n_rc = {rct: len(params[rct]["pigments"]) for rct in params.keys()}
 
 def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=False):
     '''
