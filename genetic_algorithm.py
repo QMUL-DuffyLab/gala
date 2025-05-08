@@ -83,6 +83,18 @@ genome_parameters = {
     },
 }
 
+def check_bounds(arr, parameter):
+    '''
+    check that every element of an array is acceptable.
+    takes an array rather than genome argument since we
+    don't want the array to be set until it's acceptable
+    '''
+    b = genome_parameters[parameter]['bounds']
+    if isinstance(b[0], (str, np.str_)):
+        return(np.array([a in b for a in arr]).all())
+    else:
+        return ((arr >= b[0]).all() and (arr <= b[1]).all())
+
 # construct a new dataclass definition from the dict given above
 # this (hopefully) makes it easier to see what is in the genome
 # as well as to change it where necessary.
@@ -180,10 +192,13 @@ def new(rng, **kwargs):
     for name, param in other_params.items():
         if param['array']:
             p = np.zeros(param['size'](g), dtype=param['type'])
-            for i in range(param['size'](g)):
-                p[i] = get_rand(rng, name)
-            if param['norm'] is not None:
-                p = param['norm'](p)
+            all_in_bounds = False
+            while not all_in_bounds:
+                for i in range(param['size'](g)):
+                    p[i] = get_rand(rng, name)
+                if param['norm'] is not None:
+                    p = param['norm'](p)
+                all_in_bounds = check_bounds(p, name)
             setattr(g, name, p)
         else:
             setattr(g, name, get_rand(rng, name))
@@ -337,8 +352,9 @@ def crossover(rng, child, parents, parameter):
         s = genome_parameters[parameter]['size'](child)
         vals = fill_arrays(rng, parent_vals, s, parameter)
         new = np.zeros(s, dtype=dt)
-        all_in_range = False
-        while not all_in_range:
+        all_in_bounds = False
+        tries = 1
+        while not all_in_bounds:
             b = genome_parameters[parameter]['bounds']
             for i in range(s):
                 '''
@@ -357,11 +373,10 @@ def crossover(rng, child, parents, parameter):
             as described above. this maybe isn't the most efficient
             way of doing this, but i can't think of a better one
             '''
-            if isinstance(b[0], (str, np.str_)):
-                all_in_range = np.array([n in b for n in new]).all()
-            else:
-                all_in_range = ((new >= b[0]).all()
-                        and (new <= b[1]).all())
+            all_in_bounds = check_bounds(new, parameter)
+            tries += 1
+            if tries > 50:
+                raise RuntimeError(f"Recombination is broken for {parameter}: bounds {b}, vals {vals}, new {new}")
     else:
         vals = parent_vals
         new = recombine(rng, vals, parameter)
@@ -518,85 +533,39 @@ if __name__ == "__main__":
     rng = np.random.default_rng()
     fitnesses  = np.array([100 * rng.random()
         for _ in range(n)])
-    # test random generation
-    random_pop = []
-    for i in range(n):
-        random_pop.append(new(rng))
 
-    for i, genome in enumerate(random_pop):
-        try:
-            test_parameters(genome)
-        except AssertionError:
-            print("Assertion failed in check_parameters.")
-            print(f"Genome {i}: {genome}")
-            raise
-    print("initial random population passed assertions.")
-    for i in range(test_gens):
-        old_pop = [copy(g) for g in random_pop]
-        random_pop = evolve(rng, random_pop, fitnesses, cost)
-        for j, genome in enumerate(random_pop):
-            try:
-                test_parameters(genome)
-            except AssertionError:
-                print("Assertion failed in check_parameters.")
-                print(f"Genome {j}: {genome}")
-                print(f"Genome {j} before mutation: {old_pop[j]}")
-                raise
-        print(f"random population passed assertions at gen {i}.")
-
-    # test proto generation
-    random_pop = [new(rng, **{'n_b': 1, 'n_s': 1})
-            for _ in range(n)]
-
-    for i, genome in enumerate(random_pop):
-        try:
-            test_parameters(genome)
-        except AssertionError:
-            print("Assertion failed in check_parameters.")
-            print(f"Genome {i}: {genome}")
-            raise
-    print("initial proto population passed assertions.")
-    for i in range(test_gens):
-        old_pop = [copy(g) for g in random_pop]
-        random_pop = evolve(rng, random_pop, fitnesses, cost)
-        for j, genome in enumerate(random_pop):
-            try:
-                test_parameters(genome)
-            except AssertionError:
-                print("Assertion failed in check_parameters.")
-                print(f"Genome {j}: {genome}")
-                print(f"Genome {j} before mutation: {old_pop[j]}")
-                raise
-        print(f"proto population passed assertions at gen {i}.")
-
-    # test template generation
     template = Genome("ox", 4, 3, [50, 60, 40],
             [0, 0, 0],
             ['chl_a', 'chl_b', 'pc'],
             [1.2, 0.8, 1.0],
             [0.5, 1.0])
 
-    random_pop = [new(rng, **{'template': template, 'variability': 0.5})
-            for _ in range(n)]
+    conditions = [{},
+            {'n_b': 1, 'n_s': 1},
+            {'template': template, 'variability': 0.5},
+    ]
+    names = ["random", "proto", "template"]
+    for c, name in zip(conditions, names):
+        pop = [new(rng, **c) for _ in range(n)]
 
-    for i, genome in enumerate(random_pop):
-        try:
-            test_parameters(genome)
-        except AssertionError:
-            print("Assertion failed in check_parameters.")
-            print(f"Genome {i}: {genome}")
-            raise
-    print("initial template population passed assertions.")
-    for i in range(test_gens):
-        old_pop = [copy(g) for g in random_pop]
-        random_pop = evolve(rng, random_pop, fitnesses, cost)
-        for j, genome in enumerate(random_pop):
+        for i, genome in enumerate(pop):
             try:
                 test_parameters(genome)
             except AssertionError:
                 print("Assertion failed in check_parameters.")
-                print(f"Genome {j}: {genome}")
-                print(f"Genome {j} before mutation: {old_pop[j]}")
+                print(f"Genome {i}: {genome}")
                 raise
-        print(f"template population passed assertions at gen {i}.")
+        print(f"initial {name} population passed assertions.")
+        for i in range(test_gens):
+            old_pop = [copy(g) for g in pop]
+            pop = evolve(rng, pop, fitnesses, cost)
+            for j, genome in enumerate(pop):
+                try:
+                    test_parameters(genome)
+                except AssertionError:
+                    print("Assertion failed in check_parameters.")
+                    print(f"Genome {j}: {genome}")
+                    print(f"Genome {j} before mutation: {old_pop[j]}")
+                    raise
+            print(f"{name} population passed assertions at gen {i}.")
 
