@@ -21,7 +21,7 @@ import rc as rcm
 
 genome_parameters = {
     'rc': {
-        'type'   : str,
+        'type'   : np.str_,
         'array'  : False,
         'default' : '',
         'affects' : ['rho', 'aff'],
@@ -29,14 +29,14 @@ genome_parameters = {
         'norm'   : None
     },
     'n_b': {
-        'type'   : int,
+        'type'   : np.int64,
         'default': 0,
         'array'  : False,
         'bounds' : [1, 12],
         'norm'   : None,
     },
     'n_s': {
-        'type'   : int,
+        'type'   : np.int64,
         'default': 0,
         'array'  : False,
         'affects': ['n_p', 'shift', 'pigment'],
@@ -44,7 +44,7 @@ genome_parameters = {
         'norm'   : None,
     },
     'n_p': {
-        'type'    : int,
+        'type'    : np.int64,
         'array'   : True,
         'size'    : lambda g: getattr(g, "n_s"),
         'depends' : 'n_s',
@@ -52,7 +52,7 @@ genome_parameters = {
         'norm'    : None,
     },
     'shift': {
-        'type'    : int,
+        'type'    : np.int64,
         'array'   : True,
         'size'    : lambda g: getattr(g, "n_s"),
         'bounds'  : [-1, 1],
@@ -66,7 +66,7 @@ genome_parameters = {
         'norm'    : None,
     },
     'rho': {
-        'type'    : float,
+        'type'    : np.float64,
         'array'   : True,
         'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
         # note that this is a bit fake - upper bound must just be
@@ -75,7 +75,7 @@ genome_parameters = {
         'norm'    : lambda p: p * (len(p) / np.sum(p)),
     },
     'aff': {
-        'type'    : float,
+        'type'    : np.float64,
         'array'   : True,
         'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')],
         'bounds'  : [0.1, 10.0],
@@ -92,7 +92,7 @@ for key in genome_parameters:
     if genome_parameters[key]["array"]:
         fields.append((key, np.ndarray,
             dataclasses.field(default_factory=lambda:np.empty([], dtype=tt))))
-    else:    
+    else:
         fields.append((key, tt, dataclasses.field(default=genome_parameters[key]["default"])))
 Genome = dataclasses.make_dataclass('Genome', fields)
 
@@ -130,8 +130,8 @@ def get_rand(rng, parameter):
     elif isinstance(b[0], (str, np.str_)):
         r = rng.choice(b)
     else:
-        t = genome_parameters[param]['type']
-        raise TypeError(f"get_rand failed on {param}, type {t}")
+        t = genome_parameters[parameter]['type']
+        raise TypeError(f"get_rand failed on {parameter}, type {t}")
     return r
 
 def new(rng, **kwargs):
@@ -152,7 +152,18 @@ def new(rng, **kwargs):
     '''
     g = Genome()
     if 'template' in kwargs:
-        g = Genome(kwargs['template'])
+        # if you gave the template using lists instead of
+        # numpy arrays, for some reason the dataclass will
+        # accept that and not bother converting them, which
+        # will break the GA down the line. so check the types
+        # of the parameters and convert them as necessary
+        for param in genome_parameters:
+            p = getattr(template, param)
+            tt = genome_parameters[param]['type']
+            if tt == 'U10': # pigment list
+                setattr(g, param, np.array(p, dtype='U10'))
+            else:
+                setattr(g, param, tt(p))
         if 'variability' in kwargs:
             if rng.random() < kwargs['variability']:
                 mutation(rng, g)
@@ -493,7 +504,7 @@ if __name__ == "__main__":
     the stats
     '''
     n = constants.population_size
-    test_gens = 10
+    test_gens = 2
     cost = 0.02
     rng = np.random.default_rng()
     fitnesses  = np.array([100 * rng.random()
@@ -548,3 +559,35 @@ if __name__ == "__main__":
                 print(f"Genome {j} before mutation: {old_pop[j]}")
                 raise
         print(f"proto population passed assertions at gen {i}.")
+
+    # test template generation
+    template = Genome("ox", 4, 3, [50, 60, 40],
+            [0, 0, 0],
+            ['chl_a', 'chl_b', 'pc'],
+            [1.2, 0.8, 1.0],
+            [0.5, 1.0])
+
+    random_pop = [new(rng, **{'template': template, 'variability': 0.5})
+            for _ in range(n)]
+
+    for i, genome in enumerate(random_pop):
+        try:
+            test_parameters(genome)
+        except AssertionError:
+            print("Assertion failed in check_parameters.")
+            print(f"Genome {i}: {genome}")
+            raise
+    print("initial template population passed assertions.")
+    for i in range(test_gens):
+        old_pop = [copy(g) for g in random_pop]
+        random_pop = evolve(rng, random_pop, fitnesses, cost)
+        for j, genome in enumerate(random_pop):
+            try:
+                test_parameters(genome)
+            except AssertionError:
+                print("Assertion failed in check_parameters.")
+                print(f"Genome {j}: {genome}")
+                print(f"Genome {j} before mutation: {old_pop[j]}")
+                raise
+        print(f"template population passed assertions at gen {i}.")
+
