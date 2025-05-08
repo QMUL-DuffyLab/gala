@@ -301,19 +301,21 @@ def recombine(rng, vals, parameter):
     else:
         b = rng.uniform(-d, 1 + d)
         new = vals[0] * b + vals[1] * (1 - b)
-        tries = 1
-        # NB: this is a bit of a stopgap, and i'm not sure if it's
-        # acceptable to do in general or not. basically my current
-        # thinking is that if there's a norm defined, then applying
-        # that should always produce an acceptable result, so don't
-        # worry about the bounds here. but idk
+        '''
+        the next line requires some explanation. basically, if
+        a custom normalisation function is defined for some
+        parameter, then that function can (not always, but in
+        general) move elements out of the bounds given, even
+        if they were within the bounds when they were chosen here.
+        if that happens, the while check below will always fail.
+        therefore, we only do this check if there's no norm function
+        defined, and instead we do a check in crossover to make sure
+        that the elements of the array are all in bounds.
+        '''
         if genome_parameters[parameter]['norm'] is None:
             while new < bounds[0] or new > bounds[1]:
                 b = rng.uniform(-d, 1 + d)
                 new = vals[0] * b + vals[1] * (1 - b)
-                tries += 1
-                if tries > 100:
-                    print(f"{parameter}, {tries}, {new}, {vals}, {b}, {bounds}")
         if isinstance(bounds[0], (int, np.integer)):
             new = np.round(new).astype(int)
     return new
@@ -334,24 +336,35 @@ def crossover(rng, child, parents, parameter):
         '''
         s = genome_parameters[parameter]['size'](child)
         vals = fill_arrays(rng, parent_vals, s, parameter)
-    else:
-        s = 1
-        vals = parent_vals
-    if s == 1:
-        new = recombine(rng, vals, parameter)
-    else:
         new = np.zeros(s, dtype=dt)
-        for i in range(s):
+        all_in_range = False
+        while not all_in_range:
+            b = genome_parameters[parameter]['bounds']
+            for i in range(s):
+                '''
+                we need to loop here since each value of b in the recombine
+                function should be different; otherwise we have to find
+                a value of b where every element of new is within bounds,
+                which significantly reduces the possible variation
+                '''
+                v = [vals[j][i] for j in range(2)]
+                new[i] = recombine(rng, v, parameter)
+            if genome_parameters[parameter]['norm'] is not None:
+                # normalise based on the given function
+                new = genome_parameters[parameter]['norm'](new)
             '''
-            we need to loop here since each value of b in the recombine
-            function should be different; otherwise we have to find
-            a value of b where every element of new is within bounds,
-            which significantly reduces the possible variation
+            now we check that all elements of the array are in bounds,
+            as described above. this maybe isn't the most efficient
+            way of doing this, but i can't think of a better one
             '''
-            v = [vals[j][i] for j in range(2)]
-            new[i] = recombine(rng, v, parameter)
-    if genome_parameters[parameter]['norm'] is not None: # normalise
-        new = genome_parameters[parameter]['norm'](new)
+            if isinstance(b[0], (str, np.str_)):
+                all_in_range = np.array([n in b for n in new]).all()
+            else:
+                all_in_range = ((new >= b[0]).all()
+                        and (new <= b[1]).all())
+    else:
+        vals = parent_vals
+        new = recombine(rng, vals, parameter)
     setattr(child, parameter, new)
 
 def reproduction(rng, survivors, population):
@@ -469,10 +482,6 @@ def test_parameters(individual):
     '''
     check that everything is as it should be
     add any other assertions we can make here
-    NB: this doesn't work for rho and aff in particular,
-    since the normalisation can pull individual elements
-    out of the bounds. is there a way to fix that? need to
-    think.
     '''
     for name, param in genome_parameters.items():
         val = getattr(individual, name)
