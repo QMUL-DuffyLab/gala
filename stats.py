@@ -1,3 +1,17 @@
+'''
+author: @callum
+stats.py - some functions to do statistics, both on the
+genomes and the outputs. not finished yet. need to think a little more
+about how this is done
+
+todo: continue adding write/outfile args for the averaging functions
+also note that the way these are written will require
+changing how the list of files to zip is generated;
+currently i think it adds them based on the return
+value of the stat functions. can't remember why i did
+it that way, to be honest, but pretty sure that's it
+'''
+
 import os
 import re
 import glob
@@ -9,16 +23,128 @@ from functools import reduce
 import constants
 import plots
 import genetic_algorithm as ga
+import rc as rcm
 
-'''
-NB: this isn't finished yet. ideally we want to keep track of whichever
-genome parameters are important, plus whichever other parameters are important
-(nu_e, etc.), and then put them all together and just call the stats functions
-once and let this module sort out which averaging functions need to be applied
-to which parameter. but i haven't fully sorted out how that's gonna work yet.
-'''
-things_to_average = ['n_b', 'n_s', 'rho', 'pigment']
+# NB: can only split on RC, really, here. but in theory if you 
+# had other categorical variables you could also split on those
+split_on_key = True
+key_to_split = 'rc'
+big_stats = {'nu_e', 'fitness', 'redox', 'recomb'} # plus absorption
 
+def counts(arr, write=False, outfile=None):
+    '''
+    get counts and values of a parameter.
+    will work for string or int variables
+    '''
+    if isinstance(arr[0], np.ndarray):
+        np.array(arr).flatten()
+    v, c = np.unique(arr, return_counts=True, equal_nan=False)
+    if write:
+        s = pd.Series(c / len(arr), index=v)
+        s.to_csv(outfile)
+    return v, c
+
+def avg(arr):
+    '''
+    return average and error of quantity.
+    will work for int/float
+    '''
+    if isinstance(arr[0], np.ndarray):
+        np.array(arr).flatten()
+    return np.mean(arr), np.std(arr) / np.sqrt(len(arr))
+
+def element_avg(arr):
+    '''
+    return element-wise average and error of int/float array
+    '''
+    return np.mean(arr, axis=0), np.std(arr, axis=0) / np.sqrt(len(arr))
+
+def hist(arr, name, outfile):
+    '''
+    NB: this will not work. actually, figuring out what kind of
+    histogram we want (one for a single int or float, one for a
+    flattened array, one per element for an array, what about the
+    string variables, and so on) is really hard.
+    NB: if it's a genome parameter, pass the subpopulation of genomes
+    directly because we need to check if it's a subunit parameter or
+    an RC one. otherwise just pass the array
+    '''
+    if name in ga.genome_parameters.keys():
+        hist_arr = np.array([getattr(p, name) for p in arr])
+        b = ga.genome_parameters[name]['bounds']
+        # if [ga.genome_parameters[name]['size'](p) 
+        #         == getattr(p, 'n_s')] for p in arr]:
+    else:
+        hist_arr = np.array(arr)
+        b = [np.min(hist_arr), np.max(hist_arr)]
+    if isinstance(b[0], (int, np.int64)):
+        # implictly set binwidth to 1
+        bins = np.linspace(*b,
+        num = np.round(1 + b[1] - b[0]).astype(int))
+    else:
+        bins = np.linspace(*b)
+    try:
+        if isinstance(hist_arr[0], np.ndarray):
+            # is it a subunit based array?
+            h = np.zeros((*hist_arr[0].shape, len(bins)-1))
+        h = np.histogram(hist_arr, bins=bins)[0]
+    except TypeError:
+        print(f"{name}, {b}, {bins}")
+        raise
+    return bins, h
+
+def stats_per_gen(arg):
+    if isinstance(arg[0], np.ndarray):
+        if isinstance(arg[0][0], (str, np.str_)):
+            return counts(arg)
+        else:
+            return element_avg(arg)
+    elif isinstance(arg[0], (str, np.str_)):
+        return counts(arg)
+    elif isinstance(arg[0], (int, np.int64)):
+        return avg(arg)
+    elif isinstance(arg[0], (float, np.float64)):
+        return avg(arg)
+
+minimal_stats = {'nu_e': avg,
+                 'fitness': avg,
+                 'rc': counts}
+
+def histogram_function(arg, name, outfile):
+    if isinstance(arg[0], np.ndarray):
+        return array_dist(arg, name, outfile)
+    elif isinstance(arg[0], (int, np.int64)):
+        return counts(arg)
+    elif isinstance(arg[0], (float, np.float64)):
+        return hist(arg, name, outfile)
+    
+# NB: absorption spectrum as well! per RC type!
+# can maybe lookup via name or something?
+
+def do_stats(pop, results):
+    '''
+    this needs separating out a bit but the bones of it are there
+    '''
+    for key in list(ga.genome_parameters.keys()) + list(results.keys()):
+        print(key)
+        if key in ga.genome_parameters.keys():
+            arr = [getattr(p, key) for p in pop]
+        else:
+            arr = results[key]
+        if key in minimal_stats:
+            print(f"{key}, scalar stat = {minimal_stats[key](arr)}")
+        if split_on_key:
+            b = ga.genome_parameters[key_to_split]['bounds']
+            subarr = [[] for i in range(len(b))]
+            for i in range(len(arr)):
+                for j in range(len(b)):
+                    if getattr(pop[i], key_to_split) == b[j]:
+                        subarr[j].append(arr[i])
+            subhists = {b[j]: histogram_function(subarr[j], key) for j in range(len(b))}
+        #for j in range(len(b)):
+            #print(f"split stats: {key}, {b[j]}, {stats_per_gen(subarr[j])}, {subhists[b[j]]}")
+            
+            
 def stat_parameters():
     '''
     for an instance of dataclass Genome, return the set of
@@ -87,53 +213,7 @@ def scalar_stats(population, scalars):
         d[f"{s}_err"] = np.std(arr) / np.sqrt(constants.population_size)
     return pd.Series(d)
 
-def int_dist(population, name, outfile):
-    '''
-    calculate counts for an integer Genome parameter.
-
-    parameters
-    ----------
-    population: a list of Genomes
-    name: name of the Genome parameter
-    outfile: output file
-
-    outputs
-    -------
-    '''
-    arr = np.array([getattr(p, name) for p in population])
-    v, c = np.unique(arr, return_counts=True, equal_nan=False)
-    df = pd.Series(c / constants.population_size, index=v)
-    df.to_csv(outfile)
-    return
-
-def float_dist(population, name, outfile):
-    '''
-    calculate a histogram of a float Genome parameter.
-
-    parameters
-    ----------
-    population: a list of Genomes
-    name: name of the Genome parameter
-    outfile: output file
-
-    outputs
-    -------
-    '''
-    arr = np.array([getattr(p, name) for p in population])
-    bounds = constants.bounds[name]
-    if name in constants.binwidths.keys():
-        bw = constants.binwidths[name]
-        bins = np.linspace(*bounds,
-        num=np.round(1 + (bounds[1] - bounds[0])/bw).astype(int))
-    else:
-        print(f"Field {name} has no binwidth given in constants.binwidths. Using default 50 bins")
-        bins = np.linspace(*bounds) # 50 bins
-    h = np.histogram(arr, bins=bins)[0]
-    df = pd.Series(h / constants.population_size, index=bins[:-1])
-    df.to_csv(outfile)
-    return
-
-def array_dist(population, name, outfile):
+def array_dist(arr, name, outfile):
     '''
     calculate per-subunit histogram for per-subunit quantities like
     the pigment type and number of pigments.
@@ -150,17 +230,17 @@ def array_dist(population, name, outfile):
 
     To do: figure a way to deal with the pigment "histogram"
     '''
-    ntype = getattr(population[0], name).dtype
-    arr = np.zeros((constants.hist_sub_max, constants.population_size), dtype=ntype)
-    for j, p in enumerate(population):
+    ntype = arr[0].dtype
+    hist = np.zeros((constants.hist_sub_max, constants.population_size), dtype=ntype)
+    for j, p in enumerate(arr):
         for i in range(constants.hist_sub_max):
-            if i < p.n_s:
-                arr[i][j] = getattr(p, name)[i]
+            if i < len(p):
+                hist[i][j] = p[i]
     hl = []
     if ntype == "U10":
-        bins = list(constants.bounds[name])
+        bins = list(ga.genome_parameters[name]['bounds'])
         for i in range(constants.hist_sub_max):
-            ap = pd.Series(arr[i])
+            ap = pd.Series(hist[i])
             # if all genomes are below a certain size, then
             # value_counts above that size will only return '';
             # we don't want to count that, so check for it here
@@ -185,26 +265,6 @@ def array_dist(population, name, outfile):
             hl.append(h / constants.population_size)
         df = pd.DataFrame(np.transpose(hl), index=bins[:-1])
         df.to_csv(outfile)
-    return
-
-def string_dist(population, name, outfile): 
-    '''
-    calculate a bar chart for string parameters,
-    e.g. the name of the RC supersystem of the Genomes.
-
-    parameters
-    ----------
-    population: a list of Genomes
-    name: name of the parameter
-    outfile: output file
-
-    outputs
-    -------
-    '''
-    arr = np.array([getattr(p, name) for p in population])
-    v, c = np.unique(arr, return_counts=True, equal_nan=False)
-    s = pd.Series(c / constants.population_size, index=v)
-    s.to_csv(outfile)
     return
 
 def hists(population, hist_functions, plot_functions, prefix, run, gen,
@@ -242,15 +302,14 @@ def hists(population, hist_functions, plot_functions, prefix, run, gen,
     subpops = {constants.bounds["rc"][j]:
                       sublists[j] for j in range(n_rc_types)}
     for field in dataclasses.fields(constants.Genome):
-        if field.name in things_to_average:
-            if hist_functions[field.name] is not None:
-                for rc_type, subpop in subpops.items():
-                    outfile = f"{prefix}_{rc_type}_{field.name}_{run}_{gen}.txt"
-                    hist_functions[field.name](subpop, field.name, outfile)
-                    outfiles.append(outfile)
-                    if do_plots:
-                        plotfile = plot_functions[field.name](outfile, field.name)
-                        outfiles.append(plotfile)
+        if hist_functions[field.name] is not None:
+            for rc_type, subpop in subpops.items():
+                outfile = f"{prefix}_{rc_type}_{field.name}_{run}_{gen}.txt"
+                hist_functions[field.name](subpop, field.name, outfile)
+                outfiles.append(outfile)
+                if do_plots:
+                    plotfile = plot_functions[field.name](outfile, field.name)
+                    outfiles.append(plotfile)
     return outfiles
 
 def average_finals(prefix, plot_functions, spectrum):
@@ -302,3 +361,21 @@ def average_finals(prefix, plot_functions, spectrum):
         np.savetxt(of, avg)
         outfiles.append(plots.plot_from_file(of, spectrum))
     return outfiles
+
+if __name__ == "__main__":
+    rng = np.random.default_rng()
+    n = constants.population_size
+    pop = [ga.new(rng, **{'n_b': 1, 'n_s': 1}) for _ in range(n)]
+    nu_e = [100.0 * rng.random() for _ in range(n)]
+    results = {
+        'nu_e': nu_e,
+        'fitness': [nu_e[i] * rng.random() for i in range(n)],
+        'redox': [rng.random(size=(rcm.n_rc[getattr(pop[i], 'rc')], 2)) for i in range(n)],
+        'recomb': [rng.random(size=rcm.n_rc[getattr(pop[i], 'rc')]) for i in range(n)],
+    }
+    do_stats(pop, results)
+    '''
+    set two dicts - one for minimal stats and one for all of them
+    for a hist snapshot? then we can just call a wrapper function.
+    but how to add the plots in? HMMMMMM
+    '''
