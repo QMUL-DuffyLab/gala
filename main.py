@@ -29,8 +29,6 @@ if __name__ == "__main__":
           ]
     light.check(spectra_dicts)
 
-    dist_funcs, plot_funcs, scalars = stats.stat_parameters()
-
     init_kwargs = {'n_b': 1, 'n_s': 1} # see ga.new()
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
@@ -39,7 +37,7 @@ if __name__ == "__main__":
         l    = spectrum[:, 0]
         ip_y = spectrum[:, 1]
         print("Spectrum output name: ", out_name)
-        outdir = os.path.join(constants.output_dir)
+        outdir = os.path.join(constants.output_dir, "tests", "v2.0")
         print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
@@ -53,7 +51,6 @@ if __name__ == "__main__":
             # initialise population
             population = [ga.new(rng, **init_kwargs)
                     for _ in range(constants.population_size)]
-            fitnesses = np.zeros(constants.population_size)
             best_file = f"{prefix}_best_{run}.txt"
             with open(best_file, "w") as f:
                 pass # start a new file
@@ -69,38 +66,38 @@ if __name__ == "__main__":
             best = population[0]
             while gen < constants.max_gen:
                 solver_failures = 0
+                results = {'nu_e': [], 'nu_cyc': [], 'fitness': [],
+                        'redox': [], 'recomb': []}
                 for j, p in enumerate(population):
-                    # NB: wrap these up somehow for stat calc
-                    nu_e, nu_cyc, redox, recomb, fail = supersystem.solve(l, ip_y, p)
+                    # NB: solver should return a dict now
+                    # this feels horrible to me. but some of the
+                    # return values are arrays of different sizes, so
+                    # we can't just numpy array the whole thing
+                    res, fail = supersystem.solve(l, ip_y, p)
+                    for k, v in res.items():
+                        results[k].append(v)
                     if fail < 0:
                         solver_failures += 1
-                    fitnesses[j] = ga.fitness(p, nu_e, cost)
-                    if (fitnesses[j] > fit_max):
-                        fit_max = fitnesses[j]
+                    fitness = ga.fitness(p, res['nu_e'], cost)
+                    results['fitness'].append(fitness)
+                    if (fitness > fit_max):
+                        fit_max = fitness
                         best = ga.copy(population[j])
                         gens_since_improvement = 0
                 # avgs for current generation
-                ca = stats.scalar_stats(population, scalars)
+                ca = stats.do_stats(population, results, spectrum,
+                        **stats.minimal_stats)
                 avgs.append(ca)
                 print(f"Run {run}, gen {gen}:")
-                for s in scalars:
-                    serr = f"{s}_err"
-                    print(f"<{s}> = {ca[s]} +- {ca[serr]}")
+                for key in ca:
+                    print(f"<{key}> = {ca[key]}")
                 print(f"solver failures: {solver_failures}")
                 print("")
                 if (gen % constants.hist_snapshot == 0):
                     # bar charts/histograms of Genome parameters
-                    print("doing stats")
-                    zf[run].extend(stats.hists(population, dist_funcs,
-                                         plot_funcs, prefix, run, gen,
-                                         do_plots=False))
-                    # average absorption spectrum
-                    avg_plot_prefix = f"{prefix}_{run}_{gen}_avg_spectrum"
-                    zf[run].extend(plots.plot_average(population,
-                            spectrum,
-                            avg_plot_prefix,
-                            xlim=constants.x_lim,
-                            label=r'$ \left<A(\lambda)\right> $'))
+                    stat_pref = f"{prefix}_{run}_{gen}"
+                    zf[run].extend(stats.do_stats(population, results,
+                     spectrum, prefix=stat_pref, **stats.big_stats))
 
                 with open(best_file, "a") as f:
                     f.write(str(best).strip('\n'))
@@ -108,7 +105,7 @@ if __name__ == "__main__":
                 f.close()
 
                 # check convergence before applying GA
-                rfm.append(ca['fitness'])
+                rfm.append(ca['fitness'][0])
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
                 print("gens since improvement: {:d}".format(
@@ -121,30 +118,26 @@ if __name__ == "__main__":
                     break
                 try:
                     population = ga.evolve(rng, population,
-                            fitnesses, cost)
+                            np.array(results['fitness']), cost)
                 except ValueError:
                     print("Selection failed. Resetting")
                     end_run = True
                     do_averages = False
+                    raise
                     break
 
                 gen += 1
                 gens_since_improvement += 1
 
             # end of run
-            zf[run].extend(stats.hists(population, dist_funcs,
-                                 plot_funcs, prefix, run, "final"))
-            avg_plot_prefix = f"{prefix}_{run}_final_avg_spectrum"
-            zf[run].extend(plots.plot_average(population,
-                            spectrum,
-                            avg_plot_prefix,
-                            xlim=constants.x_lim,
-                            label=r'$ \left<A(\lambda)\right> $'))
+            stat_pref = f"{prefix}_{run}_final"
+            zf[run].extend(stats.do_stats(population, results,
+                spectrum, prefix=stat_pref, **stats.big_stats))
             df = pd.concat(avgs, axis=1).T # convert the list of Series of scalar stats to one DataFrame
             af = f"{prefix}_{run}_avgs.txt"
             df.to_csv(af, index=False)
             zf[run].append(af)
-            zf.extend(plots.plot_running(af, scalars))
+            # zf.extend(plots.plot_running(af, scalars))
 
             # do pickle stuff and add pickled filename to zf
             pop_file = f"{outdir}/{out_name}_{run}_final_pop.dat"
@@ -160,8 +153,8 @@ if __name__ == "__main__":
 
         # end of all runs for given cost/spectrum
         # after n_runs, average over runs
-        if do_averages:
-            avg_files = stats.average_finals(prefix, plot_funcs, spectrum)
+        # if do_averages:
+        #     avg_files = stats.average_finals(prefix, plot_funcs, spectrum)
         for run in range(constants.n_runs):
             # do zipfile stuff - need to figure out pathnames etc
             # note that these are currently uncompressed

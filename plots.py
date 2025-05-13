@@ -15,6 +15,7 @@ import pandas as pd
 from matplotlib.collections import PolyCollection
 import constants
 import light
+import rc
 
 target_spectra = {
     "PSII": os.path.join("spectra", "psii_wientjies.csv"),
@@ -71,18 +72,28 @@ def get_pigment_colour(name):
         return '#99999999'
 
 def antenna_lines(p, l):
+    rcp = rc.params[p.rc]
+    n_rc = len(rcp["pigments"])
+    rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
+    n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
+    # 0 shift for RCs. shifts stored as integer increments, so
+    # multiply by shift_inc here
+    shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
+                     dtype=np.float64)
+    shift *= constants.shift_inc
+    pigments = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
+    lines = np.zeros((p.n_s + n_rc, len(l)))
     pdata = constants.pigment_data
-    lines = np.zeros((p.n_s, len(l)))
     total = np.zeros_like(l)
-    for i in range(p.n_s):
-        pigment = pdata[p.pigment[i]]['abs']
-        for j in range(pigment['n_gauss']):
-            lines[i] += pigment['amp'][j] * np.exp(-1.0
-                    * (l - (pigment['mu'][j] +
-                        (p.shift[i] * constants.shift_inc)))**2
-                    / (2.0 * (pigment['sigma'][j]**2)))
+    for i in range(p.n_s + n_rc):
+        current_pigment = pdata[pigments[i]]['abs']
+        for j in range(current_pigment['n_gauss']):
+            lines[i] += current_pigment['amp'][j] * np.exp(-1.0
+                    * (l - (current_pigment['mu'][j] +
+                        (shift[i])))**2
+                    / (2.0 * (current_pigment['sigma'][j]**2)))
         lines[i] /= np.sum(lines[i])
-        total += lines[i] * p.n_p[i]
+        total += lines[i] * n_p[i]
     return lines, total
 
 def antenna_spectra(p, l, ip_y,
@@ -205,7 +216,7 @@ def plot_best(best_file, spectrum):
                          spectrum[:, 1], lines_file, total_file)
     return [lines_file, total_file]
 
-def plot_average(population, spectrum, out_prefix, **kwargs):
+def plot_average(population, spectrum, outfile, **kwargs):
     '''
     plot the average absorption spectrum of the whole population.
 
@@ -227,7 +238,7 @@ def plot_average(population, spectrum, out_prefix, **kwargs):
         total += run_tot
     total /= len(population)
     norm_total = total / np.sum(total)
-    datafile = out_prefix + ".txt"
+    datafile = outfile
     np.savetxt(datafile, np.column_stack((l, norm_total)))
     # normalise peak height to 1 for plot
     norm_total /= np.max(norm_total)
@@ -263,7 +274,8 @@ def plot_average(population, spectrum, out_prefix, **kwargs):
     ax.set_xlabel(r' $ \lambda (\text{nm}) $')
     ax.set_ylabel('intensity')
     plt.grid(True)
-    plt.legend()
+    if "label" in kwargs:
+        plt.legend()
     fig.tight_layout()
 
     if draw_peak_wl:
@@ -272,7 +284,7 @@ def plot_average(population, spectrum, out_prefix, **kwargs):
     if "cost" in kwargs:
         ax.set_title("Cost = " + str(kwargs['cost']))
 
-    plotfile = out_prefix + ".pdf"
+    plotfile = os.path.splitext(datafile)[0] + ".pdf"
     plt.savefig(plotfile)
     plt.close()
     return [datafile, plotfile]

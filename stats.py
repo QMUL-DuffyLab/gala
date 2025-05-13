@@ -25,13 +25,7 @@ import plots
 import genetic_algorithm as ga
 import rc as rcm
 
-# NB: can only split on RC, really, here. but in theory if you 
-# had other categorical variables you could also split on those
-split_on_key = True
-key_to_split = 'rc'
-big_stats = {'nu_e', 'fitness', 'redox', 'recomb'} # plus absorption
-
-def counts(arr, write=False, outfile=None):
+def counts(arr, outfile=None):
     '''
     get counts and values of a parameter.
     will work for string or int variables
@@ -39,27 +33,39 @@ def counts(arr, write=False, outfile=None):
     if isinstance(arr[0], np.ndarray):
         np.array(arr).flatten()
     v, c = np.unique(arr, return_counts=True, equal_nan=False)
-    if write:
+    if outfile is not None:
         s = pd.Series(c / len(arr), index=v)
         s.to_csv(outfile)
-    return v, c
+        return outfile
+    else:
+        return v, c
 
-def avg(arr):
+def avg(arr, outfile=None):
     '''
     return average and error of quantity.
     will work for int/float
     '''
     if isinstance(arr[0], np.ndarray):
         np.array(arr).flatten()
-    return np.mean(arr), np.std(arr) / np.sqrt(len(arr))
+    m, e = np.mean(arr), np.std(arr) / np.sqrt(len(arr))
+    if outfile is not None:
+        np.savetxt(outfile, np.column_stack((m, e)))
+        return outfile
+    else:
+        return m, e
 
-def element_avg(arr):
+def element_avg(arr, outfile=None):
     '''
     return element-wise average and error of int/float array
     '''
-    return np.mean(arr, axis=0), np.std(arr, axis=0) / np.sqrt(len(arr))
+    m, e = np.mean(arr, axis=0), np.std(arr, axis=0) / np.sqrt(len(arr))
+    if outfile is not None:
+        np.savetxt(outfile, np.column_stack((m, e)))
+        return outfile
+    else:
+        return m, e
 
-def hist(arr, name, outfile):
+def hist(arr, outfile=None):
     '''
     NB: this will not work. actually, figuring out what kind of
     histogram we want (one for a single int or float, one for a
@@ -93,57 +99,64 @@ def hist(arr, name, outfile):
         raise
     return bins, h
 
-def stats_per_gen(arg):
-    if isinstance(arg[0], np.ndarray):
-        if isinstance(arg[0][0], (str, np.str_)):
-            return counts(arg)
-        else:
-            return element_avg(arg)
-    elif isinstance(arg[0], (str, np.str_)):
-        return counts(arg)
-    elif isinstance(arg[0], (int, np.int64)):
-        return avg(arg)
-    elif isinstance(arg[0], (float, np.float64)):
-        return avg(arg)
-
 minimal_stats = {'nu_e': avg,
                  'fitness': avg,
+                 'n_b': avg,
+                 'n_s': avg,
                  'rc': counts}
 
-def histogram_function(arg, name, outfile):
-    if isinstance(arg[0], np.ndarray):
-        return array_dist(arg, name, outfile)
-    elif isinstance(arg[0], (int, np.int64)):
-        return counts(arg)
-    elif isinstance(arg[0], (float, np.float64)):
-        return hist(arg, name, outfile)
-    
-# NB: absorption spectrum as well! per RC type!
-# can maybe lookup via name or something?
+# note - to be really general, we could have something like
+# big_stats = {'nu_e': {'function': avg, 'split': True, 'split_on': 'rc'}
+big_stats = {'split_on': 'rc',
+        'rc': counts,
+        'nu_e': avg,
+        'fitness': avg,
+        'redox': element_avg,
+        'recomb': element_avg,
+        'absorption': plots.plot_average}
 
-def do_stats(pop, results):
-    '''
-    this needs separating out a bit but the bones of it are there
-    '''
-    for key in list(ga.genome_parameters.keys()) + list(results.keys()):
-        print(key)
+def do_stats(population, results, spectrum, prefix=None, **kwargs):
+    # note: this assumes that the key you split on is always
+    # something in the genome. i think that's reasonable
+    output = {}
+    for key in kwargs:
         if key in ga.genome_parameters.keys():
-            arr = [getattr(p, key) for p in pop]
+            arr = [getattr(p, key) for p in population]
+        elif key == 'split_on':
+            arr = [getattr(p, kwargs[key]) for p in population]
+        elif key == 'absorption':
+            arr = population
         else:
             arr = results[key]
-        if key in minimal_stats:
-            print(f"{key}, scalar stat = {minimal_stats[key](arr)}")
-        if split_on_key:
-            b = ga.genome_parameters[key_to_split]['bounds']
-            subarr = [[] for i in range(len(b))]
-            for i in range(len(arr)):
+
+        if 'split_on' in kwargs:
+            split_key = kwargs['split_on']
+            if kwargs[key] == split_key:
+                # don't split it on itself, that's stupid
+                of = f"{prefix}_{split_key}.txt"
+                output[key] = kwargs[kwargs[key]](arr, outfile=of)
+            else:
+                b = ga.genome_parameters[split_key]['bounds']
+                subarr = [[] for i in range(len(b))]
+                ofs = []
                 for j in range(len(b)):
-                    if getattr(pop[i], key_to_split) == b[j]:
-                        subarr[j].append(arr[i])
-            subhists = {b[j]: histogram_function(subarr[j], key) for j in range(len(b))}
-        #for j in range(len(b)):
-            #print(f"split stats: {key}, {b[j]}, {stats_per_gen(subarr[j])}, {subhists[b[j]]}")
-            
+                    ofs.append(f"{prefix}_{split_key}_{b[j]}_{key}.txt")
+                    for i in range(len(arr)):
+                        if getattr(population[i], split_key) == b[j]:
+                            subarr[j].append(arr[i])
+            if key == 'absorption':
+                # requires spectrum argument. would be really annoying
+                # and require rewriting a load of things to remove that
+                output[key] = {b[j]:
+                        kwargs[key](subarr[j], spectrum,
+                            ofs[j]) for j in range(len(b))}
+            elif kwargs[key] != split_key:
+                output[key] = {b[j]:
+                        kwargs[key](subarr[j],
+                            outfile=ofs[j]) for j in range(len(b))}
+        else:
+            output[key] = kwargs[key](arr, prefix)
+    return output
             
 def stat_parameters():
     '''
@@ -363,19 +376,26 @@ def average_finals(prefix, plot_functions, spectrum):
     return outfiles
 
 if __name__ == "__main__":
+    import light
     rng = np.random.default_rng()
     n = constants.population_size
-    pop = [ga.new(rng, **{'n_b': 1, 'n_s': 1}) for _ in range(n)]
+    spectrum, output_prefix = light.spectrum_setup("stellar",
+            Tstar=5770, Rstar=6.957E8, a=1.0, attenuation=0.0)
+    prefix = os.path.join(constants.output_dir, "tests", "stats",
+            output_prefix)
+    os.makedirs(os.path.dirname(prefix), exist_ok=True)
+    population = [ga.new(rng, **{'n_b': 1, 'n_s': 1}) for _ in range(n)]
     nu_e = [100.0 * rng.random() for _ in range(n)]
     results = {
         'nu_e': nu_e,
         'fitness': [nu_e[i] * rng.random() for i in range(n)],
-        'redox': [rng.random(size=(rcm.n_rc[getattr(pop[i], 'rc')], 2)) for i in range(n)],
-        'recomb': [rng.random(size=rcm.n_rc[getattr(pop[i], 'rc')]) for i in range(n)],
+        'redox': [rng.random(size=(
+            rcm.n_rc[getattr(population[i], 'rc')], 2))
+            for i in range(n)],
+        'recomb': [rng.random(size=
+            rcm.n_rc[getattr(population[i], 'rc')])
+            for i in range(n)],
     }
-    do_stats(pop, results)
-    '''
-    set two dicts - one for minimal stats and one for all of them
-    for a hist snapshot? then we can just call a wrapper function.
-    but how to add the plots in? HMMMMMM
-    '''
+    output = do_stats(population, results, spectrum, prefix=prefix,
+            **big_stats)
+    print(output)

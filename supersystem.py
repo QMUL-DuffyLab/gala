@@ -302,7 +302,8 @@ def solve(l, ip_y, p, debug=False, nnls='fortran',
     if p_eq_res == None:
         print("NNLS failure. Genome details:")
         print(p)
-        return (nu_e, nu_cyc, redox, recomb, -1)
+        return ({'nu_e': nu_e, 'nu_cyc': nu_cyc,
+            'redox': redox, 'recomb': recomb}, -1)
 
     for i, p_i in enumerate(p_eq):
         s = toti[i]
@@ -342,7 +343,8 @@ def solve(l, ip_y, p, debug=False, nnls='fortran',
                 'k_b': k_b,
                 }
     else:
-        return (nu_e, nu_cyc, redox, recomb, 0)
+        return ({'nu_e': nu_e, 'nu_cyc': nu_cyc,
+            'redox': redox, 'recomb': recomb}, 0)
 
 if __name__ == "__main__":
 

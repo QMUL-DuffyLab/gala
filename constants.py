@@ -13,7 +13,7 @@ from dataclasses import dataclass, field, astuple
 '''
 General stuff
 '''
-output_dir = os.path.join("out", "tests", "stats")
+output_dir = os.path.join("out")
 spectrum_prefix = 'spectra'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
@@ -53,35 +53,8 @@ Spectral parameters
 sig_chl = 9E-20 #  cross-section of one pigment
 np_rc = 10 # number of pigments in reaction centre
 
-'''
-boundaries on the genome parameters. used during generation;
-mutation uses a truncated Gaussian with these as bounds as well.
-specifying the type via dtype= is important;
-the type of the numpy arrays here is used to determine what random
-function to use and hence how generation/crossover/mutation will work.
-The types should match those given in the dataclass definition below!
-'''
-n_p_total = 200 # total number of "pigments" in the PBS
-bounds = {'n_b': np.array([1, 12], dtype=np.int32),
-          'n_s': np.array([1, 20], dtype=np.int32),
-          'n_p': np.array([1, 100], dtype=np.int32),
-          'shift': np.array([-1, 1], dtype=np.int32),
-          # any pigment in this array can be picked
-          'pigment': np.array(["r-pe", "pe", "pc", "apc", "chl_b", "chl_a",
-              "chl_d", "chl_f", "bchl_a", "bchl_b"],
-                              dtype='U10'),
-          'rc': np.array(["ox", "frl", "anox", "exo"], dtype='U10'),
-          'rho': np.array([0.0, 1.0], dtype=np.float64),
-          'aff': np.array([0.0, 100.0], dtype=np.float64),
-          'alpha': np.array([0.0, 1.0], dtype=np.float64),
-          'nu_e': np.array([0.0, 100.0], dtype=np.float64),
-          'phi_e_g': np.array([0.0, 1.0], dtype=np.float64),
-          'phi_e': np.array([0.0, 1.0], dtype=np.float64),
-          'fitness': np.array([0.0, 100.0], dtype=np.float64),
-          }
-
 # number of subunits to make histograms for
-hist_sub_max = bounds['n_s'][1] if bounds['n_s'][1] < 10 else 10
+hist_sub_max = 10
 
 '''
 these are for the stats functions. every hist_snapshot generations
@@ -99,17 +72,8 @@ binwidths = {'n_b': 1,
         'aff': 0.01,
         'alpha': 0.01,
         'nu_e': 1.0,
-        'phi_e': 0.01,
-        'phi_e_g': 0.01,
         'fitness': 1.0,
         }
-
-# list of parameters defined per subunit rather than per genome
-# the strings here *must match* the names in genome definition below
-# for the generation, crossover and mutation algorithms to work
-# leave 'pigment' in here even if there's only one type, because
-# otherwise the pigment arrays don't get updated after mutation etc.
-subunit_params = ['n_p', 'pigment', 'shift']
 
 '''
 Gaussian fits to pigment data, done by me.
@@ -125,33 +89,3 @@ with open(pigment_data_file, "r") as f:
 x_lim = [400.0, 2000.0]
 dx = 1.0
 nx = int((x_lim[1] - x_lim[0]) / dx)
-
-'''
-finally the dataclass definition. the names of the members here
-should match the names in bounds and binwidths above, and the
-types should match those given in bounds as well. if all is well,
-the genetic algorithm will automatically do the right things for
-generation, crossover and mutation, and the stats functions will
-automatically do the stats correctly.
-'''
-@dataclass(eq=False)
-class Genome:
-    n_b: int = 0
-    n_s: int = 0
-    n_p: np.ndarray     = field(default_factory=lambda:
-                        np.empty([], dtype=np.int64))
-    shift: np.ndarray   = field(default_factory=lambda:
-                        np.empty([], dtype=np.float64))
-    pigment: np.ndarray = field(default_factory=lambda:
-                        np.empty([], dtype='U10'))
-    rc: str = ""
-    rho: np.ndarray     = field(default_factory=lambda:
-                        np.empty([], dtype=np.int64))
-    aff: np.ndarray     = field(default_factory=lambda:
-                        np.empty([], dtype=np.int64))
-    alpha: float = 0.0
-    connected: bool = False
-    nu_e: float = np.nan
-    phi_e_g: float = np.nan
-    phi_e: float = np.nan
-    fitness: float = np.nan
