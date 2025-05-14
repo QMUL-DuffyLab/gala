@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import constants
-import antenna as la
+import utils
 from scipy.constants import h, c, Avogadro, Boltzmann
 
 # AU in metres for stellar spectra
@@ -122,7 +122,7 @@ def gaussian(**kwargs):
     # this will be a mess if these are lists
     output_prefix = f"gauss_{a}_{mu}_{sigma}_{intensity}"
     lambdas = np.linspace(*constants.x_lim, constants.nx)
-    gauss = la.gauss(lambdas, mu, sigma, a)
+    gauss = utils.gauss(lambdas, mu, sigma, a)
     return np.column_stack((lambdas, gauss)), output_prefix
 
 def colour(**kwargs):

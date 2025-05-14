@@ -8,7 +8,8 @@ for various reasons. so just keep them all here instead
 import ctypes
 import numpy as np
 import genetic_algorithm as ga
-import antenna as la
+import utils
+import solvers
 import constants
 import light
 import matplotlib as mpl
@@ -30,12 +31,12 @@ def test_connected_kmat():
     ip_y = spectrum[0][:, 1]
     rng = np.random.default_rng()
 
-    c = ga.new(rng, 'random')
+    c = ga.new(rng)
     c.connected = True
     u = ga.copy(c)
     u.connected = False
-    cd = la.antenna(l, ip_y, c, debug=True)
-    ud = la.antenna(l, ip_y, u, debug=True)
+    cd = solvers.antenna_only(l, ip_y, c, debug=True)
+    ud = solvers.antenna_only(l, ip_y, u, debug=True)
 
     return [cd, ud]
 
@@ -54,12 +55,12 @@ def test_connected_fitness(n_trials=1000):
     rng = np.random.default_rng()
 
     for i in range(n_trials):
-        c = ga.new(rng, 'random')
+        c = ga.new(rng)
         c.connected = True
         u = ga.copy(c)
         u.connected = False
-        cr = la.antenna(l, ip_y, c)
-        ur = la.antenna(l, ip_y, u)
+        cr = solvers.antenna_only(l, ip_y, c)
+        ur = solvers.antenna_only(l, ip_y, u)
         connected_res[i] = cr
         unconnected_res[i] = ur
         diff = np.abs(cr - ur)
@@ -95,7 +96,7 @@ def test_antenna_fortran():
     n_p = [80, 70, 60]
     shift = [-5.0, 0.5, 5.0]
     pigment = ['chl_a', 'chl_b', 'chl_f']
-    g = constants.Genome(n_b, n_s, n_p, shift, pigment)
+    g = ga.Genome(n_b, n_s, n_p, shift, pigment)
     print("Python:")
     print("n_b = ", g.n_b)
     print("n_s = ", g.n_s)
@@ -119,7 +120,7 @@ def test_antenna_fortran():
                             temp,
                             gf, l, ip_y,
                             ll, fr)
-    pr = la.antenna(l, ip_y, g)
+    pr = solvers.antenna_only(l, ip_y, g)
     print("fortran = ", fr)
     print("python = ", pr)
     diff = np.abs(pr - fr)
@@ -157,7 +158,7 @@ def test_python_fortran(n_trials=1000):
     libantenna.fitness_calc.restype = None
 
     for i in range(n_trials):
-        g = ga.new(rng, 'random')
+        g = ga.new(rng)
         fr = np.zeros(3).astype(ctypes.c_double)
         n_p = np.array([constants.np_rc, *g.n_p], dtype=ctypes.c_int)
         shift = np.array([0., *g.shift], dtype=ctypes.c_double)
@@ -175,7 +176,7 @@ def test_python_fortran(n_trials=1000):
                                 temp,
                                 gf, l, ip_y,
                                 ll, fr)
-        pr = la.antenna(l, ip_y, g)
+        pr = solvers.antenna_only(l, ip_y, g)
         python_res[i] = pr
         fortran_res[i] = fr
         diff = np.abs(pr - fr)
@@ -210,7 +211,7 @@ def test_pigment_fits(pigment_list=None):
         sigma = p['sigma']
         amp = p['amp']
         xtest = np.arange(*xlim)
-        ytest = la.gauss(xtest, mu, sigma, amp)
+        ytest = utils.gauss(xtest, mu, sigma, amp)
         np.savetxt(os.path.join(outdir, f"{os.path.splitext(os.path.basename(f))[0]}.txt"), np.column_stack((xtest, ytest)))
 
         fig, ax = plt.subplots(figsize=(12,8))
@@ -238,7 +239,7 @@ def test_overlaps(spectrum, pigment_list=None):
         names = list(all_params.keys())
 
     print(names)
-    overlaps, gammas, abso, emis = la.lookups(spectrum, names, True)
+    overlaps, gammas, abso, emis = utils.lookups(spectrum, names, True)
 
     xlim = [400.0, 1000.0]
     cmap = mpl.colormaps["turbo"]

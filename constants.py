@@ -19,12 +19,12 @@ pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
 gamma_fac = 1e-4 # what to normalise sum(gamma) to for low light calc
 population_size = 1000
-max_gen = 1000
-n_runs = 5
+max_gen = 20
+n_runs = 3
 alpha = 0.0 # multiplier for cyclic electron flow
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
 reproduction_strategy = 'nads' # options: 'nads', 'steady'
-conv_gen = 50 # number of generations without improvement for convergence
+conv_gen = 5 # number of generations without improvement for convergence
 conv_per = 0.01 # convergence if max(fitness) within conv_per for conv_gen
 fitness_cutoff = 0.2 # fraction of individuals kept if strategy = 'steady'
 d_recomb = 0.25 # random perturbation of values during crossover

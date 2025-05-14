@@ -10,7 +10,6 @@ import argparse
 import itertools
 import constants
 import light
-import antenna as la
 
 # these were in constants.py but they're only needed here
 # dict because we need to know where cyclic/detrapping are
@@ -156,201 +155,8 @@ params = {
 
 n_rc = {rct: len(params[rct]["pigments"]) for rct in params.keys()}
 
-def solve(rc_type, spectrum, detrap_type, tau_diff, n_p, per_rc=True, debug=False):
-    '''
-    parameters
-    ----------
-    `rc_type`: string corresponding to params above
-    `spectrum`: input spectrum from light.py
-    `detrap_type`: string corresponding to detrapping regime
-    `tau_diff`: float - diffusion time for whatever's being oxidised
-    `n_p`: Number of pigments
-    `per_rc`: if True, then give n_p pigments per photosystem; if
-    False, divide n_p evenly between them
-
-    set up an RC-only system with of type `rc_type` (see params above)
-    with total excitation rate `gamma` shared equally between
-    photosystems, and solve the resulting equations using scipy NNLS
-    as in antenna.py and supersystem.py.
-    this is fairly simple - there's no transfer rates to worry about,
-    only excitation, dissipation, and the internal RC processes which
-    are all generated and indexed previously.
-    '''
-    rcp = params[rc_type]
-    n_rc = len(rcp["pigments"])
-    n_rc_states = len(rcp["states"])
-    fp_y = (spectrum[:, 0] * spectrum[:, 1]) / la.hcnm
-    # NB: next two lines assume all photosystems are identical
-    if not per_rc:
-        n_p /= n_rc
-    a_l = la.absorption(spectrum[:, 0], rcp["pigments"][0], 0.0)
-    g_per_rc = (n_p * constants.sig_chl *
-            la.overlap(spectrum[:, 0], fp_y, a_l))
-
-    # detrapping regime
-    detrap = rates["trap"]
-    if detrap_type == "fast":
-        pass
-    elif detrap_type == "thermal":
-        detrap *= np.exp(-1.0) # -k_B T
-    elif detrap_type == "energy_gap":
-        detrap *= np.exp(-rcp["gap"])
-    elif detrap_type == "none":
-        detrap *= 0.0 # irreversible
-    else:
-        raise ValueError("Detrapping regime should be 'fast',"
-          " 'thermal', 'energy_gap' or 'none'.")
-        
-    # n_rc_states for each exciton block, plus empty
-    side = n_rc_states * (n_rc + 1)
-    twa = np.zeros((side, side), dtype=np.float64)
-
-    # generate states to go with p_eq indices
-    # what order are these in? figure it out lol
-    ast = []
-    empty = tuple([0 for _ in range(n_rc)])
-    ast.append(empty)
-    for i in range(n_rc):
-        el = [0 for _ in range(n_rc)]
-        el[i] = 1
-        ast.append(tuple(el))
-    total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
-    toti = {i: total_states[i] for i in range(len(total_states))}
-
-    lindices = []
-    cycdices = []
-    js = list(range(0, side, n_rc_states))
-    for jind, j in enumerate(js):
-        # jind == 0 is empty antenna, 0 + n_rc_states is RC 1 occupied, etc
-        # intra-RC processes are the same in each block
-        for i in range(n_rc_states):
-            ind = i + j # total index
-            ts = toti[ind] # total state tuple
-            initial = rcp["states"][i] # tuple with current RC state
-            if i in rcp["nu_e_ind"]:
-                lindices.append(ind)
-            if i in rcp["nu_cyc_ind"]:
-                cycdices.append(ind)
-
-            for k in range(n_rc_states):
-                final = rcp["states"][k]
-                diff = tuple(final - initial)
-                if diff in rcp["procs"]:
-                    # get the type of process
-                    rt = rcp["procs"][diff]
-                    indf = rcp["indices"][tuple(final)] + j
-                    ts = toti[indf] # total state tuple
-                    # set element with the corresponding rate
-                    if rt in ["lin", "red"]:
-                        twa[ind][indf] = rates[rt]
-                    if rt == "ox":
-                        tau_ox = (tau_diff + 1.0 / rates[rt])
-                        twa[ind][indf] = 1.0 / tau_ox
-                    if rt == "trap":
-                        # find which trap state is being filled here
-                        # 3 states per rc, so integer divide by 3
-                        which_rc = np.where(np.array(diff) == 1)[0][0]//3
-                        '''
-                        indf above assumes that the state of the antenna
-                        doesn't change, which is not the case for trapping.
-                        so zero out the above rate and then check: if
-                        jind == which_rc + 1 we're in the correct block
-                        (the exciton is moving from the correct RC), and
-                        we go back to the empty antenna block
-                        '''
-                        twa[ind][indf] = 0.0
-                        if jind == which_rc + 1:
-                            indf = rcp["indices"][tuple(final)]
-                            twa[ind][indf] = rates[rt]
-                            # detrapping:
-                            # - only possible if exciton manifold is empty
-                            indf = (rcp["indices"][tuple(initial)] +
-                                    ((which_rc + 1) * n_rc_states))
-                            twa[k][indf] = detrap
-                            rt = "detrap"
-                    if rt == "cyc":
-                        # cyclic: multiply the rate by alpha etc.
-                        # we will need this below for nu(cyc)
-                        which_rc = np.where(np.array(diff) == -1)[0][0]//3
-                        k_cyc = rates["cyc"]
-                        if n_rc == 1:
-                            # zeta = 11 to enforce nu_CHO == nu_cyc
-                            k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
-                            # k_cyc *= (constants.alpha * np.sum(n_p))
-                            twa[ind][indf] = k_cyc
-                            rt = "ano cyclic"
-                        # first photosystem cannot do cyclic
-                        elif n_rc > 1 and which_rc > 0:
-                            k_cyc *= constants.alpha * np.sum(n_p)
-                            twa[ind][indf] = k_cyc
-                            rt = "cyclic"
-                        # recombination can occur from any photosystem
-                        twa[ind][indf] += rates["rec"]
-            if jind > 0:
-                # occupied exciton block -> empty due to dissipation
-                # final state index is i because RC state is unaffected
-                twa[ind][i] = constants.k_diss
-            
-            if jind > 0 and jind <= n_rc:
-                twa[i][ind] = g_per_rc # absorption by RCs
-
-    k = np.zeros((side + 1, side), dtype=np.float64,
-                 order='F')
-    for i in range(side):
-        for j in range(side):
-            # if twa[i][j] != 0.0:
-            #     print(f"{toti[i]} -> {toti[j]} = {twa[i][j]}")
-            if (i != j):
-                k[i][j]      = twa[j][i]
-                k[i][i]     -= twa[i][j]
-        # add a row for the probability constraint
-        k[side][i] = 1.0
-
-    b = np.zeros(side + 1, dtype=np.float64)
-    b[-1] = 1.0
-    p_eq, p_eq_res = la.solve(k, method='scipy')
-
-    nu_e = 0.0
-    nu_cyc = 0.0
-    trap_indices = [3*i + (n_rc) for i in range(n_rc)]
-    oxidised_indices = [3*i + (n_rc + 1) for i in range(n_rc)]
-    reduced_indices = [3*i + (n_rc + 2) for i in range(n_rc)]
-    redox = np.zeros((n_rc, 2), dtype=np.float64)
-    recomb = np.zeros(n_rc, dtype=np.float64)
-
-    for i, p_i in enumerate(p_eq):
-        s = toti[i]
-        for j in range(n_rc):
-            if s[trap_indices[j]] == 1:
-                recomb += p_i * rates["rec"]
-            if s[oxidised_indices[j]] == 1:
-                redox[j, 0] += p_i
-            if s[reduced_indices[j]] == 1:
-                redox[j, 1] += p_i
-        if i in lindices:
-            nu_e += rates["red"] * p_i
-        if i in cycdices:
-            nu_cyc += k_cyc * p_i
-
-    if debug:
-        return {
-                "k": k,
-                "twa": twa,
-                "gamma": g_per_rc * n_rc,
-                "p_eq": p_eq,
-                "states": total_states,
-                "lindices": lindices,
-                "cycdices": cycdices,
-                "nu_e": nu_e,
-                "nu_cyc": nu_cyc,
-                "redox": redox,
-                "recomb": recomb,
-                "tau_ox": tau_ox,
-                }
-    else:
-        return nu_e
-
 if __name__ == "__main__":
+    import solvers
     parser = argparse.ArgumentParser(
             description="simple test of RC only with given gamma",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -371,7 +177,7 @@ if __name__ == "__main__":
 
     spectrum, out_name = light.spectrum_setup("phoenix",
             temperature=args.temperature)
-    res = solve(args.rc_type, spectrum, args.detrap_type, 100,
+    res = solvers.rc_only(args.rc_type, spectrum, args.detrap_type, 100,
             args.per_rc, args.debug)
     outpath = os.path.join("out", f"{args.temperature}K",
             f"{args.rc_type}")

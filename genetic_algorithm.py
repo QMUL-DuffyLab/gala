@@ -13,6 +13,7 @@ it doesn't actually check when generating a new genome (i.e. the
 There's probably a way to do this more cleverly, 
 but I haven't figured it out yet. Unsure it's necessary.
 """
+import pickle
 import dataclasses
 import numpy as np
 import scipy.stats as ss
@@ -492,6 +493,16 @@ def evolve(rng, population, fitnesses, cost):
             population[j] = mutation(rng, population[j])
             n_mutations += 1
     return population
+
+def pickle_population(population, filename):
+    with open(filename, "wb") as f:
+        try:
+            pickle.dump(population, f)
+            return 0
+        except:
+            print("Pickling failed")
+            return -1
+
 
 def test_parameters(individual):
     '''

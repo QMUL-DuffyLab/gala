@@ -11,12 +11,11 @@ import zipfile
 import numpy as np
 import pandas as pd
 import constants
-import genetic_algorithm as ga
-import antenna as la
-import supersystem
+import solvers
 import plots
 import stats
 import light
+import genetic_algorithm as ga
 
 if __name__ == "__main__":
     rng = np.random.default_rng()
@@ -64,6 +63,7 @@ if __name__ == "__main__":
             fit_max = 0.0
             # initialise in case they all have 0 fitness
             best = population[0]
+            avgs = {k: [] for k in stats.minimal_stats.keys()}
             while gen < constants.max_gen:
                 solver_failures = 0
                 results = {'nu_e': [], 'nu_cyc': [], 'fitness': [],
@@ -73,7 +73,7 @@ if __name__ == "__main__":
                     # this feels horrible to me. but some of the
                     # return values are arrays of different sizes, so
                     # we can't just numpy array the whole thing
-                    res, fail = supersystem.solve(l, ip_y, p)
+                    res, fail = solvers.antenna_RC(l, ip_y, p)
                     for k, v in res.items():
                         results[k].append(v)
                     if fail < 0:
@@ -87,11 +87,35 @@ if __name__ == "__main__":
                 # avgs for current generation
                 ca = stats.do_stats(population, results, spectrum,
                         **stats.minimal_stats)
-                avgs.append(ca)
+                '''
+                this is a hack, honestly. separate out the RC counts
+                so that we can make them all into a nice dataframe
+                later. there's gotta be some way of fixing this in
+                stats.py, maybe by messing with the return values
+                of counts()
+                '''
+                for k, v in ca.items():
+                    if k == 'rc':
+                        if k in avgs:
+                            del avgs[k]
+                        # rc returns a tuple of arrays (values, counts)
+                        values, counts = v
+                        for value, count in zip(values, counts):
+                            if value in avgs:
+                                avgs[value].append(count)
+                            else:
+                                avgs[value] = [count]
+                    else:
+                        avgs[k].append(v[0])
+                        if f"{k}_err" in avgs:
+                            avgs[f"{k}_err"].append(v[1])
+                        else:
+                            avgs[f"{k}_err"] = [v[1]]
                 print(f"Run {run}, gen {gen}:")
                 for key in ca:
                     print(f"<{key}> = {ca[key]}")
                 print(f"solver failures: {solver_failures}")
+                print(f"avgs: {avgs}")
                 print("")
                 if (gen % constants.hist_snapshot == 0):
                     # bar charts/histograms of Genome parameters
@@ -133,7 +157,7 @@ if __name__ == "__main__":
             stat_pref = f"{prefix}_{run}_final"
             zf[run].extend(stats.do_stats(population, results,
                 spectrum, prefix=stat_pref, **stats.big_stats))
-            df = pd.concat(avgs, axis=1).T # convert the list of Series of scalar stats to one DataFrame
+            df = pd.DataFrame(avgs) # convert the list of Series of scalar stats to one DataFrame
             af = f"{prefix}_{run}_avgs.txt"
             df.to_csv(af, index=False)
             zf[run].append(af)
@@ -141,9 +165,9 @@ if __name__ == "__main__":
 
             # do pickle stuff and add pickled filename to zf
             pop_file = f"{outdir}/{out_name}_{run}_final_pop.dat"
-            with open(pop_file, "wb") as f:
-                pickle.dump(population, f)
-            zf[run].append(pop_file)
+            pickle_err = ga.pickle_population(population, pop_file)
+            if pickle_err == 0:
+                zf[run].append(pop_file)
 
             try:
                 bestfiles = plots.plot_best(best_file, spectrum)
