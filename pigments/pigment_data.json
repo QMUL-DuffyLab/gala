@@ -108,11 +108,22 @@
     }
   },
   "averaged": {
+    "name": "<pigment>",
+    "abs": {
       "n_gauss": 2,
       "amp": [1.00e+00, 2.00e-01],
       "mu": [6.60e+02, 6.10e+02],
       "sigma": [2.00e+01, 3.0e+01],
-      "text": "$ \\left<\\text{Chl}\\right> $"
+      "text": "avg. abs"
+    },
+    "ems": {
+      "n_gauss": 2,
+      "amp": [9.0e-01, 1.0e-01],
+      "mu": [6.70e+02, 6.85e+02],
+      "sigma": [9.0e+00, 1.1e+01],
+      "0-0": 6.70e+02,
+      "text": "avg. ems"
+    }
   },
   "bchl_a": {
     "name": "BChl \\emph{a}",

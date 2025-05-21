@@ -85,7 +85,7 @@ if __name__ == "__main__":
                         best = ga.copy(population[j])
                         gens_since_improvement = 0
                 # avgs for current generation
-                ca = stats.do_stats(population, results, spectrum,
+                ca, ofs = stats.do_stats(population, results, spectrum,
                         **stats.minimal_stats)
                 '''
                 this is a hack, honestly. separate out the RC counts
@@ -99,18 +99,19 @@ if __name__ == "__main__":
                         if k in avgs:
                             del avgs[k]
                         # rc returns a tuple of arrays (values, counts)
-                        values, counts = v
+                        (values, counts), _ = v
                         for value, count in zip(values, counts):
                             if value in avgs:
                                 avgs[value].append(count)
                             else:
                                 avgs[value] = [count]
                     else:
-                        avgs[k].append(v[0])
+                        (value, err), _ = v
+                        avgs[k].append(value)
                         if f"{k}_err" in avgs:
-                            avgs[f"{k}_err"].append(v[1])
+                            avgs[f"{k}_err"].append(err)
                         else:
-                            avgs[f"{k}_err"] = [v[1]]
+                            avgs[f"{k}_err"] = [err]
                 print(f"Run {run}, gen {gen}:")
                 for key in ca:
                     print(f"<{key}> = {ca[key]}")
@@ -120,8 +121,9 @@ if __name__ == "__main__":
                 if (gen % constants.hist_snapshot == 0):
                     # bar charts/histograms of Genome parameters
                     stat_pref = f"{prefix}_{run}_{gen}"
-                    zf[run].extend(stats.do_stats(population, results,
-                     spectrum, prefix=stat_pref, **stats.big_stats))
+                    output, ofs = stats.do_stats(population, results,
+                     spectrum, prefix=stat_pref, **stats.big_stats)
+                    zf[run].extend(ofs)
 
                 with open(best_file, "a") as f:
                     f.write(str(best).strip('\n'))
@@ -129,7 +131,7 @@ if __name__ == "__main__":
                 f.close()
 
                 # check convergence before applying GA
-                rfm.append(ca['fitness'][0])
+                rfm.append(ca['fitness'][0][0])
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
                 print("gens since improvement: {:d}".format(
@@ -155,13 +157,13 @@ if __name__ == "__main__":
 
             # end of run
             stat_pref = f"{prefix}_{run}_final"
-            zf[run].extend(stats.do_stats(population, results,
-                spectrum, prefix=stat_pref, **stats.big_stats))
+            output, ofs = stats.do_stats(population, results,
+                spectrum, prefix=stat_pref, **stats.big_stats)
+            zf[run].extend(ofs)
             df = pd.DataFrame(avgs) # convert the list of Series of scalar stats to one DataFrame
             af = f"{prefix}_{run}_avgs.txt"
             df.to_csv(af, index=False)
             zf[run].append(af)
-            # zf.extend(plots.plot_running(af, scalars))
 
             # do pickle stuff and add pickled filename to zf
             pop_file = f"{outdir}/{out_name}_{run}_final_pop.dat"

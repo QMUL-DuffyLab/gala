@@ -26,7 +26,8 @@ genome_parameters = {
         'array'  : False,
         'default' : '',
         'affects' : ['rho', 'aff'],
-        'bounds' : ['ox', 'frl', 'anox', 'exo'],
+        # 'bounds' : ['ox', 'frl', 'anox', 'exo'],
+        'bounds' : ['ox', 'frl'],
         'norm'   : None
     },
     'n_b': {
@@ -56,14 +57,15 @@ genome_parameters = {
         'type'    : np.int64,
         'array'   : True,
         'size'    : lambda g: getattr(g, "n_s"),
-        'bounds'  : [-1, 1],
+        'bounds'  : [-20, 60],
         'norm'    : None,
     },
     'pigment': {
         'type'    : 'U10',
         'array'   : True,
         'size'    : lambda g: getattr(g, "n_s"),
-        'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
+        # 'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
+        'bounds'  : ['averaged'],
         'norm'    : None,
     },
     'rho': {
