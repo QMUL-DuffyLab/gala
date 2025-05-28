@@ -514,13 +514,25 @@ def evolve(rng, population, fitnesses, cost):
     return population
 
 def pickle_population(population, filename):
+    dict_pop = [dataclasses.asdict(p) for p in population]
     with open(filename, "wb") as f:
         try:
-            pickle.dump(population, f)
+            pickle.dump(dict_pop, f)
             return 0
         except:
             print("Pickling failed")
             return -1
+
+def unpickle_population(filename):
+    with open(filename, "rb") as f:
+        try:
+            dict_pop = pickle.load(f)
+            population = [Genome(**d) for d in dict_pop]
+        except:
+            print("Unpickling failed")
+            population = []
+            raise
+        return population
 
 
 def test_parameters(individual):
