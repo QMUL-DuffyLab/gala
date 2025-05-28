@@ -542,8 +542,12 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
         # rho is [rho_ox, rho_i, rho_r, rho_ant]
         for i in range(n_rc):
             # odd - inward, even - outward
-            k_b[2 * i] *= p.aff[i] * ((p.rho[i] * p.rho[-1]) / (n_rc + 1.0))
-            k_b[2 * i + 1] *= p.aff[i] * ((p.rho[i] * p.rho[-1]) / (n_rc + 1.0))
+            if 'rho' in ga.genome_parameters:
+                k_b[2 * i] *= (p.rho[i] * p.rho[-1])
+                k_b[2 * i + 1] *= (p.rho[i] * p.rho[-1])
+            if 'aff' in ga.genome_parameters:
+                k_b[2 * i] *= p.aff[i]
+                k_b[2 * i + 1] *= p.aff[i]
         if dg < 0.0:
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
@@ -598,7 +602,9 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
                         # the first place where the population decreases
                         # is the first in the chain of linear flow
                         which_rc = np.where(np.array(diff) == -1)[0][0]//3
-                        twa[ind][indf] = rcm.rates[rt] * (p.rho[which_rc]
+                        twa[ind][indf] = rcm.rates[rt]
+                        if 'rho' in ga.genome_parameters:
+                            twa[ind][indf] *= (p.rho[which_rc]
                                 * p.rho[which_rc + 1])
                     if rt == "ox":
                         tau_ox = (tau_diff + 1.0 / rcm.rates[rt])

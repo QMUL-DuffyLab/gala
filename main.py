@@ -36,7 +36,7 @@ if __name__ == "__main__":
         l    = spectrum[:, 0]
         ip_y = spectrum[:, 1]
         print("Spectrum output name: ", out_name)
-        outdir = os.path.join(constants.output_dir, "tests", "v2.0")
+        outdir = os.path.join(constants.output_dir, "tests", "phz_test")
         print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
@@ -160,7 +160,8 @@ if __name__ == "__main__":
             output, ofs = stats.do_stats(population, results,
                 spectrum, prefix=stat_pref, **stats.big_stats)
             zf[run].extend(ofs)
-            df = pd.DataFrame(avgs) # convert the list of Series of scalar stats to one DataFrame
+            # arrays might be different lengths; make each into Series
+            df = pd.DataFrame({k:pd.Series(v) for k, v in avgs.items()})
             af = f"{prefix}_{run}_avgs.txt"
             df.to_csv(af, index=False)
             zf[run].append(af)

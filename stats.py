@@ -30,8 +30,8 @@ def counts(arr, **kwargs):
     get counts and values of a parameter.
     will work for string or int variables
     '''
-    if isinstance(arr[0], np.ndarray):
-        np.array(arr).flatten()
+    # if isinstance(arr[0], np.ndarray):
+    #     np.array(arr).flatten()
     v, c = np.unique(arr, return_counts=True, equal_nan=False)
     if "outfile" in kwargs:
         s = pd.Series(c / len(arr), index=v)
@@ -45,8 +45,8 @@ def avg(arr, **kwargs):
     return average and error of quantity.
     will work for int/float
     '''
-    if isinstance(arr[0], np.ndarray):
-        np.array(arr).flatten()
+    # if isinstance(arr[0], np.ndarray):
+    #     np.array(arr).flatten()
     m, e = np.mean(arr), np.std(arr) / np.sqrt(len(arr))
     if "outfile" in kwargs:
         np.savetxt(kwargs['outfile'], np.column_stack((m, e)))
@@ -64,6 +64,54 @@ def element_avg(arr, **kwargs):
         return (m, e), kwargs['outfile']
     else:
         return (m, e), []
+    
+def array_hist(population, name):
+    if name in ga.genome_parameters.keys():
+        bounds = ga.genome_parameters[name]['bounds']
+        bins = np.linspace(bounds[0], bounds[1],
+                num=np.round((1 + bounds[1] - bounds[0])).astype(int))
+        arr = [getattr(p, name) for p in population]
+        if ga.genome_parameters[name]['depends'] == 'n_s':
+            hsm = True
+            shape = (constants.hist_sub_max)
+        else:
+            hsm = False
+            shape = arr[0].shape
+    else:
+        arr = population
+        bins = np.linspace(np.min(arr), np.max(arr))
+        shape = arr[0].shape
+        hsm = False
+    hist_arr = np.full((constants.population_size, *shape), np.nan)
+    for i in range(constants.population_size):
+        if hsm:
+            for j in range(constants.hist_sub_max):
+                if j < len(arr[i]):
+                    hist_arr[i][j] = arr[i][j]
+        else:
+            hist_arr[i] = arr[i]
+    # we only care about the first subunit here
+    hist = np.histogram(hist_arr[:, 0], bins=bins)[0]
+    fig, ax = plt.subplots(figsize=(12,8))
+    plt.bar(bins[:-1], hist)
+    plt.title(name)
+    plt.show()
+    plt.close()
+    
+def scalar_hist(population, name):
+    if name in ga.genome_parameters.keys():
+        bounds = ga.genome_parameters[name]['bounds']
+        bins = np.linspace(bounds[0], bounds[1], num=np.round((1 + bounds[1] - bounds[0])).astype(int))
+        arr = [getattr(p, name) for p in population]
+    else:
+        arr = population
+        bins = np.linspace(np.min(arr), np.max(arr))
+    hist = np.histogram(np.array(arr), bins=bins)[0]
+    fig, ax = plt.subplots(figsize=(12,8))
+    plt.bar(bins[:-1], hist)
+    plt.title(name)
+    plt.show()
+    plt.close()
 
 def hist(arr, kwargs):
     '''

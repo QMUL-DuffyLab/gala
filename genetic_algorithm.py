@@ -22,66 +22,79 @@ import rc as rcm
 
 genome_parameters = {
     'rc': {
-        'type'   : np.str_,
-        'array'  : False,
+        'type'    : np.str_,
+        'array'   : False,
+        'depends' : None,
         'default' : '',
-        'affects' : ['rho', 'aff'],
-        # 'bounds' : ['ox', 'frl', 'anox', 'exo'],
-        'bounds' : ['ox', 'frl'],
-        'norm'   : None
+        'bounds' : ['ox', 'frl', 'anox', 'exo'],
+        # 'bounds'  : ['ox', 'frl'],
+        'mutable' : False,
+        'norm'    : None
     },
     'n_b': {
-        'type'   : np.int64,
-        'default': 0,
-        'array'  : False,
-        'bounds' : [1, 12],
-        'norm'   : None,
+        'type'    : np.int64,
+        'default' : 0,
+        'array'   : False,
+        'depends' : None,
+        'bounds'  : [1, 10],
+        'mutable' : True,
+        'norm'    : None,
     },
     'n_s': {
-        'type'   : np.int64,
-        'default': 0,
-        'array'  : False,
-        'affects': ['n_p', 'shift', 'pigment'],
-        'bounds' : [1, 10],
-        'norm'   : None,
+        'type'    : np.int64,
+        'default' : 0,
+        'array'   : False,
+        'depends' : None,
+        'bounds'  : [1, 10],
+        'mutable' : True,
+        'norm'    : None,
     },
     'n_p': {
         'type'    : np.int64,
         'array'   : True,
-        'size'    : lambda g: getattr(g, "n_s"),
         'depends' : 'n_s',
-        'bounds'  : [1, 100],
+        'size'    : lambda g: getattr(g, "n_s"),
+        'bounds'  : [1, 120],
+        'mutable' : True,
         'norm'    : None,
     },
     'shift': {
         'type'    : np.int64,
         'array'   : True,
+        'depends' : 'n_s',
         'size'    : lambda g: getattr(g, "n_s"),
         'bounds'  : [-20, 60],
+        'mutable' : True,
         'norm'    : None,
     },
     'pigment': {
         'type'    : 'U10',
         'array'   : True,
+        'depends' : 'n_s',
         'size'    : lambda g: getattr(g, "n_s"),
         # 'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
         'bounds'  : ['averaged'],
+        'mutable' : True,
         'norm'    : None,
     },
     'rho': {
         'type'    : np.float64,
         'array'   : True,
+        'depends' : 'rc',
         'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
         # note that this is a bit fake - upper bound must just be
         # >= the largest possible sum
         'bounds'  : [0.1, 5.0],
+        'mutable' : True,
         'norm'    : lambda p: p * (len(p) / np.sum(p)),
     },
     'aff': {
         'type'    : np.float64,
         'array'   : True,
+        'depends' : 'rc',
         'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')],
         'bounds'  : [0.1, 10.0],
+        'mutable' : True,
         'norm'    : lambda p: p / p[-1],
     },
 }
@@ -220,7 +233,7 @@ def fitness(g, nu_e, cost):
     '''
     hmm.
     '''
-    return (nu_e - cost * ((g.n_b * np.sum(g.n_p)) 
+    return (nu_e - cost * ((g.n_b * np.sum(g.n_p))
                            + np.sum(rcm.params[g.rc]['n_p'])))
 
 def fill_arrays(rng, parent_values, res_length, parameter):
@@ -432,12 +445,15 @@ def mutate(rng, genome, parameter, index=None):
     if parameter == 'pigment' or parameter == 'rc':
         new = rng.choice(bounds)
     else:
-        scale = (bounds[1] - bounds[0]) * constants.mu_width
-        b = (bounds - current) / (scale)
-        new = ss.truncnorm.rvs(b[0], b[1], loc=current,
-                               scale=scale, random_state=rng)
+        width = np.round(constants.mu_width *
+                (bounds[1] - bounds[0])).astype(int)
+        new = ss.norm.rvs(loc=current, scale=width, random_state=rng)
         if isinstance(current, (int, np.integer)):
             new = new.round().astype(int)
+        if new < bounds[0]:
+            new = bounds[0]
+        if new > bounds[1]:
+            new = bounds[1]
     if index is not None:
         getattr(genome, parameter)[index] = new
     else:
@@ -456,30 +472,31 @@ def mutation(rng, individual):
     are all independent quantities?
     '''
     for name, param in genome_parameters.items():
-        if param['array']:
-            # check the size first - has it changed?
-            current = getattr(individual, name)
-            current_size = len(current)
-            new_size = param['size'](individual)
-            if current_size != new_size:
-                current.resize(new_size, refcheck=False)
-                if new_size > current_size:
-                    # resize pads with zeros - fill with copies
-                    # of the last element instead
-                    for i in range(new_size - current_size):
-                        current[-(i + 1)] = current[current_size - 1]
-            # the way i've had it set up is to only mutate
-            # one element of each array; this is just one
-            # choice. maybe chat to chris about it, but for now
-            # copy the previous behaviour
-            setattr(individual, name, current)
-            index = rng.integers(0, new_size)
-            mutate(rng, individual, name, index)
-        else:
-            mutate(rng, individual, name, None)
-        if param['norm'] is not None:
-            setattr(individual, name,
-                    param['norm'](getattr(individual, name)))
+        if param['mutable']:
+            if param['array']:
+                # check the size first - has it changed?
+                current = getattr(individual, name)
+                current_size = len(current)
+                new_size = param['size'](individual)
+                if current_size != new_size:
+                    current.resize(new_size, refcheck=False)
+                    if new_size > current_size:
+                        # resize pads with zeros - fill with copies
+                        # of the last element instead
+                        for i in range(new_size - current_size):
+                            current[-(i + 1)] = current[current_size - 1]
+                # the way i've had it set up is to only mutate
+                # one element of each array; this is just one
+                # choice. maybe chat to chris about it, but for now
+                # copy the previous behaviour
+                setattr(individual, name, current)
+                index = rng.integers(0, new_size)
+                mutate(rng, individual, name, index)
+            else:
+                mutate(rng, individual, name, None)
+            if param['norm'] is not None:
+                setattr(individual, name,
+                        param['norm'](getattr(individual, name)))
     return individual
 
 def evolve(rng, population, fitnesses, cost):
