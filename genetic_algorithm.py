@@ -26,8 +26,8 @@ genome_parameters = {
         'array'   : False,
         'depends' : None,
         'default' : '',
-        'bounds' : ['ox', 'frl', 'anox', 'exo'],
-        # 'bounds'  : ['ox', 'frl'],
+        # 'bounds' : ['ox', 'frl', 'anox', 'exo'],
+        'bounds'  : ['ox_id', 'anox', 'exo'],
         'mutable' : False,
         'norm'    : None
     },
@@ -388,6 +388,9 @@ def crossover(rng, child, parents, parameter):
             now we check that all elements of the array are in bounds,
             as described above. this maybe isn't the most efficient
             way of doing this, but i can't think of a better one
+            NB: this is not working properly, particularly for the
+            affinities - the division tends to throw the array elements
+            out of bounds. maybe just snap them back to [lb, ub]?
             '''
             all_in_bounds = check_bounds(new, parameter)
             tries += 1

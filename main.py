@@ -116,7 +116,6 @@ if __name__ == "__main__":
                 for key in ca:
                     print(f"<{key}> = {ca[key]}")
                 print(f"solver failures: {solver_failures}")
-                print(f"avgs: {avgs}")
                 print("")
                 if (gen % constants.hist_snapshot == 0):
                     # bar charts/histograms of Genome parameters
