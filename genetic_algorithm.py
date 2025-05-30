@@ -26,8 +26,7 @@ genome_parameters = {
         'array'   : False,
         'depends' : None,
         'default' : '',
-        # 'bounds' : ['ox', 'frl', 'anox', 'exo'],
-        'bounds'  : ['ox_id', 'anox', 'exo'],
+        'bounds'  : ['ox_id', 'exo'],
         'mutable' : False,
         'norm'    : None
     },
@@ -54,7 +53,7 @@ genome_parameters = {
         'array'   : True,
         'depends' : 'n_s',
         'size'    : lambda g: getattr(g, "n_s"),
-        'bounds'  : [1, 120],
+        'bounds'  : [1, 100],
         'mutable' : True,
         'norm'    : None,
     },
@@ -77,26 +76,26 @@ genome_parameters = {
         'mutable' : True,
         'norm'    : None,
     },
-    'rho': {
-        'type'    : np.float64,
-        'array'   : True,
-        'depends' : 'rc',
-        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
-        # note that this is a bit fake - upper bound must just be
-        # >= the largest possible sum
-        'bounds'  : [0.1, 5.0],
-        'mutable' : True,
-        'norm'    : lambda p: p * (len(p) / np.sum(p)),
-    },
-    'aff': {
-        'type'    : np.float64,
-        'array'   : True,
-        'depends' : 'rc',
-        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')],
-        'bounds'  : [0.1, 10.0],
-        'mutable' : True,
-        'norm'    : lambda p: p / p[-1],
-    },
+    # 'rho': {
+    #     'type'    : np.float64,
+    #     'array'   : True,
+    #     'depends' : 'rc',
+    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
+    #     # note that this is a bit fake - upper bound must just be
+    #     # >= the largest possible sum
+    #     'bounds'  : [0.1, 5.0],
+    #     'mutable' : True,
+    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
+    # },
+    # 'aff': {
+    #     'type'    : np.float64,
+    #     'array'   : True,
+    #     'depends' : 'rc',
+    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')],
+    #     'bounds'  : [0.1, 10.0],
+    #     'mutable' : True,
+    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
+    # },
 }
 
 def check_bounds(arr, parameter):
@@ -186,7 +185,7 @@ def new(rng, **kwargs):
         # will break the GA down the line. so check the types
         # of the parameters and convert them as necessary
         for param in genome_parameters:
-            p = getattr(template, param)
+            p = getattr(kwargs['template'], param)
             tt = genome_parameters[param]['type']
             if tt == 'U10': # pigment list
                 setattr(g, param, np.array(p, dtype='U10'))
@@ -194,7 +193,7 @@ def new(rng, **kwargs):
                 setattr(g, param, tt(p))
         if 'variability' in kwargs:
             if rng.random() < kwargs['variability']:
-                mutation(rng, g)
+                g = mutation(rng, g)
         return g
     
     for k, v in kwargs.items():
@@ -222,11 +221,20 @@ def new(rng, **kwargs):
 
 def copy(g):
     '''
-    return a copy of g
+    return a copy of g. note that we have to explicitly
+    check for the array parameters here and create new
+    numpy arrays for them, or else the new genome will
+    just have references to the arrays of the old genome,
+    which will lead to some really fucking annoying bugs,
+    trust me
     '''
     h = Genome()
-    for key in genome_parameters.keys():
-        setattr(h, key, getattr(g, key))
+    for k, v in genome_parameters.items():
+        p = getattr(g, k)
+        if v['array']:
+            setattr(h, k, np.array(p, dtype=v['type']))
+        else:
+            setattr(h, k, p)
     return h
 
 def fitness(g, nu_e, cost):

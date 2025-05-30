@@ -32,9 +32,7 @@ mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05 # proportion of genomes to mutate after each generation
 tourney_k = 5 # selection tournament size
 hist_snapshot = 10 # generate histograms every hist_snapshot generations
-max_shift = 0 # maximum shift (nm) of absorption peaks
 shift_inc = 10.0 # increment to shift lineshapes by
-peak_binwidth = 10.0 # binwidth for histograms of peak absorption per subunit
 
 '''
 some rates that I think are going to be fixed
@@ -56,14 +54,6 @@ np_rc = 10 # number of pigments in reaction centre
 # number of subunits to make histograms for
 hist_sub_max = 10
 
-'''
-these are for the stats functions. every hist_snapshot generations
-we take distributions of the Genome parameters. `bounds` above is
-used to determine the range over which the histogram is binned; the
-binwidth is (obviously) the binwidth for those histograms. if you don't
-give one, it'll use the default 50 bins for the whole range and print
-a warning, so it'll still do the histogram, just might not be as useful
-'''
 binwidths = {'n_b': 1,
         'n_s': 1,
         'n_p': 1,

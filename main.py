@@ -20,7 +20,7 @@ import genetic_algorithm as ga
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    cost = 0.02 # temp
+    cost = 0.005 # temp
     # various other examples of dicts in light.py
     spectra_dicts = [
             {'type': 'stellar', 'kwargs': 
@@ -36,7 +36,8 @@ if __name__ == "__main__":
         l    = spectrum[:, 0]
         ip_y = spectrum[:, 1]
         print("Spectrum output name: ", out_name)
-        outdir = os.path.join(constants.output_dir, "tests", "phz_test")
+        outdir = os.path.join(constants.output_dir, "tests",
+                f"phz_test_cost_{cost}")
         print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
