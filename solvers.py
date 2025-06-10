@@ -249,7 +249,7 @@ def antenna_only(l, ip_y, p, overlaps, gammas, debug=False):
     else:
         return np.array([nu_e, phi_e_g, phi_e])
 
-def rc_only(rc_type, spectrum, **kwargs):
+def RC_only(rc_type, spectrum, **kwargs):
     '''
     parameters
     ----------
