@@ -268,7 +268,6 @@ def RC_only(rc_type, spectrum, **kwargs):
     n_rc = len(rcp["pigments"])
     n_rc_states = len(rcp["states"])
     fp_y = (spectrum[:, 0] * spectrum[:, 1]) / utils.hcnm
-    # NB: next two lines assume all photosystems are identical
     if 'n_p' in kwargs:
         n_p = [kwargs['n_p'] for i in range(n_rc)]
     else:
@@ -403,8 +402,6 @@ def RC_only(rc_type, spectrum, **kwargs):
                  order='F')
     for i in range(side):
         for j in range(side):
-            # if twa[i][j] != 0.0:
-            #     print(f"{toti[i]} -> {toti[j]} = {twa[i][j]}")
             if (i != j):
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
@@ -498,7 +495,6 @@ def antenna_RC(p, spectrum, **kwargs):
         norms[i] = utils.overlap(l, a_l[i], e_l[i])
         gamma[i] = (n_p[i] * constants.sig_chl *
                         utils.overlap(l, fp_y, a_l[i]))
-        # print(f"{i}, {pigment[i]}, {shift[i]}, {n_p[i]}, {gamma[i]}")
 
     # detrapping regime
     detrap = rcm.rates["trap"]
@@ -516,8 +512,6 @@ def antenna_RC(p, spectrum, **kwargs):
             raise ValueError("Detrapping regime should be 'fast',"
               " 'thermal', 'energy_gap' or 'none'.")
 
-    # NB: this needs checking for logic for all types
-    # print("KB CALC:")
     for i in range(p.n_s + n_rc):
         ab = i
         el = -1
@@ -549,7 +543,6 @@ def antenna_RC(p, spectrum, **kwargs):
         that: have a JSON parameter like "array": True/False and then
         "array_len": "n_s" or "rc", which can be used in the GA
         '''
-        # rho is [rho_ox, rho_i, rho_r, rho_ant]
         for i in range(n_rc):
             # odd - inward, even - outward
             if 'rho' in ga.genome_parameters:
@@ -562,8 +555,6 @@ def antenna_RC(p, spectrum, **kwargs):
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
-    # print("KB CALC DONE")
-    # print(k_b)
 
     n_rc_states = len(rcp["states"]) # total number of states of all RCs
     side = n_rc_states * ((p.n_b * p.n_s) + n_rc + 1)
@@ -663,31 +654,19 @@ def antenna_RC(p, spectrum, **kwargs):
                         # recombination can occur from any photosystem
                         twa[ind][indf] += rcm.rates["rec"]
 
-            '''
-            will probably need to move some stuff (gauss, overlap calc etc.)
-            into a separate lineshapes.py file as well.
-
-            Also: the indices dict coming from rc.py - which way round?
-            above we want (state tuple) -> index, but for the lindices
-            and cycdices we want index -> (state tuple), i think. figure that
-            out too :)
-            '''
             if jind > 0:
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
                 twa[ind][i] = constants.k_diss
-                # print(f"{toti[ind]} -> {toti[i]}: k_diss")
             
             if jind > 0 and jind <= n_rc:
                 twa[i][ind] = gamma[jind - 1] # absorption by RCs
-                # print(f"{toti[i]} -> {toti[ind]}: gamma[{jind - 1}]")
 
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
                 # index on branch
                 bi = (jind - n_rc - 1) % p.n_s
                 twa[i][ind] = gamma[n_rc + bi] # absorption by this block
-                # print(f"{toti[i]} -> {toti[ind]}: gamma[{n_rc + bi}]")
                 if bi == 0:
                     # root of branch - transfer to RC exciton states possible
                     for k in range(n_rc):
@@ -695,18 +674,14 @@ def antenna_RC(p, spectrum, **kwargs):
                         offset = (n_rc - k) * n_rc_states
                         # inward transfer to RC k
                         twa[ind][ind - offset] = k_b[2 * k + 1]
-                        # print(f"{toti[ind]} -> {toti[ind-offset]}: kb[{2 * k + 1}], ind={ind}, offset={offset}")
                         # outward transfer from RC k
                         twa[ind - offset][ind] = k_b[2 * k]
-                        # print(f"{toti[ind-offset]} -> {toti[ind]}: kb[{2 * k}], ind={ind}, offset={offset}")
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                    # print(f"{toti[ind]} -> {toti[ind-n_rc_states]}: kb[{2 * (n_rc + bi)}], bi = {bi}")
                 if bi < (p.n_s - 1):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
-                    # print(f"{toti[ind]} -> {toti[ind+n_rc_states]}: kb[{2 * (n_rc + bi) + 1}], bi = {bi}")
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
@@ -805,15 +780,14 @@ if __name__ == "__main__":
     n_s = 2
     pigment = ['bchl_b', 'chl_f']
     n_p = [65 for _ in range(n_s)]
-    no_shift = [0 for _ in range(n_s)]
+    shift = [0 for _ in range(n_s)]
     rc_type = "anox"
     names = rcm.params[rc_type]["pigments"] + pigment
     rho = [1.0, 1.0] # equal stoichiometry
     aff = [1.0] # ps_ox, ps_r affinity
-    p = ga.Genome(rc_type, n_b, n_s, n_p, no_shift,
-            pigment, rho, aff)
+    p = ga.Genome(rc_type, n_b, n_s, n_p, shift, pigment)
 
-    od = antenna_RC(spectrum[:, 0], spectrum[:, 1], p, True)
+    od = antenna_RC(p, spectrum, debug=True)
     print(f"Branch rates k_b: {od['k_b']}")
     print(f"Raw overlaps of F'(p) A(p): {od['norms']}")
 
