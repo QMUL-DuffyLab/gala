@@ -18,6 +18,7 @@ import glob
 import dataclasses
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 from functools import reduce
 import constants
@@ -65,88 +66,60 @@ def element_avg(arr, **kwargs):
     else:
         return (m, e), []
     
-def array_hist(population, name):
-    if name in ga.genome_parameters.keys():
-        bounds = ga.genome_parameters[name]['bounds']
-        bins = np.linspace(bounds[0], bounds[1],
-                num=np.round((1 + bounds[1] - bounds[0])).astype(int))
-        arr = [getattr(p, name) for p in population]
-        if ga.genome_parameters[name]['depends'] == 'n_s':
-            hsm = True
-            shape = (constants.hist_sub_max)
-        else:
-            hsm = False
-            shape = arr[0].shape
-    else:
-        arr = population
-        bins = np.linspace(np.min(arr), np.max(arr))
-        shape = arr[0].shape
-        hsm = False
-    hist_arr = np.full((constants.population_size, *shape), np.nan)
-    for i in range(constants.population_size):
-        if hsm:
-            for j in range(constants.hist_sub_max):
-                if j < len(arr[i]):
-                    hist_arr[i][j] = arr[i][j]
-        else:
-            hist_arr[i] = arr[i]
-    # we only care about the first subunit here
-    hist = np.histogram(hist_arr[:, 0], bins=bins)[0]
-    fig, ax = plt.subplots(figsize=(12,8))
-    plt.bar(bins[:-1], hist)
-    plt.title(name)
-    plt.show()
-    plt.close()
-    
-def scalar_hist(population, name):
-    if name in ga.genome_parameters.keys():
-        bounds = ga.genome_parameters[name]['bounds']
-        bins = np.linspace(bounds[0], bounds[1], num=np.round((1 + bounds[1] - bounds[0])).astype(int))
-        arr = [getattr(p, name) for p in population]
-    else:
-        arr = population
-        bins = np.linspace(np.min(arr), np.max(arr))
-    hist = np.histogram(np.array(arr), bins=bins)[0]
-    fig, ax = plt.subplots(figsize=(12,8))
-    plt.bar(bins[:-1], hist)
-    plt.title(name)
-    plt.show()
-    plt.close()
-
-def hist(arr, kwargs):
+def hist(filename, key, split=None):
     '''
-    NB: this will not work. actually, figuring out what kind of
-    histogram we want (one for a single int or float, one for a
-    flattened array, one per element for an array, what about the
-    string variables, and so on) is really hard.
-    NB: if it's a genome parameter, pass the subpopulation of genomes
-    directly because we need to check if it's a subunit parameter or
-    an RC one. otherwise just pass the array
+    use pandas and seaborn to plot per-element
+    histograms of array parameters
     '''
-    if "name" in kwargs:
-        # if name in ga.genome_parameters.keys():
-        hist_arr = np.array([getattr(p, kwargs['name']) for p in arr])
-        b = ga.genome_parameters[kwargs['name']]['bounds']
-        # if [ga.genome_parameters[name]['size'](p)
-        #         == getattr(p, 'n_s')] for p in arr]:
+    df = pd.read_pickle(filename)
+    # this is very inefficient. but basically, do one histogram for
+    # each element of the given array, knowing that the arrays might be
+    # different sizes (e.g. the redox and recombination arrays)
+    hmax = np.max([len(np.array(df[key][i]).flatten())
+        for i in range(len(df))])
+    if key in ga.genome_parameters:
+        if ga.genome_parameters[key]['array']:
+            if ga.genome_parameters[key]['depends'] == "n_s":
+                hmax = constants.hist_sub_max
+    if isinstance(np.array(df[key][0]).flatten()[0], (int, np.int)):
+        discrete = True
     else:
-        hist_arr = np.array(arr)
-        b = [np.min(hist_arr), np.max(hist_arr)]
-    if isinstance(b[0], (int, np.int64)):
-        # implictly set binwidth to 1
-        bins = np.linspace(*b,
-        num = np.round(1 + b[1] - b[0]).astype(int))
+        discrete = False
+    # figure out a layout for the plots
+    if hmax % 2 == 0:
+       nrows = hmax//2
+       ncols = 2
     else:
-        bins = np.linspace(*b)
-    try:
-        if isinstance(hist_arr[0], np.ndarray):
-            # is it a subunit based array?
-            h = np.zeros((*hist_arr[0].shape, len(bins)-1))
-        h = np.histogram(hist_arr, bins=bins)[0]
-    except TypeError:
-        print(f"{name}, {b}, {bins}")
-        raise
-    return bins, h
+        nrows = hmax
+        ncols = 1
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols,
+            figsize=(12 * ncols, 8 * nrows))
+    for i in range(hmax):
+        col = np.full(len(df), np.nan)
+        for j in range(len(df)):
+            v = np.array(df[key][j]).flatten()
+            if i < len(v):
+                col[j] = v[i]
+        # add col to the dataframe so that we can plot it with seaborn
+        str_id = f"{key}[{i}]"
+        df[str_id] = col
+        if hmax == 1:
+            curr_ax = axes # otherwise the histplot will fail below
+        else:
+            curr_ax = axes[i // 2, i % 2]
+        if split is not None:
+            sns.histplot(ax=curr_ax, data=df, x=str_id,
+                    discrete=discrete, hue=split, multiple='dodge')
+        else:
+            sns.histplot(ax=curr_ax, data=df, x=str_id, discrete=discrete)
+        # delete the temporary index now we don't need it
+        df.drop(columns=str_id, inplace=True)
+    if split is not None:
+        suffix = f"hist_{key}_splitby_{split}.pdf"
+    else:
+        suffix = f"hist_{key}.pdf"
+    plt.savefig(f"{os.path.splitext(filename)[0]}_{suffix}")
+    plt.close()
 
 def split_population(population, split_key):
     '''

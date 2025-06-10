@@ -76,6 +76,9 @@ def antenna_only(l, ip_y, p, overlaps, gammas, debug=False):
     ip_y = irradiances at those wavelengths
     p = instance of constants.Genome
     set debug = True to output a dict with a load of info in it
+
+    NB: this will not currently work. unsure if it'll ever be needed
+    again, honestly
     '''
     n_p = np.array([constants.np_rc, *p.n_p], dtype=np.int32)
     # NB: shifts would have to be calculated here as well, if
@@ -246,54 +249,52 @@ def antenna_only(l, ip_y, p, overlaps, gammas, debug=False):
     else:
         return np.array([nu_e, phi_e_g, phi_e])
 
-def rc_only(rc_type, spectrum, detrap_type,
-        tau_diff, n_p, per_rc=True, debug=False):
+def rc_only(rc_type, spectrum, **kwargs):
     '''
     parameters
     ----------
     `rc_type`: string corresponding to params above
     `spectrum`: input spectrum from light.py
-    `detrap_type`: string corresponding to detrapping regime
-    `tau_diff`: float - diffusion time for whatever's being oxidised
-    `n_p`: Number of pigments
-    `per_rc`: if True, then give n_p pigments per photosystem; if
-    False, divide n_p evenly between them
 
     set up an RC-only system of equations of type `rc_type` (see params above)
-    with total excitation rate `gamma` shared equally between
     photosystems, and solve the resulting equations using scipy NNLS
     as in antenna.py and supersystem.py.
     this is fairly simple - there's no transfer rates to worry about,
     only excitation, dissipation, and the internal RC processes which
     are all generated and indexed previously.
     '''
+    pdata = constants.pigment_data
     rcp = rcm.params[rc_type]
     n_rc = len(rcp["pigments"])
     n_rc_states = len(rcp["states"])
     fp_y = (spectrum[:, 0] * spectrum[:, 1]) / utils.hcnm
     # NB: next two lines assume all photosystems are identical
-    if not per_rc:
-        n_p /= n_rc
+    if 'n_p' in kwargs:
+        n_p = [kwargs['n_p'] for i in range(n_rc)]
+    else:
+        n_p = [pdata[rcp["pigments"][i]] for i in range(n_rc)]
     a_l = np.zeros((n_rc, len(spectrum[:, 0])), dtype=np.float64)
     gamma = np.zeros(n_rc, dtype=np.float64)
     for i in range(n_rc):
         a_l[i] = utils.absorption(spectrum[:, 0], rcp["pigments"][i], 0.0)
-        gamma[i] = (n_p * constants.sig_chl *
+        gamma[i] = (n_p[i] * constants.sig_chl *
             utils.overlap(spectrum[:, 0], fp_y, a_l[i]))
 
     # detrapping regime
     detrap = rcm.rates["trap"]
-    if detrap_type == "fast":
-        pass
-    elif detrap_type == "thermal":
-        detrap *= np.exp(-1.0) # -k_B T
-    elif detrap_type == "energy_gap":
-        detrap *= np.exp(-rcp["gap"])
-    elif detrap_type == "none":
-        detrap *= 0.0 # irreversible
-    else:
-        raise ValueError("Detrapping regime should be 'fast',"
-          " 'thermal', 'energy_gap' or 'none'.")
+    if 'detrap' in kwargs:
+        detrap_type = kwargs['detrap']
+        if detrap_type == "fast":
+            pass
+        elif detrap_type == "thermal":
+            detrap *= np.exp(-1.0) # -k_B T
+        elif detrap_type == "energy_gap":
+            detrap *= np.exp(-rcp["gap"])
+        elif detrap_type == "none":
+            detrap *= 0.0 # irreversible
+        else:
+            raise ValueError("Detrapping regime should be 'fast',"
+              " 'thermal', 'energy_gap' or 'none'.")
         
     # n_rc_states for each exciton block, plus empty
     side = n_rc_states * (n_rc + 1)
@@ -338,8 +339,18 @@ def rc_only(rc_type, spectrum, detrap_type,
                     if rt in ["lin", "red"]:
                         twa[ind][indf] = rcm.rates[rt]
                     if rt == "ox":
-                        tau_ox = (tau_diff + 1.0 / rcm.rates[rt])
-                        twa[ind][indf] = 1.0 / tau_ox
+                        # if given, diff_ratios should be a dict of the
+                        # form {'ox': 0.1, 'anox': 1.0}, etc.
+                        # each number is the ratio of diffusion time to
+                        # oxidation time, i.e. if it's > 1 substrate
+                        # oxidation is diffusion-limited.
+                        # ratio = 0 represents instantaneous diffusion;
+                        # start there and modify if a ratio was given
+                        ratio = 0.0
+                        if 'diff_ratios' in kwargs:
+                            if p.rc in kwargs['diff_ratios']:
+                                ratio = kwargs['diff_ratios'][p.rc]
+                        twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
                     if rt == "trap":
                         # find which trap state is being filled here
                         # 3 states per rc, so integer divide by 3
@@ -426,7 +437,7 @@ def rc_only(rc_type, spectrum, detrap_type,
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-    if debug:
+    if 'debug' in kwargs and kwargs['debug']:
         return {
                 "k": k,
                 "twa": twa,
@@ -439,13 +450,11 @@ def rc_only(rc_type, spectrum, detrap_type,
                 "nu_cyc": nu_cyc,
                 "redox": redox,
                 "recomb": recomb,
-                "tau_ox": tau_ox,
                 }
     else:
         return (nu_e, nu_cyc, redox, recomb)
 
-def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
-        detrap_type="none", tau_diff=0.0):
+def antenna_RC(p, spectrum, **kwargs):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
 
@@ -457,7 +466,6 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
     set debug = True to output a dict with a load of info in it
     nnls = which NNLS version to use
     detrap_type = string for what detrapping regime to simulate
-    tau_diff = diffusion time for the oxidation substrate (seconds)
 
     outputs
     -------
@@ -467,10 +475,7 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
     else:
     TBC. probably nu_e and nu_cyc
     '''
-    # NB: the tau_diff and detrap_type might or might not be
-    # simulation-wide parameters later on; if not, if they need to be
-    # put into the genome somewhere i suppose
-    
+    l, ip_y = spectrum.T
     fp_y = (ip_y * l) / utils.hcnm
     rcp = rcm.params[p.rc]
     n_rc = len(rcp["pigments"])
@@ -497,17 +502,19 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
 
     # detrapping regime
     detrap = rcm.rates["trap"]
-    if detrap_type == "fast":
-        pass
-    elif detrap_type == "thermal":
-        detrap *= np.exp(-1.0) # -k_B T
-    elif detrap_type == "energy_gap":
-        detrap *= np.exp(-rcp["gap"])
-    elif detrap_type == "none":
-        detrap *= 0.0 # irreversible
-    else:
-        raise ValueError("Detrapping regime should be 'fast',"
-          " 'thermal', 'energy_gap' or 'none'.")
+    if 'detrap' in kwargs:
+        detrap_type = kwargs['detrap']
+        if detrap_type == "fast":
+            pass
+        elif detrap_type == "thermal":
+            detrap *= np.exp(-1.0) # -k_B T
+        elif detrap_type == "energy_gap":
+            detrap *= np.exp(-rcp["gap"])
+        elif detrap_type == "none":
+            detrap *= 0.0 # irreversible
+        else:
+            raise ValueError("Detrapping regime should be 'fast',"
+              " 'thermal', 'energy_gap' or 'none'.")
 
     # NB: this needs checking for logic for all types
     # print("KB CALC:")
@@ -597,7 +604,6 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
                     ts = toti[indf] # total state tuple
-                    # print(diff)
                     # set the correct element with the corresponding rate
                     if rt == "red":
                         twa[ind][indf] = rcm.rates[rt]
@@ -610,8 +616,12 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
                             twa[ind][indf] *= (p.rho[which_rc]
                                 * p.rho[which_rc + 1])
                     if rt == "ox":
-                        tau_ox = (tau_diff + 1.0 / rcm.rates[rt])
-                        twa[ind][indf] = 1.0 / tau_ox
+                        # get diffusion time for the relevant RC type
+                        ratio = 0.0
+                        if 'diff_ratios' in kwargs:
+                            if p.rc in kwargs['diff_ratios']:
+                                ratio = kwargs['diff_ratios'][p.rc]
+                        twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
                     if rt == "trap":
                         which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         # find which trap state is being filled here
@@ -710,7 +720,10 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
 
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res = solve(k, method='fortran')
+    if 'nnls' in kwargs:
+        p_eq, p_eq_res = solve(k, method=kwargs['nnls'])
+    else:
+        p_eq, p_eq_res = solve(k, method='fortran')
 
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
@@ -756,7 +769,7 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-    if debug:
+    if 'debug' in kwargs and kwargs['debug']:
         return {
                 "k": k,
                 "twa": twa,

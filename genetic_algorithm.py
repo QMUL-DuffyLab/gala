@@ -241,8 +241,7 @@ def fitness(g, nu_e, cost):
     '''
     hmm.
     '''
-    return (nu_e - cost * ((g.n_b * np.sum(g.n_p))
-                           + np.sum(rcm.params[g.rc]['n_p'])))
+    return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
 
 def fill_arrays(rng, parent_values, res_length, parameter):
     '''
