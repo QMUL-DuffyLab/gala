@@ -26,7 +26,7 @@ genome_parameters = {
         'array'   : False,
         'depends' : None,
         'default' : '',
-        'bounds'  : ['ox_id', 'exo'],
+        'bounds'  : ['ox_id', 'anox'],
         'mutable' : False,
         'norm'    : None
     },

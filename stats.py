@@ -148,6 +148,27 @@ def hist(arr, kwargs):
         raise
     return bins, h
 
+def split_population(population, split_key):
+    '''
+    for a given key to split on, split the population into a set
+    of subpopulations based on their value of that key. note that
+    the way this is coded means that at the moment it can basically
+    only be RC you split on, but hopefully it's at least a starting
+    point if you need something more sophisticated. some notes about
+    that are below. returns a dict of subpopulations
+    '''
+    b = ga.genome_parameters[split_key]['bounds']
+    # you could for example make bins and split based on those for
+    # numerical parameters, i guess. you'd also have to change the
+    # `getattr() == b[j]` line below based on how you're splitting
+    subarr = [[] for i in range(len(b))]
+    for j in range(len(b)):
+        for i in range(constants.population_size):
+            if getattr(population[i], split_key) == b[j]:
+                subarr[j].append(population[i])
+    sd = {b[j]: pd.DataFrame(subarr[j]) for j in range(len(b))}
+    return sd
+
 def do_stats(population, results, spectrum, prefix=None, **kwargs):
     # note: this assumes that the key you split on is always
     # something in the genome. i think that's reasonable

@@ -439,7 +439,7 @@ def rc_only(rc_type, spectrum, detrap_type,
                 "tau_ox": tau_ox,
                 }
     else:
-        return nu_e
+        return (nu_e, nu_cyc, redox, recomb)
 
 def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
         detrap_type="none", tau_diff=0.0):
@@ -485,12 +485,12 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
     gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
     k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
     for i in range(p.n_s + n_rc):
-        # print(f"{i}, {pigment[i]}")
         a_l[i] = utils.absorption(l, pigment[i], shift[i])
         e_l[i] = utils.emission(l, pigment[i], shift[i])
         norms[i] = utils.overlap(l, a_l[i], e_l[i])
         gamma[i] = (n_p[i] * constants.sig_chl *
                         utils.overlap(l, fp_y, a_l[i]))
+        # print(f"{i}, {pigment[i]}, {shift[i]}, {n_p[i]}, {gamma[i]}")
 
     # detrapping regime
     detrap = rcm.rates["trap"]
@@ -767,6 +767,8 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
                 "trap_states": trap_states,
                 "ox_states": ox_states,
                 "red_states": red_states,
+                "redox": redox,
+                "recomb": redox,
                 "nu_e": nu_e,
                 "nu_cyc": nu_cyc,
                 'a_l': a_l,
