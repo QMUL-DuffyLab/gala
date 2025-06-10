@@ -107,39 +107,42 @@ def antenna_spectra(p, l, ip_y,
     '''
     pd = constants.pigment_data
     lines, total = antenna_lines(p, l)
-    lps = [pd[p.pigment[i]]['abs']['mu'][0] for i in range(p.n_s)]
+    rcp = rc.params[p.rc]
+    n_rc = len(rcp["pigments"])
+    pigments = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
+    lps = [pd[pigment]['abs']['mu'][0] for pigment in pigments]
     fig, ax = plt.subplots(figsize=(12,8))
-    for i in range(p.n_s):
+    for i in range(p.n_s + n_rc):
         # generate Gaussian lineshape for given pigment
         # and draw dotted vline at normal peak wavelength?
         color = 'C{:1d}'.format(i)
         if draw_00:
             ax.axvline(x=lps[i], color=color, ls='--')
-        label = f"Subunit {i + 1:1d}: {pd[p.pigment[i]]['abs']['text']}"
+        label = f"{i + 1:1d}: {pd[pigments[i]]['abs']['text']}"
         plt.plot(l, lines[i]/np.max(lines[i]), label=label)
-    plt.plot(l, ip_y, label="Incident")
+    plt.plot(l, ip_y, label="Incident", color='k', lw=3.0, ls='--')
     ax.set_xlabel(r'$ \lambda (\text{nm}) $')
     ax.set_ylabel("Intensity (arb. for antenna)")
-    lmin = 200.0 if np.min(l) < 200.0 else np.min(l)
-    lmax = 1000.0 if np.max(l) > 1000.0 else np.max(l)
-    ax.set_xlim([lmin, lmax])
+    # lmin = 400.0 if np.min(l) < 200.0 else np.min(l)
+    # lmax = 1000.0 if np.max(l) > 1000.0 else np.max(l)
+    # ax.set_xlim([lmin, lmax])
     ax.legend()
     fig.savefig(lines_file)
     plt.close()
 
     fig, ax = plt.subplots(figsize=(12,8))
-    plt.plot(l, ip_y, label="Incident", color='0.8')
+    plt.plot(l, ip_y, label="Incident", color='k', lw=3.0, ls='--')
     # set the peak height of the total antenna spectrum
     # to the same height as the incident spectrum
     norm_total = total / (np.max(total) / np.max(ip_y))
     plt.plot(l, norm_total, label="Total antenna")
     ax.set_xlabel(r'$ \lambda (\text{nm}) $')
     ax.set_ylabel("Intensity (arb. for antenna)")
-    ax.set_xlim([lmin, lmax])
+    # ax.set_xlim([lmin, lmax])
     ax.legend()
     fig.savefig(total_file)
     plt.close()
-    #return fig, ax
+    # return fig, ax
 
 def get_best_from_file(input_file):
     '''

@@ -274,9 +274,12 @@ def rc_only(rc_type, spectrum, detrap_type,
     # NB: next two lines assume all photosystems are identical
     if not per_rc:
         n_p /= n_rc
-    a_l = utils.absorption(spectrum[:, 0], rcp["pigments"][0], 0.0)
-    g_per_rc = (n_p * constants.sig_chl *
-            utils.overlap(spectrum[:, 0], fp_y, a_l))
+    a_l = np.zeros((n_rc, len(spectrum[:, 0])), dtype=np.float64)
+    gamma = np.zeros(n_rc, dtype=np.float64)
+    for i in range(n_rc):
+        a_l[i] = utils.absorption(spectrum[:, 0], rcp["pigments"][i], 0.0)
+        gamma[i] = (n_p * constants.sig_chl *
+            utils.overlap(spectrum[:, 0], fp_y, a_l[i]))
 
     # detrapping regime
     detrap = rcm.rates["trap"]
@@ -383,7 +386,7 @@ def rc_only(rc_type, spectrum, detrap_type,
                 twa[ind][i] = constants.k_diss
             
             if jind > 0 and jind <= n_rc:
-                twa[i][ind] = g_per_rc # absorption by RCs
+                twa[i][ind] = gamma[jind - 1] # absorption by RCs
 
     k = np.zeros((side + 1, side), dtype=np.float64,
                  order='F')
@@ -399,7 +402,7 @@ def rc_only(rc_type, spectrum, detrap_type,
 
     b = np.zeros(side + 1, dtype=np.float64)
     b[-1] = 1.0
-    p_eq, p_eq_res = solve(k, method='scipy')
+    p_eq, p_eq_res = solve(k, method='fortran')
 
     nu_e = 0.0
     nu_cyc = 0.0
@@ -427,7 +430,7 @@ def rc_only(rc_type, spectrum, detrap_type,
         return {
                 "k": k,
                 "twa": twa,
-                "gamma": g_per_rc * n_rc,
+                "gamma": gamma,
                 "p_eq": p_eq,
                 "states": total_states,
                 "lindices": lindices,
@@ -712,17 +715,16 @@ def antenna_RC(l, ip_y, p, debug=False, nnls='fortran',
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
     nu_cyc = 0.0
-    trap_indices = [-(3 + 3*i) for i in range(n_rc)]
-    oxidised_indices = [-(2 + 3*i) for i in range(n_rc)]
-    reduced_indices = [-(1 + 3*i) for i in range(n_rc)]
+    # [::-1] to reverse here because otherwise redox below will
+    # output the redox states of the RCs in reverse order
+    trap_indices = [-(3 + 3*i) for i in range(n_rc)][::-1]
+    oxidised_indices = [-(2 + 3*i) for i in range(n_rc)][::-1]
+    reduced_indices = [-(1 + 3*i) for i in range(n_rc)][::-1]
     redox = np.zeros((n_rc, 2), dtype=np.float64)
     recomb = np.zeros(n_rc, dtype=np.float64)
     trap_states = []
     ox_states = []
     red_states = []
-    # print(trap_indices)
-    # print(oxidised_indices)
-    # print(reduced_indices)
 
     '''
     check here whether the solver actually found a solution or not.
