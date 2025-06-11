@@ -23,7 +23,7 @@ if __name__ == "__main__":
     cost = 0.005 # temp
     # various other examples of dicts in light.py
     spectra_dicts = [
-            {'type': 'stellar', 'kwargs': 
+            {'type': 'stellar', 'kwargs':
              {'Tstar': 5772, 'Rstar': 6.957e8, 'a': 1.0, 'attenuation': 0.0}},
           ]
     light.check(spectra_dicts)
@@ -37,7 +37,8 @@ if __name__ == "__main__":
         ip_y = spectrum[:, 1]
         print("Spectrum output name: ", out_name)
         outdir = os.path.join(constants.output_dir, "tests",
-                f"phz_test_cost_{cost}")
+                # f"phz_test_cost_{cost}")
+                f"stats")
         print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
@@ -81,13 +82,18 @@ if __name__ == "__main__":
                         solver_failures += 1
                     fitness = ga.fitness(p, res['nu_e'], cost)
                     results['fitness'].append(fitness)
-                    if (fitness > fit_max):
+                    if fitness > fit_max:
                         fit_max = fitness
                         best = ga.copy(population[j])
                         gens_since_improvement = 0
                 # avgs for current generation
-                ca, ofs = stats.do_stats(population, results, spectrum,
-                        **stats.minimal_stats)
+                df = pd.DataFrame(population)
+                for k, v in results.items():
+                    df[k] = v
+
+                # prefix here is unused
+                stat_dict, stat_files = stats.do_stats(df, spectrum,
+                        prefix, **stats.minimal_stats)
                 '''
                 this is a hack, honestly. separate out the RC counts
                 so that we can make them all into a nice dataframe
@@ -95,7 +101,7 @@ if __name__ == "__main__":
                 stats.py, maybe by messing with the return values
                 of counts()
                 '''
-                for k, v in ca.items():
+                for k, v in stat_dict.items():
                     if k == 'rc':
                         if k in avgs:
                             del avgs[k]
@@ -114,16 +120,18 @@ if __name__ == "__main__":
                         else:
                             avgs[f"{k}_err"] = [err]
                 print(f"Run {run}, gen {gen}:")
-                for key in ca:
+                for key in stat_dict:
                     print(f"<{key}> = {ca[key]}")
                 print(f"solver failures: {solver_failures}")
                 print("")
-                if (gen % constants.hist_snapshot == 0):
+                if gen % constants.hist_snapshot == 0:
                     # bar charts/histograms of Genome parameters
                     stat_pref = f"{prefix}_{run}_{gen}"
-                    output, ofs = stats.do_stats(population, results,
+                    # they all create output files but nothing to print,
+                    # so ignore the tuple returned by do_stats
+                    _, stat_files = stats.do_stats(df,
                      spectrum, prefix=stat_pref, **stats.big_stats)
-                    zf[run].extend(ofs)
+                    zf[run].extend(stat_files)
 
                 with open(best_file, "a") as f:
                     f.write(str(best).strip('\n'))
@@ -131,7 +139,7 @@ if __name__ == "__main__":
                 f.close()
 
                 # check convergence before applying GA
-                rfm.append(ca['fitness'][0][0])
+                rfm.append(stat_dict['fitness'][0][0])
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
                 print("gens since improvement: {:d}".format(

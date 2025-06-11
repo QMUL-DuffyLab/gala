@@ -231,8 +231,8 @@ def plot_average(population, spectrum, outfile, **kwargs):
 
     outputs
     -------
-    datafile: filename of the actual data
-    plotfile: filename of the plot
+    data: the raw data
+    files: filenames for the saved raw data and PDF
     '''
     l = spectrum[:, 0]
     total = np.zeros_like(l)
@@ -290,7 +290,7 @@ def plot_average(population, spectrum, outfile, **kwargs):
     plotfile = os.path.splitext(datafile)[0] + ".pdf"
     plt.savefig(plotfile)
     plt.close()
-    return [datafile, plotfile]
+    return (np.column_stack((l, norm_total))), [datafile, plotfile]
 
 def plot_running(infile, scalars):
     '''
