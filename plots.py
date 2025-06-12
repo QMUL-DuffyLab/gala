@@ -271,8 +271,8 @@ def plot_average(population, spectrum, outfile, **kwargs):
         draw_peak_wl = True
 
     fig, ax = plt.subplots(figsize=(12,8))
-    for x, y, l, c, lw, lst in zip(xs, ys, labels, colours, lws, lsts):
-        plt.plot(x, y, label=l, color=c, lw=lw, ls=lst)
+    for x, y, label, c, lw, lst in zip(xs, ys, labels, colours, lws, lsts):
+        plt.plot(x, y, label=label, color=c, lw=lw, ls=lst)
     ax.set_xlim(constants.x_lim)
     ax.set_xlabel(r' $ \lambda (\text{nm}) $')
     ax.set_ylabel('intensity')

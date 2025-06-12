@@ -83,11 +83,18 @@ def hist(df, prefix, key, split=None, **kwargs):
             curr_ax = axes # otherwise the histplot will fail below
         else:
             curr_ax = axes[i // 2, i % 2]
+        sns_kwargs = {'ax': curr_ax, 'data': df, 'x': str_id,
+                'discrete': discrete}
         if split is not None:
-            sns.histplot(ax=curr_ax, data=df, x=str_id,
-                    discrete=discrete, hue=split, multiple='dodge')
-        else:
-            sns.histplot(ax=curr_ax, data=df, x=str_id, discrete=discrete)
+            sns_kwargs['hue'] = split
+            sns_kwargs['multiple'] = 'dodge'
+        # sometimes seaborn will get confused trying to make the
+        # histogram, which i think is a bin issue, so here try to
+        # give it a sensible bin width to work with
+        bw = (np.nanmax(col) - np.nanmin(col)) / 50
+        if bw > 0.0 and bw != np.nan:
+            sns_kwargs['binwidth'] = bw
+        sns.histplot(**sns_kwargs)
         # delete the temporary index now we don't need it
         df.drop(columns=str_id, inplace=True)
     if split is not None:
@@ -107,7 +114,7 @@ def absorption(df, spectrum, prefix, **kwargs):
     is only here for consistency with the other functions.
     '''
     outfiles = []
-    split = kwargs['split'] if split in kwargs else None
+    split = kwargs['split'] if 'split' in kwargs else None
     df_dict = split_population(df, split)
     for rct, subdf in df_dict.items():
         subpop = []
@@ -126,7 +133,7 @@ def absorption(df, spectrum, prefix, **kwargs):
                     d[index] = row[index]
             g = ga.Genome(**d)
             subpop.append(g)
-        outfiles.extend(plots.plot_average(subpop, spectrum, filename))
+        outfiles.extend(plots.plot_average(subpop, spectrum, abs_file))
     return (), outfiles
 
 def do_stats(df, spectrum, prefix, **kwargs):
@@ -138,9 +145,9 @@ def do_stats(df, spectrum, prefix, **kwargs):
     output_files = []
     for k, v in kwargs.items():
         fn = getattr(sys.modules[__name__], v['function'])
-        fn_kwargs = v | spd
+        # fn_kwargs = v | spd
+        fn_kwargs = {**v, **spd}
         fn_kwargs['key'] = k
-        print(k, v['function'], fn_kwargs)
         op, ofs = fn(df, **fn_kwargs)
         output[k] = op
         output_files.extend(ofs)
@@ -180,18 +187,19 @@ if __name__ == "__main__":
     results = {'nu_e': [], 'nu_cyc': [], 'fitness': [],
                'redox': [], 'recomb': []}
     for p in population:
-        res, fail = solvers.antenna_RC(p, spectrum)
+        res, fail = solvers.antenna_RC(p, spectrum, nnls='scipy')
         res['fitness'] = ga.fitness(p, res['nu_e'], cost)
         for k, v in res.items():
             results[k].append(v)
     df = pd.DataFrame(population)
     for k, v in results.items():
         df[k] = v
+    df.to_csv(f"{prefix}_df.csv", sep="\t")
     output, output_files = do_stats(df, spectrum, prefix, **minimal_stats)
     print("Minimal stats:")
-    print(output)
-    print(output_files)
+    print(f"Output dict: {output}")
+    print(f"Output file dict: {output_files}")
     output, output_files = do_stats(df, spectrum, prefix, **big_stats)
     print("Big stats:")
-    print(output)
-    print(output_files)
+    print(f"Output dict: {output}")
+    print(f"Output file dict: {output_files}")

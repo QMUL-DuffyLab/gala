@@ -271,7 +271,7 @@ def RC_only(rc_type, spectrum, **kwargs):
     if 'n_p' in kwargs:
         n_p = [kwargs['n_p'] for i in range(n_rc)]
     else:
-        n_p = [pdata[rcp["pigments"][i]] for i in range(n_rc)]
+        n_p = [pdata[rcp["pigments"][i]]['n_p'] for i in range(n_rc)]
     a_l = np.zeros((n_rc, len(spectrum[:, 0])), dtype=np.float64)
     gamma = np.zeros(n_rc, dtype=np.float64)
     for i in range(n_rc):
@@ -280,11 +280,11 @@ def RC_only(rc_type, spectrum, **kwargs):
             utils.overlap(spectrum[:, 0], fp_y, a_l[i]))
 
     # detrapping regime
-    detrap = rcm.rates["trap"]
+    detrap = 0.0 # none by default
     if 'detrap' in kwargs:
         detrap_type = kwargs['detrap']
         if detrap_type == "fast":
-            pass
+            rcm.rates["trap"]
         elif detrap_type == "thermal":
             detrap *= np.exp(-1.0) # -k_B T
         elif detrap_type == "energy_gap":
@@ -472,7 +472,8 @@ def antenna_RC(p, spectrum, **kwargs):
     else:
     TBC. probably nu_e and nu_cyc
     '''
-    l, ip_y = spectrum.T
+    l = spectrum[:, 0]
+    ip_y = spectrum[:, 1]
     fp_y = (ip_y * l) / utils.hcnm
     rcp = rcm.params[p.rc]
     n_rc = len(rcp["pigments"])
@@ -497,11 +498,11 @@ def antenna_RC(p, spectrum, **kwargs):
                         utils.overlap(l, fp_y, a_l[i]))
 
     # detrapping regime
-    detrap = rcm.rates["trap"]
+    detrap = 0.0 # no detrapping by default
     if 'detrap' in kwargs:
         detrap_type = kwargs['detrap']
         if detrap_type == "fast":
-            pass
+            rcm.rates["trap"]
         elif detrap_type == "thermal":
             detrap *= np.exp(-1.0) # -k_B T
         elif detrap_type == "energy_gap":
