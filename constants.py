@@ -27,11 +27,11 @@ reproduction_strategy = 'nads' # options: 'nads', 'steady'
 conv_gen = 50 # number of generations without improvement for convergence
 conv_per = 0.01 # convergence if max(fitness) within conv_per for conv_gen
 fitness_cutoff = 0.2 # fraction of individuals kept if strategy = 'steady'
-d_recomb = 0.25 # random perturbation of values during crossover
+d_recomb = 0.4 # random perturbation of values during crossover
 mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05 # proportion of genomes to mutate after each generation
 tourney_k = 5 # selection tournament size
-hist_snapshot = 10 # generate histograms every hist_snapshot generations
+hist_snapshot = 5 # generate histograms every hist_snapshot generations
 shift_inc = 10.0 # increment to shift lineshapes by
 
 '''
@@ -52,7 +52,7 @@ sig_chl = 9E-20 #  cross-section of one pigment
 np_rc = 10 # number of pigments in reaction centre
 
 # number of subunits to make histograms for
-hist_sub_max = 10
+hist_sub_max = 2
 
 binwidths = {'n_b': 1,
         'n_s': 1,

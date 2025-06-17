@@ -35,10 +35,11 @@ if __name__ == "__main__":
         # if we're doing that
         l    = spectrum[:, 0]
         ip_y = spectrum[:, 1]
+        rc_nu_e = {rct: solvers.RC_only(rct, spectrum)[0] # nu_e
+                for rct in ga.genome_parameters['rc']['bounds']}
         print("Spectrum output name: ", out_name)
         outdir = os.path.join(constants.output_dir, "tests",
-                # f"phz_test_cost_{cost}")
-                f"stats")
+                f"zip")
         print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
@@ -75,12 +76,13 @@ if __name__ == "__main__":
                     # this feels horrible to me. but some of the
                     # return values are arrays of different sizes, so
                     # we can't just numpy array the whole thing
-                    res, fail = solvers.antenna_RC(l, ip_y, p)
+                    res, fail = solvers.antenna_RC(p, spectrum)
                     for k, v in res.items():
                         results[k].append(v)
                     if fail < 0:
                         solver_failures += 1
-                    fitness = ga.fitness(p, res['nu_e'], cost)
+                    fitness = ga.fitness(p, res['nu_e'],
+                            cost, rc_nu_e[p.rc])
                     results['fitness'].append(fitness)
                     if fitness > fit_max:
                         fit_max = fitness
@@ -106,14 +108,14 @@ if __name__ == "__main__":
                         if k in avgs:
                             del avgs[k]
                         # rc returns a tuple of arrays (values, counts)
-                        (values, counts), _ = v
+                        (values, counts) = v
                         for value, count in zip(values, counts):
                             if value in avgs:
                                 avgs[value].append(count)
                             else:
                                 avgs[value] = [count]
                     else:
-                        (value, err), _ = v
+                        (value, err) = v
                         avgs[k].append(value)
                         if f"{k}_err" in avgs:
                             avgs[f"{k}_err"].append(err)
@@ -121,7 +123,7 @@ if __name__ == "__main__":
                             avgs[f"{k}_err"] = [err]
                 print(f"Run {run}, gen {gen}:")
                 for key in stat_dict:
-                    print(f"<{key}> = {ca[key]}")
+                    print(f"<{key}> = {stat_dict[key]}")
                 print(f"solver failures: {solver_failures}")
                 print("")
                 if gen % constants.hist_snapshot == 0:
@@ -131,6 +133,9 @@ if __name__ == "__main__":
                     # so ignore the tuple returned by do_stats
                     _, stat_files = stats.do_stats(df,
                      spectrum, prefix=stat_pref, **stats.big_stats)
+                    pop_file = f"{stat_pref}_population.csv"
+                    df.to_csv(pop_file)
+                    zf[run].append(pop_file)
                     zf[run].extend(stat_files)
 
                 with open(best_file, "a") as f:
@@ -139,7 +144,7 @@ if __name__ == "__main__":
                 f.close()
 
                 # check convergence before applying GA
-                rfm.append(stat_dict['fitness'][0][0])
+                rfm.append(stat_dict['fitness'][0])
                 qs = np.array([np.abs((rfm[i] - rfm[-1]) / rfm[-1])
                       for i in range(len(rfm)- 1)])
                 print("gens since improvement: {:d}".format(
@@ -165,7 +170,7 @@ if __name__ == "__main__":
 
             # end of run
             stat_pref = f"{prefix}_{run}_final"
-            output, ofs = stats.do_stats(population, results,
+            output, ofs = stats.do_stats(df,
                 spectrum, prefix=stat_pref, **stats.big_stats)
             zf[run].extend(ofs)
             # arrays might be different lengths; make each into Series
@@ -196,6 +201,7 @@ if __name__ == "__main__":
             zipfilename = f"{prefix}_{run}.zip"
             with zipfile.ZipFile(zipfilename, mode="w") as archive:
                 for filename in zf[run]:
+                    print(filename)
                     if os.path.isfile(filename):
                         archive.write(filename,
                                 arcname=os.path.basename(filename))

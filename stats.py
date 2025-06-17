@@ -41,7 +41,7 @@ def avg(df, key, **kwargs):
 
 def counts(df, key, **kwargs):
     res = df.value_counts(key)
-    return (res.index.to_numpy(), res.to_numpy), []
+    return (res.index.to_numpy(), res.values), []
 
 def hist(df, prefix, key, split=None, **kwargs):
     '''
@@ -81,6 +81,8 @@ def hist(df, prefix, key, split=None, **kwargs):
         df[str_id] = col
         if hmax == 1:
             curr_ax = axes # otherwise the histplot will fail below
+        elif hmax > 1 and (ncols == 1 or nrows == 1):
+            curr_ax = axes[i] # otherwise the histplot will fail below
         else:
             curr_ax = axes[i // 2, i % 2]
         sns_kwargs = {'ax': curr_ax, 'data': df, 'x': str_id,
@@ -113,6 +115,7 @@ def absorption(df, spectrum, prefix, **kwargs):
     split into subpopulations using kwarg split. the argument key
     is only here for consistency with the other functions.
     '''
+    output = {}
     outfiles = []
     split = kwargs['split'] if 'split' in kwargs else None
     df_dict = split_population(df, split)
@@ -133,8 +136,9 @@ def absorption(df, spectrum, prefix, **kwargs):
                     d[index] = row[index]
             g = ga.Genome(**d)
             subpop.append(g)
-        outfiles.extend(plots.plot_average(subpop, spectrum, abs_file))
-    return (), outfiles
+        output[rct], ofs = plots.plot_average(subpop, spectrum, abs_file)
+        outfiles.extend(ofs)
+    return output, outfiles
 
 def do_stats(df, spectrum, prefix, **kwargs):
     '''

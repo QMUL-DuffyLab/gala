@@ -237,11 +237,13 @@ def copy(g):
             setattr(h, k, p)
     return h
 
-def fitness(g, nu_e, cost):
+def fitness(g, nu_e, cost, rc_nu_e):
     '''
     hmm.
     '''
-    return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
+    # return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
+    f = ((nu_e - rc_nu_e) - (cost * (g.n_b * np.sum(g.n_p))))
+    return f if f >= 0.0 else 0.0
 
 def fill_arrays(rng, parent_values, res_length, parameter):
     '''
@@ -457,9 +459,10 @@ def mutate(rng, genome, parameter, index=None):
     else:
         width = np.round(constants.mu_width *
                 (bounds[1] - bounds[0])).astype(int)
-        new = ss.norm.rvs(loc=current, scale=width, random_state=rng)
+        increment = ss.norm.rvs(loc=0, scale=width, random_state=rng)
         if isinstance(current, (int, np.integer)):
-            new = new.round().astype(int)
+            increment = increment.round().astype(int)
+        new = current + increment
         if new < bounds[0]:
             new = bounds[0]
         if new > bounds[1]:
