@@ -2,90 +2,55 @@
 """
 17/1/24
 @author: callum
-branched antenna with saturating reaction centre
+utilities - lineshape and free energy calculations
 """
 import os
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
-from scipy.optimize import nnls
+import xarray as xr
 import numpy as np
 import constants
-import ctypes
-import plots
-import light
-import matplotlib.pyplot as plt
+import genetic_algorithm as ga
 
 hcnm = (h * c) / (1.0E-9)
 
-'''
-a lot of the stuff we need to build the matrices is precomputable;
-this class precomputes it. note that i still need to decide once and
-for all how the averaged chlorophyll instead of named pigments is gonna
-work, but in the end it might be easier to just write a few functions to
-do each bit and then compose them in different ways depending on whether
-we have a set of named pigments, an averaged shifting one, or both
-'''
-
-def lookups(spectrum, pigment_list, return_lineshapes=False):
+def lookups(spectrum):
+    '''
+    precalculate gamma (photon absorption rates) and overlaps
+    for the set of pigments and shifts available.
+    for overlaps, the first pair of indices is the emitter, second
+    is the absorber
+    '''
     l = spectrum[:, 0]
     fp_y = (spectrum[:, 1] * l) / hcnm
-    # first index is emitter, second absorber
-    abso = {p1: absorption(l, p1, 0.0) for p1 in pigment_list}
-    emis = {p1: emission(l, p1, 0.0) for p1 in pigment_list}
-    # normalise by requiring that the overlap of the absorbing
-    # block *with an identical emitting block* should be 1.
-    norm = {p1: overlap(l, abso[p1], emis[p1]) for p1 in pigment_list}
-    overlaps = {emitter: 
-                {absorber: (overlap(l, e, a) / norm[absorber])
-                for absorber, a in abso.items()}
-                for emitter, e in emis.items()
-                }
-    # for n_p = 1
-    gammas = {absorber: constants.sig_chl * overlap(l, fp_y, a)
-              for absorber, a in abso.items()}
-    if return_lineshapes:
-        return overlaps, gammas, abso, emis
-    else:
-        return overlaps, gammas
-
-def precalculate_peak_locations(pigment, lmin, lmax, increment):
-    # NB: this won't work, only considering absorption
-    op = constants.pigment_data[pigment]['abs']['mu'][0]
-    # ceil in both cases - for the min, it's -ve so rounds towards zero,
-    # for the max we want to go one step outside the range because
-    # np.arange(min, max, step) generates [min, max)
-    smin = op + np.ceil((lmin - op) / increment) * increment
-    smax = op + np.ceil((lmax - op) / increment) * increment
-    # if we turn off shift, set increment to 0 or set min and max to
-    # the same number, np.arange will return an empty array; fix that
-    if smin == smax or increment == 0.0:
-        peaks = np.array([smin])
-    else:
-        peaks = np.arange(smin, smax, increment)
-    # return a dict so we can index with the shift to get peak location
-    return {shift: peak for shift, peak in zip(peaks - op, peaks)}
-
-def precalculate_overlap_gamma(pigment, rcs, spectrum, shift_peak):
-    # NB: don't use this yet! needs to use emission lines
-    n_shifts = len(shift_peak.keys())
-    ntot = n_shifts + len(rcs)
-    gamma = np.zeros(ntot)
-    lines = np.zeros((ntot, len(spectrum[:, 0])))
-    for i, s in enumerate(shift_peak.keys()):
-        lines[i] = absorption(spectrum[:, 0], pigment, s)
-        gamma[i] = (constants.sig_chl *
-                    overlap(spectrum[:, 0], spectrum[:, 1], lines[i]))
-    for i in range(len(rcs)):
-        lines[n_shifts + i] = absorption(spectrum[:, 0], rcs[i], 0.0)
-        gamma[n_shifts + i] = (constants.sig_chl *
-                    overlap(spectrum[:, 0], spectrum[:, 1],
-                            lines[n_shifts + i]))
-    
-    overlaps = np.zeros((len(lines), len(lines)))
-    for i, l1 in enumerate(lines):
-        for j, l2 in enumerate(lines):
-            overlaps[i, j] = overlap(spectrum[:, 0], l1, l2)
-    return gamma, overlaps
+    shifts = np.arange(*ga.genome_parameters['shift']['bounds'])
+    pigments = ga.genome_parameters['pigment']['bounds']
+    gammas = xr.DataArray(np.zeros((len(pigments), len(shifts))),
+                          coords = [pigments, shifts],
+                          dims = ["pigment", "shift"])
+    overlaps = xr.DataArray(np.zeros((len(pigments), len(shifts),
+                                      len(pigments), len(shifts))),
+                          coords = [pigments, shifts, pigments, shifts],
+                          dims = ["p1", "s1", "p2", "s2"])
+    for p1 in pigments:
+        for s1 in shifts:
+            # s1 is the integer shift which is multiplied by shift_inc
+            # use the integer for indexing so we don't have to worry
+            # about floating point precision, but we need to do the
+            # multiplication for the actual calculation
+            s = s1 * constants.shift_inc
+            a1 = absorption(l, p1, s)
+            e1 = emission(l, p1, s)
+            n1 = overlap(l, a1, e1)
+            gammas.loc[p1, s1] = constants.sig_chl * overlap(l, fp_y, a1)
+            for p2 in pigments:
+                for s2 in shifts:
+                    s = s2 * constants.shift_inc
+                    a2 = absorption(l, p2, s)
+                    e2 = emission(l, p2, s)
+                    n2 = overlap(l, a2, e2)
+                    overlaps.loc[p1, s1, p2, s2] = overlap(l, e1, a2) / n2
+    return overlaps, gammas
 
 def absorption(l, pigment, shift):
     '''

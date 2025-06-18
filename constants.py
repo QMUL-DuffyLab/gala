@@ -52,7 +52,7 @@ sig_chl = 9E-20 #  cross-section of one pigment
 np_rc = 10 # number of pigments in reaction centre
 
 # number of subunits to make histograms for
-hist_sub_max = 2
+hist_sub_max = 6
 
 binwidths = {'n_b': 1,
         'n_s': 1,

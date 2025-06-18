@@ -29,6 +29,7 @@ if __name__ == "__main__":
     light.check(spectra_dicts)
 
     init_kwargs = {'n_b': 1, 'n_s': 1} # see ga.new()
+    solver_kwargs = {'diff_ratios': {'ox': 0.0, 'anox': 0.1}}
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
         # NB: overlaps and stuff should be calculated here
@@ -39,7 +40,7 @@ if __name__ == "__main__":
                 for rct in ga.genome_parameters['rc']['bounds']}
         print("Spectrum output name: ", out_name)
         outdir = os.path.join(constants.output_dir, "tests",
-                f"zip")
+        f"solar_anox_diffusion_{solver_kwargs['diff_ratios']['anox']}")
         print(f"Output dir: {outdir}")
         # file prefix for all output files for this simulation
         prefix = os.path.join(outdir, out_name)
@@ -76,7 +77,8 @@ if __name__ == "__main__":
                     # this feels horrible to me. but some of the
                     # return values are arrays of different sizes, so
                     # we can't just numpy array the whole thing
-                    res, fail = solvers.antenna_RC(p, spectrum)
+                    res, fail = solvers.antenna_RC(p,
+                            spectrum, **solver_kwargs)
                     for k, v in res.items():
                         results[k].append(v)
                     if fail < 0:
@@ -86,7 +88,7 @@ if __name__ == "__main__":
                     results['fitness'].append(fitness)
                     if fitness > fit_max:
                         fit_max = fitness
-                        best = ga.copy(population[j])
+                        best = ga.copy(p)
                         gens_since_improvement = 0
                 # avgs for current generation
                 df = pd.DataFrame(population)
