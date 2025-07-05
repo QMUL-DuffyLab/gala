@@ -20,16 +20,20 @@ import genetic_algorithm as ga
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    cost = 0.005 # temp
+    cost = 0.01 # temp
     # various other examples of dicts in light.py
-    spectra_dicts = [
+    spectra_dicts = []
+    for i, (Tstar, Rstar) in enumerate(light.phz_stars):
+        for a in light.phz_radii[i]:
+            spectra_dicts.append(
             {'type': 'stellar', 'kwargs':
-             {'Tstar': 5772, 'Rstar': 6.957e8, 'a': 1.0, 'attenuation': 0.0}},
-          ]
+             {'Tstar': Tstar, 'Rstar': Rstar, 
+              'a': a, 'attenuation': 0.0}},
+          )
     light.check(spectra_dicts)
 
     init_kwargs = {'n_b': 1, 'n_s': 1} # see ga.new()
-    solver_kwargs = {'diff_ratios': {'ox': 0.0, 'anox': 0.1}}
+    solver_kwargs = {'diff_ratios': {'ox': 0.0, 'anox': 0.0}}
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
         # NB: overlaps and stuff should be calculated here
@@ -39,11 +43,9 @@ if __name__ == "__main__":
         rc_nu_e = {rct: solvers.RC_only(rct, spectrum)[0] # nu_e
                 for rct in ga.genome_parameters['rc']['bounds']}
         print("Spectrum output name: ", out_name)
-        outdir = os.path.join(constants.output_dir, "tests",
-        f"solar_anox_diffusion_{solver_kwargs['diff_ratios']['anox']}")
+        outdir = os.path.join(constants.output_dir, "ox_only",
+        f"cost_{cost}", out_name)
         print(f"Output dir: {outdir}")
-        # file prefix for all output files for this simulation
-        prefix = os.path.join(outdir, out_name)
         os.makedirs(outdir, exist_ok=True)
 
         do_averages = True
@@ -54,7 +56,7 @@ if __name__ == "__main__":
             # initialise population
             population = [ga.new(rng, **init_kwargs)
                     for _ in range(constants.population_size)]
-            best_file = f"{prefix}_best_{run}.txt"
+            best_file = os.path.join(f"{outdir}", f"run_{run}_best.txt")
             with open(best_file, "w") as f:
                 pass # start a new file
             f.close()
@@ -95,9 +97,9 @@ if __name__ == "__main__":
                 for k, v in results.items():
                     df[k] = v
 
-                # prefix here is unused
+                # outdir here is unused
                 stat_dict, stat_files = stats.do_stats(df, spectrum,
-                        prefix, **stats.minimal_stats)
+                        outdir, **stats.minimal_stats)
                 '''
                 this is a hack, honestly. separate out the RC counts
                 so that we can make them all into a nice dataframe
@@ -130,7 +132,8 @@ if __name__ == "__main__":
                 print("")
                 if gen % constants.hist_snapshot == 0:
                     # bar charts/histograms of Genome parameters
-                    stat_pref = f"{prefix}_{run}_{gen}"
+                    stat_pref = os.path.join(f"{outdir}",
+                                             f"run_{run}_gen_{gen}")
                     # they all create output files but nothing to print,
                     # so ignore the tuple returned by do_stats
                     _, stat_files = stats.do_stats(df,
@@ -171,21 +174,20 @@ if __name__ == "__main__":
                 gens_since_improvement += 1
 
             # end of run
-            stat_pref = f"{prefix}_{run}_final"
+            stat_pref = os.path.join(f"{outdir}", f"run_{run}_final")
             output, ofs = stats.do_stats(df,
                 spectrum, prefix=stat_pref, **stats.big_stats)
             zf[run].extend(ofs)
             # arrays might be different lengths; make each into Series
-            df = pd.DataFrame({k:pd.Series(v) for k, v in avgs.items()})
-            af = f"{prefix}_{run}_avgs.txt"
-            df.to_csv(af, index=False)
+            avg_df = pd.DataFrame({k:pd.Series(v) for k, v in avgs.items()})
+            af = os.path.join(f"{outdir}", f"run_{run}_avgs.csv")
+            avg_df.to_csv(af, index=False)
             zf[run].append(af)
 
             # do pickle stuff and add pickled filename to zf
-            pop_file = f"{outdir}/{out_name}_{run}_final_pop.dat"
-            pickle_err = ga.pickle_population(population, pop_file)
-            if pickle_err == 0:
-                zf[run].append(pop_file)
+            pop_file = os.path.join(f"{outdir}",
+                            f"{run}_final_population.csv")
+            df.to_csv(pop_file)
 
             try:
                 bestfiles = plots.plot_best(best_file, spectrum)
@@ -193,14 +195,10 @@ if __name__ == "__main__":
             except AttributeError:
                 pass
 
-        # end of all runs for given cost/spectrum
-        # after n_runs, average over runs
-        # if do_averages:
-        #     avg_files = stats.average_finals(prefix, plot_funcs, spectrum)
         for run in range(constants.n_runs):
-            # do zipfile stuff - need to figure out pathnames etc
             # note that these are currently uncompressed
-            zipfilename = f"{prefix}_{run}.zip"
+            zipfilename = os.path.join(f"{outdir}",
+                            f"run_{run}.zip")
             with zipfile.ZipFile(zipfilename, mode="w") as archive:
                 for filename in zf[run]:
                     print(filename)

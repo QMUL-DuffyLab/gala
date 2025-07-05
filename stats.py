@@ -100,7 +100,7 @@ def hist(df, prefix, key, split=None, **kwargs):
         # delete the temporary index now we don't need it
         df.drop(columns=str_id, inplace=True)
     if split is not None:
-        suffix = f"hist_{key}_splitby_{split}.pdf"
+        suffix = f"hist_{key}_split_by_{split}.pdf"
     else:
         suffix = f"hist_{key}.pdf"
     outfile = f"{prefix}_{suffix}"
