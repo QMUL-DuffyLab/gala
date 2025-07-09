@@ -13,6 +13,7 @@ returns a dict of outputs sorted by key, and a list of output files created
 import os
 import sys
 import re
+import ast
 import glob
 import dataclasses
 import numpy as np
@@ -22,11 +23,28 @@ import pandas as pd
 from functools import reduce
 import constants
 import plots
+import utils
 import genetic_algorithm as ga
 import rc as rcm
 
 def unpickle_population(filename):
     return pd.read_pickle(filename)
+
+def combined_populations(output_dir):
+    '''
+    find the output final populations, combine them and return one
+    combined dataframe which can then be fed into the other functions here
+    '''
+    files = glob.glob(os.path.join(output_dir, "*_final_population.csv"))
+    n = len(files)
+    if n != constants.n_repeats:
+        print(f"stats.combined_populations found {n} files: {[files]}")
+    if n == 0:
+        return None
+    else:
+        dfs = [pd.read_csv(f) for f in files]
+        combined = pd.concat(dfs)
+    return combined
 
 def split_population(df, split=None):
     if split is not None:
@@ -36,12 +54,93 @@ def split_population(df, split=None):
         df_dict = {'all': df}
     return df_dict
 
+def generate_genomes(df, **kwargs):
+    split = kwargs['split'] if 'split' in kwargs else None
+    df_dict = split_population(df, split)
+    subpops = []
+    for sk, subdf in df_dict.items():
+        subpop = []
+        for i in range(len(subdf)):
+            row = subdf.iloc[i]
+            d = {}
+            for index in row.index:
+                # NB: this assumes that the genome corresponding to the
+                # pickled population is the same as the current one, so
+                # if you change the definition of the genome in
+                # genetic_algorithm.py and then read in an old population,
+                # it'll break. unsure how to get around this. in theory
+                # i could save a minimal version of the genome to JSON?
+                if index in ga.genome_parameters:
+                    if ga.genome_parameters[index]['array']:
+                        v = parse_array(row[index])
+                    else:
+                        v = row[index]
+                    d[index] = v
+            g = ga.Genome(**d)
+            subpop.append(g)
+        subpops.append(subpop)
+    return df_dict, subpops
+
 def avg(df, key, **kwargs):
     return (df[key].mean(), df[key].sem()), []
 
 def counts(df, key, **kwargs):
     res = df.value_counts(key)
     return (res.index.to_numpy(), res.values), []
+
+def parse_array(string):
+    '''
+    parse a multidimensional array that's been saved as a string
+    by pd.to_csv(). this is probably a bit finicky and i'm not sure it'll
+    be consistent, but pickle doesn't work because of some arcane thing
+    to do with how i define the genome, so we're stuck with it for now
+    '''
+    # remove leading or trailing whitespace between brackets
+    s = re.sub(r'\[\s+([0-9])', r'[\1', string)
+    s = re.sub(r'([0-9])\s+\]', r'\1]', s)
+    # remove the newlines and replace whitespace with commas for ast
+    s = re.sub('\s+', ',', re.sub('\n ', ',', s))
+    return np.array(ast.literal_eval(s))
+
+def element_avg(df, key, **kwargs):
+    output = {}
+    split = kwargs['split'] if 'split' in kwargs else None
+    df_dict = split_population(df, split)
+    for sk, subdf in df_dict.items():
+        # check the shapes of the arrays are all the same
+        a = parse_array(subdf.iloc[0][key])
+        arr = np.zeros((len(subdf), *a.shape))
+        shape = arr.shape
+        for i in range(len(subdf)):
+            b = parse_array(subdf.iloc[i][key])
+            assert(a.shape == b.shape)
+            arr[i] = b
+        avg = np.mean(arr, axis=0)
+        err = np.std(arr, axis=0) / np.sqrt(len(subdf))
+        output[sk] = (avg, err)
+    return output, []
+
+def avg_sum(df, key, **kwargs):
+    '''
+    return an average of the sum of an array parameter. note that
+    this must be a 1d array (because of the call to np.fromstring below,
+    which will only parse a 1d array) but (I think?) is agnostic to the
+    array lengths.
+    '''
+    output = {}
+    split = kwargs['split'] if 'split' in kwargs else None
+    df_dict = split_population(df, split)
+    for sk, subdf in df_dict.items():
+        arr = np.zeros(len(subdf))
+        for i in range(len(subdf)):
+            a = parse_array(subdf.iloc[i][key])
+            arr[i] = np.sum(a)
+            if key == 'n_p':
+                arr[i] *= subdf.iloc[i]['n_b']
+        avg = np.mean(arr)
+        err = np.std(arr) / np.sqrt(len(subdf))
+        output[sk] = (avg, err)
+    return output, []
 
 def hist(df, prefix, key, split=None, **kwargs):
     '''
@@ -118,27 +217,51 @@ def absorption(df, spectrum, prefix, **kwargs):
     output = {}
     outfiles = []
     split = kwargs['split'] if 'split' in kwargs else None
-    df_dict = split_population(df, split)
-    for rct, subdf in df_dict.items():
-        subpop = []
+    df_dict, subpops = generate_genomes(df, **kwargs)
+    for (rct, subdf), subpop in zip(df_dict.items(), subpops):
         abs_file = f"{prefix}_{rct}_abs.txt"
-        for i in range(len(subdf)):
-            row = subdf.iloc[i]
-            d = {}
-            for index in row.index:
-                # NB: this assumes that the genome corresponding to the
-                # pickled population is the same as the current one, so
-                # if you change the definition of the genome in
-                # genetic_algorithm.py and then read in an old population,
-                # it'll break. unsure how to get around this. in theory
-                # i could save a minimal version of the genome to JSON?
-                if index in ga.genome_parameters:
-                    d[index] = row[index]
-            g = ga.Genome(**d)
-            subpop.append(g)
         output[rct], ofs = plots.plot_average(subpop, spectrum, abs_file)
         outfiles.extend(ofs)
     return output, outfiles
+
+def ss_efficiency(df, spectrum, prefix, **kwargs):
+    '''
+    calculate the steady-state efficiency for a given population,
+    split up if necessary as elsewhere. we define the steady-state
+    efficiency as $ \nu_e / \sum \gamma $ where $ \gamma $ is the vector
+    of photon inputs for a given antenna-RC supercomplex, i.e. it is the
+    proportion of absorbed light that is successfully converted to electrons
+    '''
+    output = {}
+    outfiles = []
+    l = spectrum[:, 0]
+    fp_y = (spectrum[:, 1] * l) / utils.hcnm
+    split = kwargs['split'] if 'split' in kwargs else None
+    df_dict, subpops = generate_genomes(df, **kwargs)
+    for (rct, subdf), subpop in zip(df_dict.items(), subpops):
+        ss_eff = np.zeros(len(subpop))
+        rcp = rcm.params[rct]
+        n_rc = len(rcp["pigments"])
+        rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
+        for j, p in enumerate(subpop):
+            nu_e = subdf.iloc[j]['nu_e']
+            n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
+            shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
+                             dtype=np.float64)
+            shift *= constants.shift_inc
+            pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
+            a_l = np.zeros((p.n_s + n_rc, len(spectrum[:, 0])))
+            gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
+            for i in range(p.n_s + n_rc):
+                a_l[i] = utils.absorption(l, pigment[i], shift[i])
+                gamma[i] = (n_p[i] * constants.sig_chl *
+                        utils.overlap(l, fp_y, a_l[i]))
+            sumg = np.sum(gamma[0:n_rc]) + (p.n_b * np.sum(gamma[n_rc:]))
+            ss_eff[j] = nu_e / sumg
+        ss_eff_mean = np.mean(ss_eff)
+        ss_eff_err = np.std(ss_eff) / np.sqrt(len(subpop))
+        output[rct] = (ss_eff_mean, ss_eff_err)
+    return output, []
 
 def do_stats(df, spectrum, prefix, **kwargs):
     '''
@@ -172,6 +295,15 @@ big_stats = {
         'n_b':        {'function': 'hist'},
         'rc':         {'function': 'counts'},
         'absorption': {'function': 'absorption', 'split': 'rc'}
+    }
+
+paper_stats = {
+        'nu_e':       {'function': 'avg',           'split': 'rc'},
+        'fitness':    {'function': 'avg',           'split': 'rc'},
+        'redox':      {'function': 'element_avg',   'split': 'rc'},
+        'n_p':        {'function': 'avg_sum',       'split': 'rc'},
+        'absorption': {'function': 'absorption',    'split': 'rc'},
+        'efficiency': {'function': 'ss_efficiency', 'split': 'rc'}
     }
 
 if __name__ == "__main__":
