@@ -37,7 +37,7 @@ def combined_populations(output_dir):
     '''
     files = glob.glob(os.path.join(output_dir, "*_final_population.csv"))
     n = len(files)
-    if n != constants.n_repeats:
+    if n != constants.n_runs:
         print(f"stats.combined_populations found {n} files: {[files]}")
     if n == 0:
         return None
