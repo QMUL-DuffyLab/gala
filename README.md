@@ -1,5 +1,7 @@
 # gala - Genetic Algorithm for Lattice Antenna
 
+github repo for the code used in [this paper](https://doi.org/10.1371/journal.pcbi.1012845)
+
 ## Requirements
 
 - a modern Python version, I think 3.9 or above
