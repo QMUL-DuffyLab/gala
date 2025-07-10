@@ -4,7 +4,9 @@
 @author: callum
 
 """
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import glob
 import numpy as np
 import xarray as xr
@@ -12,7 +14,6 @@ import matplotlib.pyplot as plt
 import constants
 import light
 import rc
-import antenna as la
 
 n_p = 60
 

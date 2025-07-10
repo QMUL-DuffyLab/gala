@@ -4,7 +4,9 @@
 @author: callum
 
 """
+import sys
 import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +15,7 @@ import light
 import rc
 import supersystem
 import antenna as la
+
 
 if __name__ == "__main__":
     '''
