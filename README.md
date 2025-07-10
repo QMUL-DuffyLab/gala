@@ -18,8 +18,11 @@ The main bits of the code are:
 
 Other than that there's some utilities in `utils.py` and various hyperparameters and stuff in `constants.py`. Hopefully everything is commented well enough that you can figure out what it does.
 
+## how do i use all this stuff
+
+I haven't sorted out any argparse business or anything so all the setup is done in `main.py` basically. i set up a dict of parameters for the different spectra i want to use, set a value for the cost parameter (which basically controls antenna size so it doesn't go too crazy) and then do `python main.py` in a terminal to run it. See `main.py` for the details and the rest of the python files for comments on all the functions that are called.
+
 ## TO DO:
 
 - Try to standardise the output of all the stats functions, as much as possible at least. Requires some thought
 - Figure out how to reduce computation time more, by using more lookup tables in `utils.py`. My ultimate plan is that for a given genome and light environment, I start by pre-calculating overlaps and photon input rates for every possible combination, and then as we go add the output of the solver to a big database or something so that if an identical genome is generated later, we can just look up the result instead of having to recalculate.
-
