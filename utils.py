@@ -102,6 +102,11 @@ def overlap(l, f1, f2):
     return np.trapz(f1 * f2, l)
 
 def dG(l1, l2, n, T):
+    '''
+    Gibbs free energy difference between two blocks of pigments with
+    absorption peaks l1 and l2 (give in nm!) and ratio n = n1/n2, where n1
+    and n2 are the number of pigments in each.
+    '''
     h12 = hcnm * ((l1 - l2) / (l1 * l2))
     s12 = -kB * np.log(n)
     return h12 - (s12 * T)

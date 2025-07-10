@@ -13,13 +13,33 @@ it doesn't actually check when generating a new genome (i.e. the
 There's probably a way to do this more cleverly, 
 but I haven't figured it out yet. Unsure it's necessary.
 """
-import pickle
 import dataclasses
 import numpy as np
 import scipy.stats as ss
 import constants
-import rc as rcm
 
+'''
+This dict of dicts will be used to generate a Genome dataclass, so
+you can chop and change what's in the genome just by modifying this.
+The keys will be the names of the parameters as you'd expect, so a key
+"rc" here will translate to `g.rc` or `getattr(g, "rc")` where g is an
+instance of the Genome dataclass.
+Note the metadata:
+- "type" is used to tell the genetic algorithm operators
+what kind of random function to use for crossover and mutation
+- "array" tells the algorithm if the parameter should be an array. if it is,
+the parameter "size" should be set via a lambda function; the GA operators
+will use this to generate the arrays and check they're the right length
+- "depends" is currently not used - I am planning to implement it but
+need to figure out exactly how it should work. For now, any parameters
+that have dependencies should be put in first
+- "bounds" is either (for int/float parameters) the minimum and maximum
+allowed values, or (for strings) a list of allowed values. The GA operators
+use these to check that values remain valid after reproduction/mutation
+- "mutable" is whether the parameter should be mutated
+- "norm" should be None or a lambda function which the GA will apply for
+parameters that have some condition, e.g. an array that should sum to 1.
+'''
 genome_parameters = {
     'rc': {
         'type'    : np.str_,
@@ -525,28 +545,6 @@ def evolve(rng, population, fitnesses, cost):
             population[j] = mutation(rng, population[j])
             n_mutations += 1
     return population
-
-def pickle_population(population, filename):
-    dict_pop = [dataclasses.asdict(p) for p in population]
-    with open(filename, "wb") as f:
-        try:
-            pickle.dump(dict_pop, f)
-            return 0
-        except:
-            print("Pickling failed")
-            return -1
-
-def unpickle_population(filename):
-    with open(filename, "rb") as f:
-        try:
-            dict_pop = pickle.load(f)
-            population = [Genome(**d) for d in dict_pop]
-        except:
-            print("Unpickling failed")
-            population = []
-            raise
-        return population
-
 
 def test_parameters(individual):
     '''

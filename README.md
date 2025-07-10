@@ -6,7 +6,7 @@
 - various standard packages, numpy, matplotlib, pandas, seaborn, etc.
 - optionally a fortran compiler to compile my fortran version of scipy's NNLS. any gfortran will do, it is strict F2008
 
-## What does all this stuff do man
+## hey man what the dickens does all this stuff do anyway
 
 Broadly: it is a (hopefully fairly extensible and configurable) collection of bits which you can use to run genetic algorithms, specifically related to photosynthetic light harvesting.
 The main bits of the code are:
