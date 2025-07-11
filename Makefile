@@ -15,7 +15,7 @@ ifeq ($(SHARED), 1)
 	LDFLAGS += -shared
 	TARGET = libnnls.so
 else
-	SOURCES += main.f
+	SOURCES += main.f90
 	TARGET = antenna_f_test
 endif
 
@@ -26,9 +26,9 @@ else
 	DFLAGS = -O2
 endif
 
-OBJECTS = $(patsubst %.f, %.o, $(SOURCES))
+OBJECTS = $(patsubst %.f90, %.o, $(SOURCES))
 
-$(OBJECTS): %.o : %.f
+$(OBJECTS): %.o : %.f90
 	$(FC) $(FLAGS) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(TARGET): $(OBJECTS)
