@@ -110,12 +110,18 @@ def parse_array(string):
     be consistent, but pickle doesn't work because of some arcane thing
     to do with how i define the genome, so we're stuck with it for now
     '''
-    # remove leading or trailing whitespace between brackets
-    s = re.sub(r'\[\s+([0-9])', r'[\1', string)
-    s = re.sub(r'([0-9])\s+\]', r'\1]', s)
-    # remove the newlines and replace whitespace with commas for ast
-    s = re.sub('\s+', ',', re.sub('\n ', ',', s))
-    return np.array(ast.literal_eval(s))
+    if isinstance(string, np.ndarray):
+        return string
+    else:
+        # remove leading or trailing whitespace between brackets
+        s = re.sub(r'\[\s+([0-9])', r'[\1', string)
+        print(s)
+        s = re.sub(r'([0-9])\s+\]', r'\1]', s)
+        print(s)
+        # remove the newlines and replace whitespace with commas for ast
+        s = re.sub('\s+', ',', re.sub('\n ', ',', s))
+        print(s)
+        return np.array(ast.literal_eval(s))
 
 def element_avg(df, key, **kwargs):
     '''

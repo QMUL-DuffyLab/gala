@@ -43,7 +43,7 @@ if __name__ == "__main__":
         rc_nu_e = {rct: solvers.RC_only(rct, spectrum)[0] # nu_e
                 for rct in ga.genome_parameters['rc']['bounds']}
         print("Spectrum output name: ", out_name)
-        outdir = os.path.join(constants.output_dir, "exo_only",
+        outdir = os.path.join(constants.output_dir, "ox_only",
         f"cost_{cost}", out_name)
         print(f"Output dir: {outdir}")
         os.makedirs(outdir, exist_ok=True)
@@ -136,10 +136,10 @@ if __name__ == "__main__":
                                              f"run_{run}_gen_{gen}")
                     # they all create output files but nothing to print,
                     # so ignore the tuple returned by do_stats
-                    _, stat_files = stats.do_stats(df,
-                     spectrum, prefix=stat_pref, **stats.big_stats)
                     pop_file = f"{stat_pref}_population.csv"
                     df.to_csv(pop_file)
+                    _, stat_files = stats.do_stats(df,
+                     spectrum, prefix=stat_pref, **stats.big_stats)
                     zf[run].append(pop_file)
                     zf[run].extend(stat_files)
 
