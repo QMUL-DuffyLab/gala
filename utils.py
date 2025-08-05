@@ -5,12 +5,14 @@
 utilities - lineshape and free energy calculations
 """
 import os
+import pickle
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
 import xarray as xr
 import numpy as np
 import constants
 import genetic_algorithm as ga
+import rc as rcm
 
 hcnm = (h * c) / (1.0E-9)
 
@@ -23,8 +25,14 @@ def lookups(spectrum):
     '''
     l = spectrum[:, 0]
     fp_y = (spectrum[:, 1] * l) / hcnm
-    shifts = np.arange(*ga.genome_parameters['shift']['bounds'])
-    pigments = ga.genome_parameters['pigment']['bounds']
+    sb = ga.genome_parameters['shift']['bounds']
+    shifts = np.arange(sb[0], sb[1] + 1)
+    antenna_pigments = ga.genome_parameters['pigment']['bounds']
+    rcs = ga.genome_parameters['rc']['bounds']
+    rc_pigments = [rcm.params[rc]['pigments'] for rc in rcs]
+    # rc_pigments will be a list of lists; flatten it
+    rc_flat = [rc for rcs in rc_pigments for rc in rcs]
+    pigments = antenna_pigments + rc_flat
     gammas = xr.DataArray(np.zeros((len(pigments), len(shifts))),
                           coords = [pigments, shifts],
                           dims = ["pigment", "shift"])
@@ -32,6 +40,7 @@ def lookups(spectrum):
                                       len(pigments), len(shifts))),
                           coords = [pigments, shifts, pigments, shifts],
                           dims = ["p1", "s1", "p2", "s2"])
+    print(f"Calculating lookups for pigments {pigments}, shift bounds {sb}")
     for p1 in pigments:
         for s1 in shifts:
             # s1 is the integer shift which is multiplied by shift_inc
@@ -50,7 +59,17 @@ def lookups(spectrum):
                     e2 = emission(l, p2, s)
                     n2 = overlap(l, a2, e2)
                     overlaps.loc[p1, s1, p2, s2] = overlap(l, e1, a2) / n2
-    return overlaps, gammas
+    return gammas, overlaps
+
+def get_hash_table(prefix):
+    f = os.path.join("tables", f"{prefix}.pkl")
+    if os.path.isfile(f):
+        table = pickle.load(f)
+        print(f"Hash table found for {prefix}.")
+    else:
+        table = {}
+        print(f"No hash table found for {prefix}. Generating a new one.")
+    return table
 
 def absorption(l, pigment, shift):
     '''

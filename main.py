@@ -15,6 +15,7 @@ import solvers
 import plots
 import stats
 import light
+import utils
 import genetic_algorithm as ga
 
 if __name__ == "__main__":
@@ -27,7 +28,7 @@ if __name__ == "__main__":
         for a in light.phz_radii[i]:
             spectra_dicts.append(
             {'type': 'stellar', 'kwargs':
-             {'Tstar': Tstar, 'Rstar': Rstar, 
+             {'Tstar': Tstar, 'Rstar': Rstar,
               'a': a, 'attenuation': 0.0}},
           )
     light.check(spectra_dicts)
@@ -36,17 +37,17 @@ if __name__ == "__main__":
     solver_kwargs = {'diff_ratios': {'ox': 0.0, 'anox': 0.0}}
     spectra_zip = light.build(spectra_dicts)
     for spectrum, out_name in spectra_zip:
-        # NB: overlaps and stuff should be calculated here
-        # if we're doing that
-        l    = spectrum[:, 0]
-        ip_y = spectrum[:, 1]
+        print("Spectrum output name: ", out_name)
         rc_nu_e = {rct: solvers.RC_only(rct, spectrum)[0] # nu_e
                 for rct in ga.genome_parameters['rc']['bounds']}
-        print("Spectrum output name: ", out_name)
-        outdir = os.path.join(constants.output_dir, "ox_only",
+        # lookup tables
+        gammas, overlaps = utils.lookups(spectrum)
+        hash_table = utils.get_hash_table(out_name)
+        outdir = os.path.join(constants.output_dir, "exo_only",
         f"cost_{cost}", out_name)
         print(f"Output dir: {outdir}")
         os.makedirs(outdir, exist_ok=True)
+        hash_table_finds = 0
 
         do_averages = True
         # list of files to be zipped
@@ -79,8 +80,14 @@ if __name__ == "__main__":
                     # this feels horrible to me. but some of the
                     # return values are arrays of different sizes, so
                     # we can't just numpy array the whole thing
-                    res, fail = solvers.antenna_RC(p,
-                            spectrum, **solver_kwargs)
+                    res = hash_table.get(ga.genome_hash(p))
+                    if res == None:
+                        res, fail = solvers.antenna_RC(p,
+                                spectrum, **solver_kwargs)
+                        if not fail:
+                            hash_table[ga.genome_hash(p)] = res
+                    else:
+                        hash_table_finds += 1
                     for k, v in res.items():
                         results[k].append(v)
                     if fail < 0:
@@ -195,18 +202,22 @@ if __name__ == "__main__":
             except AttributeError:
                 pass
 
+        # end of all runs
+        # save hash table
+        pickle.dump(os.path.join("tables", f"{out_name}.pkl"))
+
         for run in range(constants.n_runs):
-            # note that these are currently uncompressed
             zipfilename = os.path.join(f"{outdir}",
                             f"run_{run}.zip")
-            with zipfile.ZipFile(zipfilename, mode="w") as archive:
+            with zipfile.ZipFile(zipfilename,
+                    mode="w", compression=zipfile.ZIP_BZIP2) as archive:
                 for filename in zf[run]:
                     print(filename)
                     if os.path.isfile(filename):
                         archive.write(filename,
                                 arcname=os.path.basename(filename))
 
-        # delete the zipped files to save space/clutter
+        # delete the files we've just zipped up to save space/clutter
         for run in range(constants.n_runs):
             for filename in zf[run]:
                 if os.path.isfile(filename):

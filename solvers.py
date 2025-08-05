@@ -7,6 +7,7 @@ putting all the different solvers in one module
 import os
 import ctypes
 import numpy as np
+import xarray as xr
 from scipy.optimize import nnls
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
@@ -67,6 +68,12 @@ def solve(k, method='fortran', debug=False):
             p_eq_res = None
             print("NNLS RuntimeError - reached iteration limit")
     return p_eq, p_eq_res
+
+def long_time(k):
+    '''
+    diagonalise the K matrix and then evolve it to long time
+    '''
+    kd = np.linalg.eig(k)
 
 
 def antenna_only(l, ip_y, p, overlaps, gammas, debug=False):
@@ -481,7 +488,7 @@ def antenna_RC(p, spectrum, **kwargs):
     n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
     # 0 shift for RCs. shifts stored as integer increments, so
     # multiply by shift_inc here
-    shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
+    shift = np.array([*[0 for _ in range(n_rc)], *p.shift],
                      dtype=np.float64)
     shift *= constants.shift_inc
     pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
@@ -490,12 +497,37 @@ def antenna_RC(p, spectrum, **kwargs):
     norms = np.zeros(len(pigment))
     gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
     k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
+    got_lookups = False
+    gammas = xr.DataArray()
+    overlaps = xr.DataArray()
+    if 'lookups' in kwargs:
+        try:
+            gammas, overlaps = kwargs['lookups']
+            got_lookups = True
+        except:
+            print("kwarg 'lookups' passed to solver incorrectly")
+            print(kwargs['lookups'])
+            raise
+    # if we have the lookups, the shifts need to be integers, because
+    # that's how they're encoded in the xarray (we don't want to worry about
+    # rounding errors etc.). if we don't have them, shifts should be the
+    # actual float values, so multiply by the increment
+    if got_lookups:
+        shift = np.array([*[0 for _ in range(n_rc)], *p.shift],
+                         dtype=np.int64)
+    else:
+        shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
+                         dtype=np.float64)
+        shift *= constants.shift_inc
     for i in range(p.n_s + n_rc):
-        a_l[i] = utils.absorption(l, pigment[i], shift[i])
-        e_l[i] = utils.emission(l, pigment[i], shift[i])
-        norms[i] = utils.overlap(l, a_l[i], e_l[i])
-        gamma[i] = (n_p[i] * constants.sig_chl *
-                        utils.overlap(l, fp_y, a_l[i]))
+        if got_lookups:
+            gamma[i] = (n_p[i] * gammas.loc[pigment[i], shift[i]].to_numpy())
+        else:
+            a_l[i] = utils.absorption(l, pigment[i], shift[i])
+            e_l[i] = utils.emission(l, pigment[i], shift[i])
+            norms[i] = utils.overlap(l, a_l[i], e_l[i])
+            gamma[i] = (n_p[i] * constants.sig_chl *
+                            utils.overlap(l, fp_y, a_l[i]))
 
     # detrapping regime
     detrap = 0.0 # no detrapping by default
@@ -518,18 +550,28 @@ def antenna_RC(p, spectrum, **kwargs):
         el = -1
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
-            inward  = utils.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
-            el = n_rc
-            outward = utils.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
+            if got_lookups:
+                inward = overlaps.loc[pigment[n_rc], shift[n_rc],
+                        pigment[i], shift[i]].to_numpy()
+                outward = overlaps.loc[pigment[i], shift[i],
+                        pigment[n_rc], shift[n_rc]].to_numpy()
+            else:
+                inward  = utils.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
+                outward = utils.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
             # print(inward, outward)
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = utils.dG(utils.peak(shift[i], pigment[i]),
                     utils.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
-            el = i + 1
-            inward  = utils.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
-            outward = utils.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
+            if got_lookups:
+                inward  = overlaps.loc[pigment[i + 1], shift[i + 1],
+                        pigment[i], shift[i]]
+                outward  = overlaps.loc[pigment[i], shift[i],
+                        pigment[i + 1], shift[i + 1]]
+            else:
+                inward  = utils.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
+                outward = utils.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = utils.dG(utils.peak(shift[i], pigment[i]),
                     utils.peak(shift[i + 1], pigment[i + 1]), n, constants.T)

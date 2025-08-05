@@ -9,4 +9,5 @@
 __pycache__/*
 out/*
 build/*
+tables/*
 *ipynb*
