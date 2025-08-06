@@ -47,15 +47,15 @@ Msol = 1.989E30
 Lsol = 3.828E26
 # (Tstar, Lstar/Lsol, Rstar/Rsol) - 4Gyr isochrones from Isabelle Baraffe
 phz_stars = [
- (2343,  -3.58,  0.099),
+ # (2343,  -3.58,  0.099),
  (2811,  -3.06,  0.124),
- (3131,  -2.58,  0.174),
- (3416,  -1.97,  0.297),
- (3680,  -1.45,  0.465),
+ # (3131,  -2.58,  0.174),
+ # (3416,  -1.97,  0.297),
+ # (3680,  -1.45,  0.465),
  (4418,  -0.85,  0.646),
  (5297,  -0.29,  0.850),
- (5697,  -0.03,  0.994),
- (6053,   0.43,  1.491)
+ # (5697,  -0.03,  0.994),
+ # (6053,   0.43,  1.491)
  ]
 
 def calculate_phz_radii(Tstar, Lstar, n_radii=20,
@@ -89,10 +89,8 @@ def calculate_phz_radii(Tstar, Lstar, n_radii=20,
     for j in range(len(a)):
         #From Kopparapu equation 2, Tstar = T_effective - 5780K
         Ts = Tstar - 5780
-
         seff[j] = (seffsun[j] + a[j] * Ts + b[j] * Ts**2
                 + c[j]*Ts**3 + d[j]*Ts**4)
-
         distance_line[j] =  ((10**Lstar) / seff[j])**0.5
 
     conditions = ["recent Venus", "runaway greenhouse", "maximum greenhouse",
@@ -178,9 +176,9 @@ def stellar(**kwargs):
 def gaussian(**kwargs):
     '''
     return a normalised lineshape made up of Gaussians.
-    TO DO: figure out micro einstein normalisation
-    and how it should format its output files - should probably
-    also make a plot of the incident spectra to go with output
+    intensity kwarg is not used here but I check if it's present
+    as with the colour function below, because it should always
+    be given for this type of spectrum
     '''
     try:
         mu = kwargs["mu"]
@@ -370,7 +368,7 @@ def check(spectra_dicts):
     outputs the plots using the output prefix that'll be generated as well.
     '''
     zipped = build(spectra_dicts)
-    outdir = os.path.join(constants.output_dir)
+    outdir = os.path.join(constants.output_dir, "input_spectra")
     os.makedirs(outdir, exist_ok=True)
     for spectrum, out_pref in zipped:
         np.savetxt(os.path.join(outdir,

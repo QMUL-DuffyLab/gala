@@ -47,7 +47,7 @@ genome_parameters = {
         'array'   : False,
         'depends' : None,
         'default' : '',
-        'bounds'  : ['ox'],
+        'bounds'  : ['anox'],
         'mutable' : False,
         'norm'    : None
     },
@@ -260,17 +260,14 @@ def copy(g):
 
 def genome_hash(g):
     '''
-    return an SHA1 hash of the text representation of this
+    return the text representation of this
     Genome, for use in building a lookup table.
     taking the string representation might seem pretty gross, but
     because of how the genome is defined above, the keys are always in the
     same order, and they're always put in the dict in the same order. also,
     a change to the dataclass definition will obviously change the string
     representation, so the chance of a hash collision is (presumably?? :)) 
-    astronomically small. and anyway we don't need the keys to be
-    cryptographically secure or anything, they're just much more convenient
-    to use as dict keys than searching an n-column dataframe and checking
-    all the relevant columns match. we just hash the genome first and do
+    astronomically small, but use with caution, i guess?
     ```
     res = dict.get(genome_hash(g))
     if res is None:
@@ -278,8 +275,7 @@ def genome_hash(g):
         dict[genome_hash(g)] = res
     ```
     '''
-    return hashlib.sha1(bytes(str(dataclasses.asdict(g)),
-        encoding='utf8')).hexdigest()
+    return str(dataclasses.asdict(g))
 
 def fitness(g, nu_e, cost, rc_nu_e):
     '''

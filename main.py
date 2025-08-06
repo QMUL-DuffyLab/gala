@@ -24,8 +24,10 @@ if __name__ == "__main__":
     cost = 0.01 # temp
     # various other examples of dicts in light.py
     spectra_dicts = []
-    for i, (Tstar, Rstar) in enumerate(light.phz_stars):
-        for a in light.phz_radii[i]:
+    for Tstar, Lstar, Rstar in light.phz_stars:
+        radii = light.calculate_phz_radii(Tstar, Lstar)
+        print(f"Tstar = {Tstar}, radii = {radii}")
+        for a in radii:
             spectra_dicts.append(
             {'type': 'stellar', 'kwargs':
              {'Tstar': Tstar, 'Rstar': Rstar,
@@ -42,12 +44,15 @@ if __name__ == "__main__":
                 for rct in ga.genome_parameters['rc']['bounds']}
         # lookup tables
         gammas, overlaps = utils.lookups(spectrum)
+        # NB!!! diff ratios not considered in the hash table!!!
         hash_table = utils.get_hash_table(out_name)
-        outdir = os.path.join(constants.output_dir, "exo_only",
+        rc_dir = "_".join(ga.genome_parameters['rc']['bounds'])
+        outdir = os.path.join(constants.output_dir, rc_dir,
         f"cost_{cost}", out_name)
         print(f"Output dir: {outdir}")
         os.makedirs(outdir, exist_ok=True)
         hash_table_finds = 0
+        solver_failures = 0
 
         do_averages = True
         # list of files to be zipped
@@ -72,7 +77,6 @@ if __name__ == "__main__":
             best = population[0]
             avgs = {k: [] for k in stats.minimal_stats.keys()}
             while gen < constants.max_gen:
-                solver_failures = 0
                 results = {'nu_e': [], 'nu_cyc': [], 'fitness': [],
                         'redox': [], 'recomb': []}
                 for j, p in enumerate(population):
@@ -136,6 +140,7 @@ if __name__ == "__main__":
                 for key in stat_dict:
                     print(f"<{key}> = {stat_dict[key]}")
                 print(f"solver failures: {solver_failures}")
+                print(f"hash table hits: {hash_table_finds}")
                 print("")
                 if gen % constants.hist_snapshot == 0:
                     # bar charts/histograms of Genome parameters
@@ -204,7 +209,10 @@ if __name__ == "__main__":
 
         # end of all runs
         # save hash table
-        pickle.dump(os.path.join("tables", f"{out_name}.pkl"))
+        print(f"Hash table finds: {hash_table_finds}")
+        htf = os.path.join("tables", f"{out_name}.pkl")
+        with open(htf, "wb") as f:
+            pickle.dump(hash_table, f)
 
         for run in range(constants.n_runs):
             zipfilename = os.path.join(f"{outdir}",
