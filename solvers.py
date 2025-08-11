@@ -22,7 +22,7 @@ def solve(k, method='fortran', debug=False):
     solve the nnls problem using the given method.
     default's fortran, otherwise it'll use scipy.
     note that k should be given fortran-ordered if using
-    the fortran solver; it's constructed that way below
+    the fortran solver
     '''
     m = k.shape[0]
     n = k.shape[1]
@@ -45,15 +45,25 @@ def solve(k, method='fortran', debug=False):
         b[-1] = 1.0
         p_eq_res = ctypes.c_double(0.0)
         p_eq = np.zeros(n, dtype=ctypes.c_double)
-        libnnls.solve(k.ctypes.data_as(doubleptr),
-                     b.ctypes.data_as(doubleptr),
-                     p_eq.ctypes.data_as(doubleptr),
-                     ctypes.c_int(m),
-                     ctypes.c_int(n),
-                     ctypes.byref(mode),
-                     ctypes.byref(p_eq_res),
-                     ctypes.byref(maxiter),
-                     ctypes.byref(tol))
+        try:
+            libnnls.solve(k.ctypes.data_as(doubleptr),
+                         b.ctypes.data_as(doubleptr),
+                         p_eq.ctypes.data_as(doubleptr),
+                         ctypes.c_int(m),
+                         ctypes.c_int(n),
+                         ctypes.byref(mode),
+                         ctypes.byref(p_eq_res),
+                         ctypes.byref(maxiter),
+                         ctypes.byref(tol))
+        except:
+            print("libnnls error. what's happened here then?")
+            print("parameters passed:")
+            print(f"m = {ctypes.c_int(m)}")
+            print(f"n = {ctypes.c_int(n)}")
+            print(f"mode = {mode}")
+            print(f"maxiter = {maxiter}")
+            print(f"tol = {tol}")
+            raise
         if (mode.value < 0):
             p_eq = None
             p_eq_res = None
@@ -340,7 +350,7 @@ def RC_only(rc_type, spectrum, **kwargs):
                     # get the type of process
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
-                    ts = toti[indf] # total state tuple
+                    tf = toti[indf] # total state tuple
                     # set element with the corresponding rate
                     if rt in ["lin", "red"]:
                         twa[ind][indf] = rcm.rates[rt]
@@ -373,12 +383,14 @@ def RC_only(rc_type, spectrum, **kwargs):
                         if jind == which_rc + 1:
                             indf = rcp["indices"][tuple(final)]
                             twa[ind][indf] = rcm.rates[rt]
+                            print(f"{rt}: {toti[ind]} -> {toti[indf]} = {twa[ind][indf]}")
                             # detrapping:
                             # - only possible if exciton manifold is empty
                             indf = (rcp["indices"][tuple(initial)] +
                                     ((which_rc + 1) * n_rc_states))
                             twa[k][indf] = detrap
                             rt = "detrap"
+                            print(f"{rt}:\t {toti[k]} -> {toti[indf]} = {twa[k][indf]}")
                     if rt == "cyc":
                         # cyclic: multiply the rate by alpha etc.
                         # we will need this below for nu(cyc)
@@ -397,6 +409,8 @@ def RC_only(rc_type, spectrum, **kwargs):
                             rt = "cyclic"
                         # recombination can occur from any photosystem
                         twa[ind][indf] += rcm.rates["rec"]
+                    if twa[ind][indf] != 0.0:
+                        print(f"{rt}: {ts} -> {tf} = {twa[ind][indf]}")
             if jind > 0:
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
@@ -410,13 +424,20 @@ def RC_only(rc_type, spectrum, **kwargs):
     for i in range(side):
         for j in range(side):
             if (i != j):
+                # row i in the k matrix should have all the gains to state i
+                # but twa is the other way round, so invert as we go
                 k[i][j]      = twa[j][i]
                 k[i][i]     -= twa[i][j]
-        # add a row for the probability constraint
+        # constraint for NNLS
         k[side][i] = 1.0
 
-    b = np.zeros(side + 1, dtype=np.float64)
-    b[-1] = 1.0
+    for i in range(side):
+        # renormalise column sum
+        cs = np.sum(k[:side, i])
+        print(i, cs)
+        k[i, i] -= cs
+        print(i, np.sum(k[:side, i]))
+
     p_eq, p_eq_res = solve(k, method='fortran')
 
     nu_e = 0.0
@@ -528,6 +549,9 @@ def antenna_RC(p, spectrum, **kwargs):
             norms[i] = utils.overlap(l, a_l[i], e_l[i])
             gamma[i] = (n_p[i] * constants.sig_chl *
                             utils.overlap(l, fp_y, a_l[i]))
+    # print(pigment)
+    # print(gamma)
+    # print(shift)
 
     # detrapping regime
     detrap = 0.0 # no detrapping by default
@@ -614,6 +638,7 @@ def antenna_RC(p, spectrum, **kwargs):
         ast.append(tuple(el))
     total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
     toti = {i: total_states[i] for i in range(len(total_states))}
+    tots = {total_states[i]: i for i in range(len(total_states))}
 
     lindices = []
     cycdices = []
@@ -623,7 +648,6 @@ def antenna_RC(p, spectrum, **kwargs):
         # intra-RC processes are the same in each block
         for i in range(n_rc_states):
             ind = i + j # total index
-            ts = toti[ind] # total state tuple
             initial = rcp["states"][i] # tuple with current RC state
             if i in rcp["nu_e_ind"]:
                 lindices.append(ind)
@@ -637,10 +661,10 @@ def antenna_RC(p, spectrum, **kwargs):
                     # get the type of process
                     rt = rcp["procs"][diff]
                     indf = rcp["indices"][tuple(final)] + j
-                    ts = toti[indf] # total state tuple
                     # set the correct element with the corresponding rate
                     if rt == "red":
                         twa[ind][indf] = rcm.rates[rt]
+                        # print(f"RED: {toti[ind]} -> {toti[indf]} = {rcm.rates[rt]}")
                     if rt == "lin":
                         # the first place where the population decreases
                         # is the first in the chain of linear flow
@@ -649,6 +673,7 @@ def antenna_RC(p, spectrum, **kwargs):
                         if 'rho' in ga.genome_parameters:
                             twa[ind][indf] *= (p.rho[which_rc]
                                 * p.rho[which_rc + 1])
+                        # print(f"LIN: {toti[ind]} -> {toti[indf]} = {rcm.rates[rt]}")
                     if rt == "ox":
                         # get diffusion time for the relevant RC type
                         ratio = 0.0
@@ -656,6 +681,7 @@ def antenna_RC(p, spectrum, **kwargs):
                             if p.rc in kwargs['diff_ratios']:
                                 ratio = kwargs['diff_ratios'][p.rc]
                         twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
+                        # print(f"OX: {toti[ind]} -> {toti[indf]} = {rcm.rates[rt]}")
                     if rt == "trap":
                         which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         # find which trap state is being filled here
@@ -688,10 +714,12 @@ def antenna_RC(p, spectrum, **kwargs):
                             k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
                             # k_cyc *= (constants.alpha * np.sum(n_p))
                             twa[ind][indf] = k_cyc
+                            # print("klasdjflakjfskelh")
                             rt = "ano cyclic"
                         # first photosystem cannot do cyclic
                         elif n_rc > 1 and which_rc > 0:
                             k_cyc *= constants.alpha * np.sum(n_p)
+                            # print("OX: ", k_cyc, which_rc, n_rc)
                             twa[ind][indf] = k_cyc
                             rt = "cyclic"
                         # recombination can occur from any photosystem
@@ -726,6 +754,27 @@ def antenna_RC(p, spectrum, **kwargs):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
 
+    # interesting_states = [
+    #         (0, 0, 0, 0, 1, 0, 0, 0, 1),
+    #         (0, 0, 0, 0, 0, 1, 0, 0, 0),
+    #         (0, 0, 0, 0, 0, 1, 0, 1, 0),
+    #         (0, 0, 0, 0, 0, 1, 0, 0, 1),
+    #         (1, 0, 0, 0, 0, 0, 0, 0, 0),
+    #         (1, 0, 0, 0, 0, 0, 1, 0, 0),
+    #         (1, 0, 0, 0, 0, 0, 0, 1, 0),
+    #         (1, 0, 0, 0, 0, 0, 0, 0, 1),
+    #         (1, 0, 0, 1, 0, 0, 0, 1, 0),
+    #         (1, 0, 0, 1, 0, 0, 0, 0, 1),
+    #         ]
+    # for p0 in interesting_states:
+    #     for p1 in total_states:
+    #         i0 = tots[p0]
+    #         i1 = tots[p1]
+    #         if twa[i0][i1] > 0.0:
+    #             print(f"{p0} -> {p1}, {twa[i0][i1]}")
+    #         if twa[i1][i0] > 0.0:
+    #             print(f"{p1} -> {p0}, {twa[i1][i0]}")
+
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
     for i in range(side):
@@ -736,8 +785,16 @@ def antenna_RC(p, spectrum, **kwargs):
         # add a row for the probability constraint
         k[side][i] = 1.0
 
-    b = np.zeros(side + 1, dtype=np.float64)
-    b[-1] = 1.0
+    # for i in range(side):
+    #     # renormalise column sum
+    #     k[i, i] -= np.sum(k[:side, i])
+
+    # for i in range(side):
+    #     cs = np.sum(k[:side, i])
+    #     if cs != 0.0:
+    #         print(i, toti[i], cs)
+
+
     if 'nnls' in kwargs:
         p_eq, p_eq_res = solve(k, method=kwargs['nnls'])
     else:

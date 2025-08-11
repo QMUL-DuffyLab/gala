@@ -32,7 +32,9 @@ def lookups(spectrum):
     rc_pigments = [rcm.params[rc]['pigments'] for rc in rcs]
     # rc_pigments will be a list of lists; flatten it
     rc_flat = [rc for rcs in rc_pigments for rc in rcs]
-    pigments = antenna_pigments + rc_flat
+    all_pigments = antenna_pigments + rc_flat
+    # quick way of taking unique entries and preserving order
+    pigments = list(dict.fromkeys(all_pigments))
     gammas = xr.DataArray(np.zeros((len(pigments), len(shifts))),
                           coords = [pigments, shifts],
                           dims = ["pigment", "shift"])

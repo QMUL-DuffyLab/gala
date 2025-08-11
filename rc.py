@@ -20,7 +20,7 @@ rates = {
 "lin"  : 1.0 / 10.0E-3,
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,
-"rec"  : 1.0,
+"rec"  : 0.0,
 }
 
 def parameters(pigments, gap):

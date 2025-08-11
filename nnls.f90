@@ -57,6 +57,14 @@ module nnls
       atap = ata(p_i, p_i)
       atbp = atb(p_i)
 
+      if ((n_true.lt.1).or.(n_true.gt.n)) then
+        write(*, *) "you're about to have a DSYSV error, you silly goose"
+        write(*, *) "n = ", n
+        write(*, *) "n_true = ", n_true
+        write(*, *) "time to figure out how that's happening! enjoy :)"
+        stop
+      end if
+
       allocate(work(1))
       call dsysv("U", n_true, 1, atap, n_true,&
                  ipiv, atbp, n_true, work, -1, info)
