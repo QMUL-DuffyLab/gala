@@ -68,6 +68,7 @@ def parameters(pigments, gap):
     procs = {}
     nu_e_ind = []
     nu_cyc_ind  = []
+    mat = np.zeros((n_states, n_states), dtype='U10')
     for i in range(n_states):
         initial = states[i]
         if initial[-1] == 1 or initial[-3] == 1: # n^r_R, n^r_T
@@ -91,6 +92,8 @@ def parameters(pigments, gap):
                             all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "trap"})
+                        # mat[i][j] = rates["trap"]
+                        mat[i][j] = "trap"
                 if diff[kt] == -1:
                     all_zero = True
                     for m in range(len(diff)):
@@ -102,6 +105,8 @@ def parameters(pigments, gap):
                         # detrapping, since ps_ox can't do cyclic.
                         # check for "cyc" in supersystem.py and insert both
                         procs.update({tuple(diff): "cyc"})
+                        # mat[i][j] = rates["cyc"]
+                        mat[i][j] = "cyc"
                 if (tuple(diff[0:3]) == (-1, 0, 1) or
                     tuple(diff[0:3]) == (0, -1, 0)):
                     all_zero = True
@@ -110,6 +115,8 @@ def parameters(pigments, gap):
                                 all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "ox"})
+                        # mat[i][j] = rates["ox"]
+                        mat[i][j] = "ox"
                 if (n_rc > 1 and k < (n_rc - 1)):
                     lin_diffs = [
                         (-1, 1, 0, -1, 0, 1),
@@ -125,6 +132,8 @@ def parameters(pigments, gap):
                                     all_zero = False
                         if all_zero:
                             procs.update({tuple(diff): "lin"})
+                            # mat[i][j] = rates["lin"]
+                            mat[i][j] = "lin"
                 if (tuple(diff[-3:]) == (-1, 1, 0) or
                     tuple(diff[-3:]) == (0, 0, -1)):
                     all_zero = True
@@ -133,6 +142,8 @@ def parameters(pigments, gap):
                             all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "red"})
+                        # mat[i][j] = rates["red"]
+                        mat[i][j] = "red"
     params = {
             "pigments": pigments,
             "n_p": [constants.pigment_data[p]['n_p'] for p in pigments],
@@ -142,6 +153,7 @@ def parameters(pigments, gap):
             "procs": procs,
             "nu_e_ind": nu_e_ind,
             "nu_cyc_ind": nu_cyc_ind,
+            "mat": mat,
             }
     return params
 
