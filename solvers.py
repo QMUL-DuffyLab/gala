@@ -642,26 +642,19 @@ def antenna_RC(p, spectrum, **kwargs):
 
     start = time.time()
 
-    js = list(range(0, side, n_rc_states))
     indices = {k: [] for k in ['lin', 'ox', 'red', 'trap', 'cyc']}
-    lindices = []
-    cycdices = []
+    js = list(range(0, side, n_rc_states))
     for jind, j in enumerate(js):
         # jind == 0 is empty antenna, 0 + n_rc_states is RC 1 occupied, etc
         # intra-RC processes are the same in each block
         for i in range(n_rc_states):
             ind = i + j # total index
-            if i in rcp["nu_e_ind"]:
-                lindices.append(ind)
-            if i in rcp["nu_cyc_ind"]:
-                cycdices.append(ind)
-
             for k in range(n_rc_states):
                 rt = rcp['mat'][i][k]
                 indf = k + j
                 if rt != '':
                     twa[ind][indf] = rcm.rates[rt]
-                    indices[rt].append(ind)
+                    indices[rt].append(indf)
                 if rt == "lin" and 'rho' in ga.genome_parameters:
                     # do not ask why this works. it's to do with
                     # how the RC states are indexed in rc.py and then
@@ -690,7 +683,7 @@ def antenna_RC(p, spectrum, **kwargs):
                     del indices[rt][-1]
                     if jind == which_rc + 1:
                         twa[ind][k] = rcm.rates[rt]
-                        indices[rt].append(ind)
+                        indices[rt].append(k)
                         # detrapping:
                         # - only possible if exciton manifold is empty
                         indf = i + ((which_rc + 1) * n_rc_states)
@@ -780,10 +773,8 @@ def antenna_RC(p, spectrum, **kwargs):
 
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
-    nu_e_mod = 0.0
     nu_e_diag = 0.0
     nu_cyc = 0.0
-    nu_cyc_mod = 0.0
     # [::-1] to reverse here because otherwise redox below will
     # output the redox states of the RCs in reverse order
     trap_indices = [-(3 + 3*i) for i in range(n_rc)][::-1]
@@ -794,28 +785,32 @@ def antenna_RC(p, spectrum, **kwargs):
     trap_states = []
     ox_states = []
     red_states = []
+    trapmod = []
+    oxmod = []
+    redmod = []
 
-    linmod = []
     for i, p_i in enumerate(p_eq):
         s = toti[i]
         for j in range(n_rc):
             if s[trap_indices[j]] == 1:
                 recomb += p_i * rcm.rates["rec"]
-                trap_states.append(s)
+                trap_states.append(i)
             if s[oxidised_indices[j]] == 1:
                 redox[j, 0] += p_i
-                ox_states.append(s)
+                ox_states.append(i)
             if s[reduced_indices[j]] == 1:
                 redox[j, 1] += p_i
-                red_states.append(s)
-        if i % n_rc_states in rcp["nu_e_ind"]:
-            nu_e_mod += rcm.rates["red"] * p_i
-            linmod.append(i)
-        if i in lindices:
+                red_states.append(i)
+        if i % n_rc_states in rcp['inds']['trap']:
+            trapmod.append(i)
+        if i % n_rc_states in rcp['inds']['ox']:
+            oxmod.append(i)
+        if i % n_rc_states in rcp['inds']['red']:
+            redmod.append(i)
+        if i % n_rc_states in rcp["inds"]['nu_e']:
             nu_e += rcm.rates["red"] * p_i
             nu_e_diag += rcm.rates["red"] * p_eq_diag[i]
-        if i in cycdices:
-            assert(i % n_rc_states in rcp["nu_cyc_ind"])
+        if i % n_rc_states in rcp["inds"]['cyc']:
             nu_cyc += k_cyc * p_i
 
     if 'debug' in kwargs and kwargs['debug']:
@@ -827,18 +822,17 @@ def antenna_RC(p, spectrum, **kwargs):
                 "p_eq": p_eq,
                 "p_eq_diag": p_eq_diag,
                 "states": total_states,
-                "lindices": lindices,
-                "linmod": linmod,
-                "cycdices": cycdices,
                 "trap_states": trap_states,
                 "ox_states": ox_states,
                 "red_states": red_states,
+                "trapmod": trapmod,
+                "oxmod": oxmod,
+                "redmod": redmod,
                 "indices": indices,
                 "redox": redox,
                 "recomb": redox,
                 "nu_e": nu_e,
                 "nu_e_diag": nu_e_diag,
-                "nu_e_mod": nu_e_mod,
                 "nu_cyc": nu_cyc,
                 'a_l': a_l,
                 'e_l': e_l,

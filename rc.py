@@ -68,18 +68,21 @@ def parameters(pigments, gap):
     procs = {}
     nu_e_ind = []
     nu_cyc_ind  = []
+    inds = {k: [] for k in ['ox', 'red', 'trap', 'nu_e', 'cyc']}
+    inds['ox'] = [3 * k + 1 for k in range(n_rc)]
+    inds['red'] = [3 * k + 2 for k in range(n_rc)]
+    inds['trap'] = [3 * k for k in range(n_rc)]
     mat = np.zeros((n_states, n_states), dtype='U10')
     for i in range(n_states):
         initial = states[i]
         if initial[-1] == 1 or initial[-3] == 1: # n^r_R, n^r_T
-            nu_e_ind.append(i)
+            inds['nu_e'].append(i)
         if n_rc == 1:
-            if initial[0] == 1:
-                nu_cyc_ind.append(i)
-        elif n_rc > 1:
-            trap_indices = [3 * k for k in range(1, n_rc)]
-            if any(initial[trap_indices] == 1):
-                nu_cyc_ind.append(i)
+            ti = inds['trap']
+        else:
+            ti = inds['trap'][1:]
+        if any(initial[ti] == 1):
+            inds['cyc'].append(i)
         for j in range(n_states):
             final = states[j]
             diff = final - initial
@@ -150,6 +153,7 @@ def parameters(pigments, gap):
             "gap": gap,
             "states": states, # use an index to return a state
             "indices": indices, # use tuple of state to return index
+            "inds": inds,
             "procs": procs,
             "nu_e_ind": nu_e_ind,
             "nu_cyc_ind": nu_cyc_ind,
