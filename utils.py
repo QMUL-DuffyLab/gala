@@ -140,3 +140,175 @@ def peak(shift, pigment):
     '''
     params = constants.pigment_data[pigment]
     return shift + params['ems']['0-0']
+
+def calc_rates(p, spectrum, **kwargs):
+    '''
+    calculate the set of rates we need to build the matrix of
+    equations to solve. this is basically a way of abstracting out all
+    the dataclass definition stuff so that i can speed up the building
+    of the matrices; presumably that just moves the bottleneck to here,
+    but hopefully makes things faster overall.
+
+    inputs:
+    -------
+    p - an instance of ga.Genome
+    spectrum - a spectrum from light.py
+
+    outputs:
+    --------
+    gamma - vector of input rates
+    k_b - vector of branch transfer rates
+    rc_mat - matrix of RC rates
+    '''
+    l = spectrum[:, 0]
+    ip_y = spectrum[:, 1]
+    fp_y = (ip_y * l) / hcnm
+    rcp = rcm.params[p.rc]
+    n_rc = len(rcp["pigments"])
+    rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
+    n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
+    # 0 shift for RCs. shifts stored as integer increments, so
+    # multiply by shift_inc here
+    shift = np.array([*[0 for _ in range(n_rc)], *p.shift],
+                     dtype=np.float64)
+    shift *= constants.shift_inc
+    pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
+    a_l = np.zeros((p.n_s + n_rc, len(l)))
+    e_l = np.zeros_like(a_l)
+    norms = np.zeros(len(pigment))
+    gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
+    k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
+    got_lookups = False
+    gammas = xr.DataArray()
+    overlaps = xr.DataArray()
+    if 'lookups' in kwargs:
+        try:
+            gammas, overlaps = kwargs['lookups']
+            got_lookups = True
+        except:
+            print("kwarg 'lookups' passed to solver incorrectly")
+            print(kwargs['lookups'])
+            raise
+    # if we have the lookups, the shifts need to be integers, because
+    # that's how they're encoded in the xarray (we don't want to worry about
+    # rounding errors etc.). if we don't have them, shifts should be the
+    # actual float values, so multiply by the increment
+    if got_lookups:
+        shift = np.array([*[0 for _ in range(n_rc)], *p.shift],
+                         dtype=np.int64)
+    else:
+        shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
+                         dtype=np.float64)
+        shift *= constants.shift_inc
+    for i in range(p.n_s + n_rc):
+        if got_lookups:
+            gamma[i] = (n_p[i] * gammas.loc[pigment[i], shift[i]].to_numpy())
+        else:
+            a_l[i] = absorption(l, pigment[i], shift[i])
+            e_l[i] = emission(l, pigment[i], shift[i])
+            norms[i] = overlap(l, a_l[i], e_l[i])
+            gamma[i] = (n_p[i] * constants.sig_chl *
+                            overlap(l, fp_y, a_l[i]))
+
+    for i in range(p.n_s + n_rc):
+        ab = i
+        el = -1
+        if i < n_rc:
+            # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
+            if got_lookups:
+                inward = overlaps.loc[pigment[n_rc], shift[n_rc],
+                        pigment[i], shift[i]].to_numpy()
+                outward = overlaps.loc[pigment[i], shift[i],
+                        pigment[n_rc], shift[n_rc]].to_numpy()
+            else:
+                inward  = overlap(l, a_l[i], e_l[n_rc]) / norms[i]
+                outward = overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
+            # print(inward, outward)
+            n = float(n_p[i]) / float(n_p[n_rc])
+            dg = dG(peak(shift[i], pigment[i]),
+                    peak(shift[n_rc], pigment[n_rc]), n, constants.T)
+        elif i >= n_rc and i < (p.n_s + n_rc - 1):
+            # one subunit and the next
+            if got_lookups:
+                inward  = overlaps.loc[pigment[i + 1], shift[i + 1],
+                        pigment[i], shift[i]]
+                outward  = overlaps.loc[pigment[i], shift[i],
+                        pigment[i + 1], shift[i + 1]]
+            else:
+                inward  = overlap(l, a_l[i], e_l[i + 1]) / norms[i]
+                outward = overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
+            n = float(n_p[i]) / float(n_p[i + 1])
+            dg = dG(peak(shift[i], pigment[i]),
+                    peak(shift[i + 1], pigment[i + 1]), n, constants.T)
+        k_b[2 * i] = constants.k_hop * outward
+        k_b[(2 * i) + 1] = constants.k_hop * inward
+        '''
+        the first n_rc pairs of rates are the transfer to and from
+        the excited state of the RCs and the antenna. these are
+        modified by the stoichiometry of these things. for now this
+        is hardcoded but it's definitely possible to fix, especially
+        if moving genome parameters into a file and generating from
+        that: have a JSON parameter like "array": True/False and then
+        "array_len": "n_s" or "rc", which can be used in the GA
+        '''
+        for i in range(n_rc):
+            # odd - inward, even - outward
+            if 'rho' in ga.genome_parameters:
+                k_b[2 * i] *= (p.rho[i] * p.rho[-1])
+                k_b[2 * i + 1] *= (p.rho[i] * p.rho[-1])
+            if 'aff' in ga.genome_parameters:
+                k_b[2 * i] *= p.aff[i]
+                k_b[2 * i + 1] *= p.aff[i]
+        if dg < 0.0:
+            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
+        elif dg > 0.0:
+            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
+
+        n_rc_states = len(rcp["states"]) # total number of states of all RCs
+        rc_mat = np.zeros((n_rc_states, n_rc_states), dtype=np.float64)
+        for i in range(n_rc_states):
+            for k in range(n_rc_states):
+                rt = rcp['mat'][i][k]
+                if rt != '':
+                    rc_mat[i][k] = rcm.rates[rt]
+                if rt == "lin" and 'rho' in ga.genome_parameters:
+                    # do not ask why this works. it's to do with
+                    # how the RC states are indexed in rc.py and then
+                    # into the matrix. took ages to work out.
+                    which_rc = np.abs(k - i) // (n_rc - 1) % 2
+                    rc_mat[i][k] *= (kwargs['rho'][which_rc]
+                        * kwargs['rho'][which_rc + 1])
+                if rt == "ox" and 'diff_ratios' in kwargs:
+                    # get diffusion time for the relevant RC type
+                    if p.rc in kwargs['diff_ratios']:
+                        ratio = kwargs['diff_ratios'][p.rc]
+                    rc_mat[i][k] = rcm.rates[rt] / (1.0 + ratio)
+                if rt == "trap":
+                    '''
+                    this one's a problem, because trapping or detrapping
+                    change the state of the exciton manifold as well as the
+                    RC. to index these properly we need to make sure the
+                    population moves from the correct block, but this
+                    function doesn't know about the blocks, only the RC
+                    state. so set this to np.nan, look for the nans
+                    in the setup functions and deal with it there.
+                    '''
+                    rc_mat[i][k] = np.nan
+                if rt == "cyc":
+                    # cyclic: multiply the rate by alpha etc.
+                    # we will need this below for nu_cyc
+                    which_rc = ((n_rc - 1) -
+                    np.round(np.log(i - k) / np.log(4.0)).astype(int))
+                    k_cyc = rcm.rates["cyc"]
+                    if n_rc == 1:
+                        # zeta = 11 to enforce nu_CHO == nu_cyc
+                        k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
+                        rc_mat[i][k] = k_cyc
+                    # first photosystem cannot do cyclic
+                    elif n_rc > 1 and which_rc > 0:
+                        k_cyc *= constants.alpha * np.sum(n_p)
+                        rc_mat[i][k] = k_cyc
+                    # recombination can occur from any photosystem
+                    rc_mat[i][k] += rcm.rates["rec"]
+
+        return gamma, k_b, rc_mat
