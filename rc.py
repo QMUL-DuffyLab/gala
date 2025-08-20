@@ -23,6 +23,22 @@ rates = {
 "rec"  : 0.0,
 }
 
+# detrapping regime
+detrap_type = 'none' # no detrapping by default
+energy_gap = 10.0 # gap downwards in units of k_B T
+
+if detrap_type == "fast":
+    rates['detrap'] = rates["trap"]
+elif detrap_type == "thermal":
+    rates['detrap'] = rates["trap"] * np.exp(-1.0) # -k_B T
+elif detrap_type == "energy_gap":
+    rates['detrap'] = rates["trap"] * np.exp(-energy_gap)
+elif detrap_type == "none":
+    rates['detrap'] = 0.0
+else:
+    raise ValueError("Detrapping regime should be 'fast',"
+      " 'thermal', 'energy_gap' or 'none'.")
+
 def parameters(pigments, gap):
     '''
     for a given set of photosystems, generate a dict of intra-RC

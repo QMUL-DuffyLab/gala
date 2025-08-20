@@ -311,4 +311,4 @@ def calc_rates(p, spectrum, **kwargs):
                     # recombination can occur from any photosystem
                     rc_mat[i][k] += rcm.rates["rec"]
 
-        return gamma, k_b, rc_mat
+        return gamma, k_b, rc_mat, k_cyc

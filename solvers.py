@@ -17,6 +17,7 @@ import light
 import utils
 import genetic_algorithm as ga
 import rc as rcm
+import build_matrix
 
 def solve(k, method='fortran', debug=False):
     '''
@@ -500,6 +501,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
     else:
     TBC. probably nu_e and nu_cyc
     '''
+    start = time.time()
     l = spectrum[:, 0]
     ip_y = spectrum[:, 1]
     fp_y = (ip_y * l) / utils.hcnm
@@ -549,25 +551,6 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             norms[i] = utils.overlap(l, a_l[i], e_l[i])
             gamma[i] = (n_p[i] * constants.sig_chl *
                             utils.overlap(l, fp_y, a_l[i]))
-    # print(pigment)
-    # print(gamma)
-    # print(shift)
-
-    # detrapping regime
-    detrap = 0.0 # no detrapping by default
-    if 'detrap' in kwargs:
-        detrap_type = kwargs['detrap']
-        if detrap_type == "fast":
-            rcm.rates["trap"]
-        elif detrap_type == "thermal":
-            detrap *= np.exp(-1.0) # -k_B T
-        elif detrap_type == "energy_gap":
-            detrap *= np.exp(-rcp["gap"])
-        elif detrap_type == "none":
-            detrap *= 0.0 # irreversible
-        else:
-            raise ValueError("Detrapping regime should be 'fast',"
-              " 'thermal', 'energy_gap' or 'none'.")
 
     for i in range(p.n_s + n_rc):
         ab = i
@@ -622,6 +605,10 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
+    end = time.time()
+    setup_time = end - start
+
+    start = time.time()
 
     n_rc_states = len(rcp["states"]) # total number of states of all RCs
     side = n_rc_states * ((p.n_b * p.n_s) + n_rc + 1)
@@ -702,7 +689,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                             # - only possible if exciton manifold is empty
                             indf = (rcp["indices"][tuple(initial)] +
                                     ((which_rc + 1) * n_rc_states))
-                            twa[k][indf] = detrap
+                            twa[k][indf] = rcm.rates['detrap']
                             rt = "detrap"
                     if rt == "cyc":
                         # cyclic: multiply the rate by alpha etc.
@@ -764,13 +751,37 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
         # add a row for the probability constraint
         k[side][i] = 1.0
 
+    end = time.time()
+    mat_time = end - start
+
+    start = time.time()
     if 'nnls' in kwargs:
         p_eq, p_eq_res = solve(k, method=kwargs['nnls'])
     else:
         p_eq, p_eq_res = solve(k, method='fortran')
+    end = time.time()
+    nnls_time = end - start
+
+    start = time.time()
+    tinf = 1e6
+    lam, C = np.linalg.eig(k[:side, :])
+    Cinv = np.linalg.inv(C)
+    elt = np.zeros_like(C)
+    p0 = np.zeros(side)
+    p0[0] = 1.0
+    for i in range(side):
+        elt[i, i] = np.exp(lam[i] * tinf)
+    p_eq_diag = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
+    if not np.all(np.isreal(p_eq_diag)):
+        imax = np.max(np.imag(p_eq_diag))
+        p_eq_diag = np.real(p_eq_diag)
+    p_eq_diag /= np.sum(p_eq_diag)
+    end = time.time()
+    diag_time = end - start
 
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
+    nu_e_diag = 0.0
     nu_cyc = 0.0
     # [::-1] to reverse here because otherwise redox below will
     # output the redox states of the RCs in reverse order
@@ -810,6 +821,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 red_states.append(s)
         if i in lindices:
             nu_e += rcm.rates["red"] * p_i
+            nu_e_diag += rcm.rates["red"] * p_eq_diag[i]
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
@@ -820,6 +832,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 "gamma": gamma,
                 "k_b": k_b,
                 "p_eq": p_eq,
+                "p_eq_diag": p_eq,
                 "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
@@ -829,11 +842,16 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 "redox": redox,
                 "recomb": redox,
                 "nu_e": nu_e,
+                "nu_e_diag": nu_e,
                 "nu_cyc": nu_cyc,
                 'a_l': a_l,
                 'e_l': e_l,
                 'norms': norms,
                 'k_b': k_b,
+                'nnls_time': nnls_time,
+                'diag_time': diag_time,
+                'setup_time': setup_time,
+                'mat_time': mat_time,
                 }
     else:
         return {'nu_e': nu_e, 'nu_cyc': nu_cyc,
@@ -858,222 +876,22 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
     TBC. probably nu_e and nu_cyc
     '''
     start = time.time()
-    l = spectrum[:, 0]
-    ip_y = spectrum[:, 1]
-    fp_y = (ip_y * l) / utils.hcnm
+
+    gamma, k_b, rc_mat, k_cyc = utils.calc_rates(p, spectrum)
+    n_rc = rcm.n_rc[p.rc]
+    n_rc_states = 4**n_rc
     rcp = rcm.params[p.rc]
-    n_rc = len(rcp["pigments"])
-    rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
-    n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
-    # 0 shift for RCs. shifts stored as integer increments, so
-    # multiply by shift_inc here
-    shift = np.array([*[0 for _ in range(n_rc)], *p.shift],
-                     dtype=np.float64)
-    shift *= constants.shift_inc
-    pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
-    a_l = np.zeros((p.n_s + n_rc, len(l)))
-    e_l = np.zeros_like(a_l)
-    norms = np.zeros(len(pigment))
-    gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
-    k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
-    got_lookups = False
-    gammas = xr.DataArray()
-    overlaps = xr.DataArray()
-    if 'lookups' in kwargs:
-        try:
-            gammas, overlaps = kwargs['lookups']
-            got_lookups = True
-        except:
-            print("kwarg 'lookups' passed to solver incorrectly")
-            print(kwargs['lookups'])
-            raise
-    # if we have the lookups, the shifts need to be integers, because
-    # that's how they're encoded in the xarray (we don't want to worry about
-    # rounding errors etc.). if we don't have them, shifts should be the
-    # actual float values, so multiply by the increment
-    if got_lookups:
-        shift = np.array([*[0 for _ in range(n_rc)], *p.shift],
-                         dtype=np.int64)
-    else:
-        shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
-                         dtype=np.float64)
-        shift *= constants.shift_inc
-    for i in range(p.n_s + n_rc):
-        if got_lookups:
-            gamma[i] = (n_p[i] * gammas.loc[pigment[i], shift[i]].to_numpy())
-        else:
-            a_l[i] = utils.absorption(l, pigment[i], shift[i])
-            e_l[i] = utils.emission(l, pigment[i], shift[i])
-            norms[i] = utils.overlap(l, a_l[i], e_l[i])
-            gamma[i] = (n_p[i] * constants.sig_chl *
-                            utils.overlap(l, fp_y, a_l[i]))
-    # detrapping regime
-    detrap = 0.0 # no detrapping by default
-    if 'detrap' in kwargs:
-        detrap_type = kwargs['detrap']
-        if detrap_type == "fast":
-            rcm.rates["trap"]
-        elif detrap_type == "thermal":
-            detrap *= np.exp(-1.0) # -k_B T
-        elif detrap_type == "energy_gap":
-            detrap *= np.exp(-rcp["gap"])
-        elif detrap_type == "none":
-            detrap *= 0.0 # irreversible
-        else:
-            raise ValueError("Detrapping regime should be 'fast',"
-              " 'thermal', 'energy_gap' or 'none'.")
-
-    for i in range(p.n_s + n_rc):
-        ab = i
-        el = -1
-        if i < n_rc:
-            # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
-            if got_lookups:
-                inward = overlaps.loc[pigment[n_rc], shift[n_rc],
-                        pigment[i], shift[i]].to_numpy()
-                outward = overlaps.loc[pigment[i], shift[i],
-                        pigment[n_rc], shift[n_rc]].to_numpy()
-            else:
-                inward  = utils.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
-                outward = utils.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
-            # print(inward, outward)
-            n = float(n_p[i]) / float(n_p[n_rc])
-            dg = utils.dG(utils.peak(shift[i], pigment[i]),
-                    utils.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
-        elif i >= n_rc and i < (p.n_s + n_rc - 1):
-            # one subunit and the next
-            if got_lookups:
-                inward  = overlaps.loc[pigment[i + 1], shift[i + 1],
-                        pigment[i], shift[i]]
-                outward  = overlaps.loc[pigment[i], shift[i],
-                        pigment[i + 1], shift[i + 1]]
-            else:
-                inward  = utils.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
-                outward = utils.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
-            n = float(n_p[i]) / float(n_p[i + 1])
-            dg = utils.dG(utils.peak(shift[i], pigment[i]),
-                    utils.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-        k_b[2 * i] = constants.k_hop * outward
-        k_b[(2 * i) + 1] = constants.k_hop * inward
-        '''
-        the first n_rc pairs of rates are the transfer to and from
-        the excited state of the RCs and the antenna. these are
-        modified by the stoichiometry of these things. for now this
-        is hardcoded but it's definitely possible to fix, especially
-        if moving genome parameters into a file and generating from
-        that: have a JSON parameter like "array": True/False and then
-        "array_len": "n_s" or "rc", which can be used in the GA
-        '''
-        for i in range(n_rc):
-            # odd - inward, even - outward
-            if 'rho' in ga.genome_parameters:
-                k_b[2 * i] *= (p.rho[i] * p.rho[-1])
-                k_b[2 * i + 1] *= (p.rho[i] * p.rho[-1])
-            if 'aff' in ga.genome_parameters:
-                k_b[2 * i] *= p.aff[i]
-                k_b[2 * i + 1] *= p.aff[i]
-        if dg < 0.0:
-            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
-        elif dg > 0.0:
-            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
-
-    n_rc_states = len(rcp["states"]) # total number of states of all RCs
-    side = n_rc_states * ((p.n_b * p.n_s) + n_rc + 1)
-    twa = np.zeros((side, side), dtype=np.longdouble)
-
     end = time.time()
+
     setup_time = end - start
 
     start = time.time()
 
-    js = list(range(0, side, n_rc_states))
-    for jind, j in enumerate(js):
-        # jind == 0 is empty antenna, 0 + n_rc_states is RC 1 occupied, etc
-        # intra-RC processes are the same in each block
-        for i in range(n_rc_states):
-            ind = i + j # total index
-            for k in range(n_rc_states):
-                rt = rcp['mat'][i][k]
-                indf = k + j
-                if rt != '':
-                    twa[ind][indf] = rcm.rates[rt]
-                if rt == "lin" and 'rho' in ga.genome_parameters:
-                    # do not ask why this works. it's to do with
-                    # how the RC states are indexed in rc.py and then
-                    # into the matrix. took ages to work out.
-                    which_rc = np.abs(k - i) // (n_rc - 1) % 2
-                    twa[ind][indf] *= (p.rho[which_rc]
-                        * p.rho[which_rc + 1])
-                if rt == "ox" and 'diff_ratios' in kwargs:
-                    # get diffusion time for the relevant RC type
-                    if p.rc in kwargs['diff_ratios']:
-                        ratio = kwargs['diff_ratios'][p.rc]
-                    twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
-                if rt == "trap":
-                    # again, don't ask
-                    which_rc = ((n_rc - 1) -
-                    np.round(np.log(k - i) / np.log(4.0)).astype(int))
-                    '''
-                    indf above assumes that the state of the antenna
-                    doesn't change, which is not the case for trapping.
-                    so zero out the above rate and then check: if
-                    jind == which_rc + 1 we're in the correct block
-                    (the exciton is moving from the correct RC), and
-                    we go back to the empty antenna block
-                    '''
-                    twa[ind][indf] = 0.0
-                    if jind == which_rc + 1:
-                        twa[ind][k] = rcm.rates[rt]
-                        # detrapping:
-                        # - only possible if exciton manifold is empty
-                        indf = i + ((which_rc + 1) * n_rc_states)
-                        twa[k][indf] = detrap
-                if rt == "cyc":
-                    # cyclic: multiply the rate by alpha etc.
-                    # we will need this below for nu_cyc
-                    which_rc = ((n_rc - 1) -
-                    np.round(np.log(i - k) / np.log(4.0)).astype(int))
-                    k_cyc = rcm.rates["cyc"]
-                    if n_rc == 1:
-                        # zeta = 11 to enforce nu_CHO == nu_cyc
-                        k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
-                        twa[ind][indf] = k_cyc
-                    # first photosystem cannot do cyclic
-                    elif n_rc > 1 and which_rc > 0:
-                        k_cyc *= constants.alpha * np.sum(n_p)
-                        twa[ind][indf] = k_cyc
-                    # recombination can occur from any photosystem
-                    twa[ind][indf] += rcm.rates["rec"]
+    twa = build_matrix.build_matrix(p.n_b, p.n_s, n_rc, rc_mat,
+            constants.alpha, constants.k_diss, rcm.rates['trap'],
+            rcm.rates['detrap'], gamma, k_b)
 
-            if jind > 0:
-                # occupied exciton block -> empty due to dissipation
-                # final state index is i because RC state is unaffected
-                twa[ind][i] = constants.k_diss
-            
-            if jind > 0 and jind <= n_rc:
-                twa[i][ind] = gamma[jind - 1] # absorption by RCs
-
-            # antenna rate stuff
-            if jind > n_rc: # population in antenna subunit
-                # index on branch
-                bi = (jind - n_rc - 1) % p.n_s
-                twa[i][ind] = gamma[n_rc + bi] # absorption by this block
-                if bi == 0:
-                    # root of branch - transfer to RC exciton states possible
-                    for k in range(n_rc):
-                        # transfer to RC 0 is transfer to jind 1
-                        offset = (n_rc - k) * n_rc_states
-                        # inward transfer to RC k
-                        twa[ind][ind - offset] = k_b[2 * k + 1]
-                        # outward transfer from RC k
-                        twa[ind - offset][ind] = k_b[2 * k]
-                if bi > 0:
-                    # inward along branch
-                    twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                if bi < (p.n_s - 1):
-                    # outward allowed
-                    twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
-
+    side = twa.shape[0]
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
     for i in range(side):
@@ -1083,6 +901,7 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
                 k[i][i]     -= twa[i][j]
         # add a row for the probability constraint
         k[side][i] = 1.0
+
     end = time.time()
     mat_time = end - start
 
@@ -1174,9 +993,6 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
                 "p_eq": p_eq,
                 "p_eq_diag": p_eq_diag,
                 "nu_e_diag": nu_e_diag,
-                'a_l': a_l,
-                'e_l': e_l,
-                'norms': norms,
                 'k_b': k_b,
                 'nnls_time': nnls_time,
                 'diag_time': diag_time,
