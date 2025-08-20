@@ -480,7 +480,7 @@ def RC_only(rc_type, spectrum, **kwargs):
     else:
         return (nu_e, nu_cyc, redox, recomb)
 
-def explicit_antenna_RC(p, spectrum, **kwargs):
+def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
     this one's done by explicitly generating a tuple of possible system
@@ -754,27 +754,6 @@ def explicit_antenna_RC(p, spectrum, **kwargs):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
 
-    # interesting_states = [
-    #         (0, 0, 0, 0, 1, 0, 0, 0, 1),
-    #         (0, 0, 0, 0, 0, 1, 0, 0, 0),
-    #         (0, 0, 0, 0, 0, 1, 0, 1, 0),
-    #         (0, 0, 0, 0, 0, 1, 0, 0, 1),
-    #         (1, 0, 0, 0, 0, 0, 0, 0, 0),
-    #         (1, 0, 0, 0, 0, 0, 1, 0, 0),
-    #         (1, 0, 0, 0, 0, 0, 0, 1, 0),
-    #         (1, 0, 0, 0, 0, 0, 0, 0, 1),
-    #         (1, 0, 0, 1, 0, 0, 0, 1, 0),
-    #         (1, 0, 0, 1, 0, 0, 0, 0, 1),
-    #         ]
-    # for p0 in interesting_states:
-    #     for p1 in total_states:
-    #         i0 = tots[p0]
-    #         i1 = tots[p1]
-    #         if twa[i0][i1] > 0.0:
-    #             print(f"{p0} -> {p1}, {twa[i0][i1]}")
-    #         if twa[i1][i0] > 0.0:
-    #             print(f"{p1} -> {p0}, {twa[i1][i0]}")
-
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
     for i in range(side):
@@ -784,16 +763,6 @@ def explicit_antenna_RC(p, spectrum, **kwargs):
                 k[i][i]     -= twa[i][j]
         # add a row for the probability constraint
         k[side][i] = 1.0
-
-    # for i in range(side):
-    #     # renormalise column sum
-    #     k[i, i] -= np.sum(k[:side, i])
-
-    # for i in range(side):
-    #     cs = np.sum(k[:side, i])
-    #     if cs != 0.0:
-    #         print(i, toti[i], cs)
-
 
     if 'nnls' in kwargs:
         p_eq, p_eq_res = solve(k, method=kwargs['nnls'])
@@ -844,7 +813,7 @@ def explicit_antenna_RC(p, spectrum, **kwargs):
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-    if 'debug' in kwargs and kwargs['debug']:
+    if kwargs['debug']:
         return {
                 "k": k,
                 "twa": twa,
@@ -867,10 +836,10 @@ def explicit_antenna_RC(p, spectrum, **kwargs):
                 'k_b': k_b,
                 }
     else:
-        return ({'nu_e': nu_e, 'nu_cyc': nu_cyc,
-            'redox': redox, 'recomb': recomb}, 0)
+        return {'nu_e': nu_e, 'nu_cyc': nu_cyc,
+            'redox': redox, 'recomb': recomb}
 
-def antenna_RC(p, spectrum, **kwargs):
+def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
 
@@ -1148,7 +1117,7 @@ def antenna_RC(p, spectrum, **kwargs):
     nu_cyc = 0.0
     # [::-1] to reverse here because otherwise redox below will
     # output the redox states of the RCs in reverse order
-    if 'redox' in kwargs and kwargs['redox']:
+    if kwargs['redox']:
         # generate states to go with p_eq indices
         ast = []
         empty = tuple([0 for _ in range(n_rc + p.n_b * p.n_s)])
@@ -1177,7 +1146,7 @@ def antenna_RC(p, spectrum, **kwargs):
         if i % n_rc_states in rcp["inds"]['cyc']:
             nu_cyc += k_cyc * p_i
 
-        if 'redox' in kwargs and kwargs['redox']:
+        if kwargs['redox']:
             for j in range(n_rc):
                 s = toti[i]
                 if s[trap_indices[j]] == 1:
@@ -1194,9 +1163,9 @@ def antenna_RC(p, spectrum, **kwargs):
     # thing going on with jupyter where it's using 3.8 even
     # though i should have 3.11 on, so |= doesn't work
     od = {'nu_e': nu_e, 'nu_cyc': nu_cyc}
-    if 'redox' in kwargs and kwargs['redox']:
+    if kwargs['redox']:
         od = {**od, **{"redox": redox, "recomb": redox}}
-    if 'debug' in kwargs and kwargs['debug']:
+    if kwargs['debug']:
         od = {**od, **{
                 "k": k,
                 "twa": twa,
@@ -1215,14 +1184,14 @@ def antenna_RC(p, spectrum, **kwargs):
                 'mat_time': mat_time,
                 }
                 }
-        if 'redox' in kwargs and kwargs['redox']:
+        if kwargs['redox']:
             od = {**od, **{"states": total_states,
                 "trap_states": trap_states,
                 "ox_states": ox_states,
                 "red_states": red_states,
                 }
                 }
-    return (od, 0)
+    return od
 
 if __name__ == "__main__":
     pass
