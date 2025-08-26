@@ -11,3 +11,4 @@ out/*
 build/*
 tables/*
 *ipynb*
+build_matrix.c
