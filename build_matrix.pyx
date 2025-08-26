@@ -1,13 +1,18 @@
+# cython: language_level=3
+# cython: profile=True
 import numpy as np
 cimport numpy as cnp
 from cython.parallel import prange
-from libc.math cimport NAN, log
+from libc.math cimport isnan, log
+from libc.stdio cimport printf
+cimport cython
 
 cnp.import_array()
 DTYPE = np.float64
 ctypedef cnp.float64_t DTYPE_t
 
-cdef cnp.ndarray build_matrix(int n_b, int n_s, int n_rc,
+@cython.boundscheck(False)
+cpdef cnp.ndarray[DTYPE_t, ndim=2] build_matrix(int n_b, int n_s, int n_rc,
         cnp.ndarray[DTYPE_t, ndim=2] rc_mat,
         double alpha, double k_diss, double k_trap, double k_detrap,
         cnp.ndarray[DTYPE_t, ndim=1] gamma, cnp.ndarray[DTYPE_t, ndim=1] k_b):
@@ -30,8 +35,9 @@ cdef cnp.ndarray build_matrix(int n_b, int n_s, int n_rc,
             ind = i + j # total index
             for k in range(n_rc_states):
                 indf = k + j
-                twav[ind][indf] = rcv[i][k]
-                if rcv[i][k] == NAN: # trapping
+                if not isnan(rcv[i][k]):
+                    twav[ind][indf] = rcv[i][k]
+                else: # trapping
                     which_rc = (n_rc - 1) - <int>(log(k - i) / log(4.0))
                     '''
                     indf above assumes that the state of the antenna
@@ -41,7 +47,6 @@ cdef cnp.ndarray build_matrix(int n_b, int n_s, int n_rc,
                     (the exciton is moving from the correct RC), and
                     we go back to the empty antenna block
                     '''
-                    twav[ind][indf] = 0.0
                     if jind == which_rc + 1:
                         twav[ind][k] = k_trap
                         # detrapping:
@@ -75,5 +80,5 @@ cdef cnp.ndarray build_matrix(int n_b, int n_s, int n_rc,
                     twav[ind][ind - n_rc_states] = kv[2 * (n_rc + bi) - 1]
                 if bi < (n_s - 1):
                     # outward allowed
-                    twav[ind][ind + n_rc_states] = kv[2 * (n_rc + bi) + 1]
+                    twav[ind][ind + n_rc_states] = kv[2 * (n_rc + bi)]
     return twa

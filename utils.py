@@ -181,6 +181,7 @@ def calc_rates(p, spectrum, **kwargs):
     got_lookups = False
     gammas = xr.DataArray()
     overlaps = xr.DataArray()
+    k_cyc = np.nan
     if 'lookups' in kwargs:
         try:
             gammas, overlaps = kwargs['lookups']
@@ -211,8 +212,6 @@ def calc_rates(p, spectrum, **kwargs):
                             overlap(l, fp_y, a_l[i]))
 
     for i in range(p.n_s + n_rc):
-        ab = i
-        el = -1
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
             if got_lookups:
@@ -242,6 +241,10 @@ def calc_rates(p, spectrum, **kwargs):
                     peak(shift[i + 1], pigment[i + 1]), n, constants.T)
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
+        if dg < 0.0:
+            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
+        elif dg > 0.0:
+            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
         '''
         the first n_rc pairs of rates are the transfer to and from
         the excited state of the RCs and the antenna. these are
@@ -251,64 +254,60 @@ def calc_rates(p, spectrum, **kwargs):
         that: have a JSON parameter like "array": True/False and then
         "array_len": "n_s" or "rc", which can be used in the GA
         '''
-        for i in range(n_rc):
+        for j in range(n_rc):
             # odd - inward, even - outward
             if 'rho' in ga.genome_parameters:
-                k_b[2 * i] *= (p.rho[i] * p.rho[-1])
-                k_b[2 * i + 1] *= (p.rho[i] * p.rho[-1])
+                k_b[2 * j] *= (p.rho[j] * p.rho[-1])
+                k_b[2 * j + 1] *= (p.rho[j] * p.rho[-1])
             if 'aff' in ga.genome_parameters:
-                k_b[2 * i] *= p.aff[i]
-                k_b[2 * i + 1] *= p.aff[i]
-        if dg < 0.0:
-            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
-        elif dg > 0.0:
-            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
+                k_b[2 * j] *= p.aff[j]
+                k_b[2 * j + 1] *= p.aff[j]
 
-        n_rc_states = len(rcp["states"]) # total number of states of all RCs
-        rc_mat = np.zeros((n_rc_states, n_rc_states), dtype=np.float64)
-        for i in range(n_rc_states):
-            for k in range(n_rc_states):
-                rt = rcp['mat'][i][k]
-                if rt != '':
-                    rc_mat[i][k] = rcm.rates[rt]
-                if rt == "lin" and 'rho' in ga.genome_parameters:
-                    # do not ask why this works. it's to do with
-                    # how the RC states are indexed in rc.py and then
-                    # into the matrix. took ages to work out.
-                    which_rc = np.abs(k - i) // (n_rc - 1) % 2
-                    rc_mat[i][k] *= (kwargs['rho'][which_rc]
-                        * kwargs['rho'][which_rc + 1])
-                if rt == "ox" and 'diff_ratios' in kwargs:
-                    # get diffusion time for the relevant RC type
-                    if p.rc in kwargs['diff_ratios']:
-                        ratio = kwargs['diff_ratios'][p.rc]
-                    rc_mat[i][k] = rcm.rates[rt] / (1.0 + ratio)
-                if rt == "trap":
-                    '''
-                    this one's a problem, because trapping or detrapping
-                    change the state of the exciton manifold as well as the
-                    RC. to index these properly we need to make sure the
-                    population moves from the correct block, but this
-                    function doesn't know about the blocks, only the RC
-                    state. so set this to np.nan, look for the nans
-                    in the setup functions and deal with it there.
-                    '''
-                    rc_mat[i][k] = np.nan
-                if rt == "cyc":
-                    # cyclic: multiply the rate by alpha etc.
-                    # we will need this below for nu_cyc
-                    which_rc = ((n_rc - 1) -
-                    np.round(np.log(i - k) / np.log(4.0)).astype(int))
-                    k_cyc = rcm.rates["cyc"]
-                    if n_rc == 1:
-                        # zeta = 11 to enforce nu_CHO == nu_cyc
-                        k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
-                        rc_mat[i][k] = k_cyc
-                    # first photosystem cannot do cyclic
-                    elif n_rc > 1 and which_rc > 0:
-                        k_cyc *= constants.alpha * np.sum(n_p)
-                        rc_mat[i][k] = k_cyc
-                    # recombination can occur from any photosystem
-                    rc_mat[i][k] += rcm.rates["rec"]
+    n_rc_states = len(rcp["states"]) # total number of states of all RCs
+    rc_mat = np.zeros((n_rc_states, n_rc_states), dtype=np.float64)
+    for i in range(n_rc_states):
+        for k in range(n_rc_states):
+            rt = rcp['mat'][i][k]
+            if rt != '':
+                rc_mat[i][k] = rcm.rates[rt]
+            if rt == "lin" and 'rho' in ga.genome_parameters:
+                # do not ask why this works. it's to do with
+                # how the RC states are indexed in rc.py and then
+                # into the matrix. took ages to work out.
+                which_rc = np.abs(k - i) // (n_rc - 1) % 2
+                rc_mat[i][k] *= (kwargs['rho'][which_rc]
+                    * kwargs['rho'][which_rc + 1])
+            if rt == "ox" and 'diff_ratios' in kwargs:
+                # get diffusion time for the relevant RC type
+                if p.rc in kwargs['diff_ratios']:
+                    ratio = kwargs['diff_ratios'][p.rc]
+                rc_mat[i][k] = rcm.rates[rt] / (1.0 + ratio)
+            if rt == "trap":
+                '''
+                this one's a problem, because trapping or detrapping
+                change the state of the exciton manifold as well as the
+                RC. to index these properly we need to make sure the
+                population moves from the correct block, but this
+                function doesn't know about the blocks, only the RC
+                state. so set this to np.nan, look for the nans
+                in the setup functions and deal with it there.
+                '''
+                rc_mat[i][k] = np.nan
+            if rt == "cyc":
+                # cyclic: multiply the rate by alpha etc.
+                # we will need this below for nu_cyc
+                which_rc = ((n_rc - 1) -
+                np.round(np.log(i - k) / np.log(4.0)).astype(int))
+                k_cyc = rcm.rates["cyc"]
+                if n_rc == 1:
+                    # zeta = 11 to enforce nu_CHO == nu_cyc
+                    k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
+                    rc_mat[i][k] = k_cyc
+                # first photosystem cannot do cyclic
+                elif n_rc > 1 and which_rc > 0:
+                    k_cyc *= constants.alpha * np.sum(n_p)
+                    rc_mat[i][k] = k_cyc
+                # recombination can occur from any photosystem
+                rc_mat[i][k] += rcm.rates["rec"]
 
-        return gamma, k_b, rc_mat, k_cyc
+    return gamma, k_b, rc_mat, k_cyc

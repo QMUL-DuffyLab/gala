@@ -553,8 +553,6 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                             utils.overlap(l, fp_y, a_l[i]))
 
     for i in range(p.n_s + n_rc):
-        ab = i
-        el = -1
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
             if got_lookups:
@@ -565,10 +563,10 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             else:
                 inward  = utils.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
                 outward = utils.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
-            # print(inward, outward)
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = utils.dG(utils.peak(shift[i], pigment[i]),
                     utils.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
+            print(f"{i}, {pigment[i]}, {pigment[n_rc]}, {shift[i]}, {shift[n_rc]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
             if got_lookups:
@@ -582,8 +580,14 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = utils.dG(utils.peak(shift[i], pigment[i]),
                     utils.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
+            print(f"{i}, {pigment[i]}, {pigment[i + 1]}, {shift[i]}, {shift[i + 1]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
+        if dg < 0.0:
+            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
+        elif dg > 0.0:
+            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
+        print(f"{i}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {k_b[2 * i]:6.4e}, k_b[in] = {k_b[(2 * i) + 1]:6.4e}")
         '''
         the first n_rc pairs of rates are the transfer to and from
         the excited state of the RCs and the antenna. these are
@@ -593,18 +597,15 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
         that: have a JSON parameter like "array": True/False and then
         "array_len": "n_s" or "rc", which can be used in the GA
         '''
-        for i in range(n_rc):
-            # odd - inward, even - outward
+        for j in range(n_rc):
+            # TODO: check this before starting on samir's data
             if 'rho' in ga.genome_parameters:
-                k_b[2 * i] *= (p.rho[i] * p.rho[-1])
-                k_b[2 * i + 1] *= (p.rho[i] * p.rho[-1])
+                k_b[2 * j] *= (p.rho[j] * p.rho[-1])
+                k_b[2 * j + 1] *= (p.rho[j] * p.rho[-1])
             if 'aff' in ga.genome_parameters:
-                k_b[2 * i] *= p.aff[i]
-                k_b[2 * i + 1] *= p.aff[i]
-        if dg < 0.0:
-            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
-        elif dg > 0.0:
-            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
+                k_b[2 * j] *= p.aff[j]
+                k_b[2 * j + 1] *= p.aff[j]
+
     end = time.time()
     setup_time = end - start
 
@@ -737,9 +738,11 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
+                    print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
                 if bi < (p.n_s - 1):
                     # outward allowed
-                    twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi) + 1]
+                    twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi)]
+                    print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
@@ -825,7 +828,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
-    if kwargs['debug']:
+    if debug:
         return {
                 "k": k,
                 "twa": twa,
@@ -857,7 +860,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
         return {'nu_e': nu_e, 'nu_cyc': nu_cyc,
             'redox': redox, 'recomb': recomb}
 
-def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
+def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
 
@@ -878,6 +881,9 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
     start = time.time()
 
     gamma, k_b, rc_mat, k_cyc = utils.calc_rates(p, spectrum)
+    if np.isnan(k_cyc):
+        print("something wrong with k_cyc calculation")
+    print(f"start of new antenna rc, k_b = {k_b}")
     n_rc = rcm.n_rc[p.rc]
     n_rc_states = 4**n_rc
     rcp = rcm.params[p.rc]
@@ -936,7 +942,7 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
     nu_cyc = 0.0
     # [::-1] to reverse here because otherwise redox below will
     # output the redox states of the RCs in reverse order
-    if kwargs['redox']:
+    if do_redox:
         # generate states to go with p_eq indices
         ast = []
         empty = tuple([0 for _ in range(n_rc + p.n_b * p.n_s)])
@@ -965,7 +971,7 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
         if i % n_rc_states in rcp["inds"]['cyc']:
             nu_cyc += k_cyc * p_i
 
-        if kwargs['redox']:
+        if do_redox:
             for j in range(n_rc):
                 s = toti[i]
                 if s[trap_indices[j]] == 1:
@@ -982,9 +988,9 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
     # thing going on with jupyter where it's using 3.8 even
     # though i should have 3.11 on, so |= doesn't work
     od = {'nu_e': nu_e, 'nu_cyc': nu_cyc}
-    if kwargs['redox']:
+    if do_redox:
         od = {**od, **{"redox": redox, "recomb": redox}}
-    if kwargs['debug']:
+    if debug:
         od = {**od, **{
                 "k": k,
                 "twa": twa,
@@ -1000,7 +1006,7 @@ def antenna_RC(p, spectrum, debug=False, redox=False, **kwargs):
                 'mat_time': mat_time,
                 }
                 }
-        if kwargs['redox']:
+        if do_redox:
             od = {**od, **{"states": total_states,
                 "trap_states": trap_states,
                 "ox_states": ox_states,
