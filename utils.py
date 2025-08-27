@@ -296,6 +296,7 @@ def calc_rates(p, spectrum, **kwargs):
             if rt == "cyc":
                 # cyclic: multiply the rate by alpha etc.
                 # we will need this below for nu_cyc
+                rc_mat[i][k] = 0.0
                 which_rc = ((n_rc - 1) -
                 np.round(np.log(i - k) / np.log(4.0)).astype(int))
                 k_cyc = rcm.rates["cyc"]

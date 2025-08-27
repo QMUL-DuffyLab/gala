@@ -18,8 +18,8 @@ rates = {
 "trap" : 1.0 / 10.0E-12,
 "ox"   : 1.0 / 1.0E-3,
 "lin"  : 1.0 / 10.0E-3,
-"cyc"  : 1.0 / 10.0E-3,
-"red"  : 1.0 / 10.0E-3,
+"cyc"  : 1.0 / 10.0E-5,
+"red"  : 1.0 / 10.0E-6,
 "rec"  : 0.0,
 }
 
@@ -82,8 +82,6 @@ def parameters(pigments, gap):
         states = np.array(list(map(list, itertools.product(one_rc, repeat=n_rc)))).reshape(n_states, n_rc * len(one_rc[0]))
         indices = {tuple(states[j]): j for j in range(n_states)}
     procs = {}
-    nu_e_ind = []
-    nu_cyc_ind  = []
     inds = {k: [] for k in ['ox', 'red', 'trap', 'nu_e', 'cyc']}
     inds['ox'] = [3 * k + 1 for k in range(n_rc)]
     inds['red'] = [3 * k + 2 for k in range(n_rc)]
@@ -171,15 +169,15 @@ def parameters(pigments, gap):
             "indices": indices, # use tuple of state to return index
             "inds": inds,
             "procs": procs,
-            "nu_e_ind": nu_e_ind,
-            "nu_cyc_ind": nu_cyc_ind,
             "mat": mat,
             }
     return params
 
 params = {
-    "ox":   parameters(["ps_ox", "ps_r"], 10.0),
-    "ox_id":   parameters(["ps_r", "ps_r"], 10.0),
+    "ox_diff":   parameters(["ps_ox", "ps_r"], 10.0),
+    "ox":   parameters(["ps_r", "ps_r"], 10.0),
+    # "ox":   parameters(["ps_ox", "ps_r"], 10.0),
+    #"ox_id":   parameters(["ps_r", "ps_r"], 10.0),
     "frl":  parameters(["ps_r_frl", "ps_r_frl"], 10.0),
     "anox": parameters(["ps_anox"], 10.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),

@@ -340,9 +340,9 @@ def RC_only(rc_type, spectrum, **kwargs):
             ind = i + j # total index
             ts = toti[ind] # total state tuple
             initial = rcp["states"][i] # tuple with current RC state
-            if i in rcp["nu_e_ind"]:
+            if i in rcp["inds"]["nu_e"]:
                 lindices.append(ind)
-            if i in rcp["nu_cyc_ind"]:
+            if i in rcp["inds"]["cyc"]:
                 cycdices.append(ind)
 
             for k in range(n_rc_states):
@@ -385,14 +385,14 @@ def RC_only(rc_type, spectrum, **kwargs):
                         if jind == which_rc + 1:
                             indf = rcp["indices"][tuple(final)]
                             twa[ind][indf] = rcm.rates[rt]
-                            print(f"{rt}: {toti[ind]} -> {toti[indf]} = {twa[ind][indf]}")
+                            # print(f"{rt}: {toti[ind]} -> {toti[indf]} = {twa[ind][indf]}")
                             # detrapping:
                             # - only possible if exciton manifold is empty
                             indf = (rcp["indices"][tuple(initial)] +
                                     ((which_rc + 1) * n_rc_states))
                             twa[k][indf] = detrap
                             rt = "detrap"
-                            print(f"{rt}:\t {toti[k]} -> {toti[indf]} = {twa[k][indf]}")
+                            # print(f"{rt}:\t {toti[k]} -> {toti[indf]} = {twa[k][indf]}")
                     if rt == "cyc":
                         # cyclic: multiply the rate by alpha etc.
                         # we will need this below for nu(cyc)
@@ -411,8 +411,6 @@ def RC_only(rc_type, spectrum, **kwargs):
                             rt = "cyclic"
                         # recombination can occur from any photosystem
                         twa[ind][indf] += rcm.rates["rec"]
-                    if twa[ind][indf] != 0.0:
-                        print(f"{rt}: {ts} -> {tf} = {twa[ind][indf]}")
             if jind > 0:
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
@@ -566,7 +564,7 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             n = float(n_p[i]) / float(n_p[n_rc])
             dg = utils.dG(utils.peak(shift[i], pigment[i]),
                     utils.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
-            print(f"{i}, {pigment[i]}, {pigment[n_rc]}, {shift[i]}, {shift[n_rc]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+            # print(f"{i}, {pigment[i]}, {pigment[n_rc]}, {shift[i]}, {shift[n_rc]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
             if got_lookups:
@@ -580,14 +578,14 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             n = float(n_p[i]) / float(n_p[i + 1])
             dg = utils.dG(utils.peak(shift[i], pigment[i]),
                     utils.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-            print(f"{i}, {pigment[i]}, {pigment[i + 1]}, {shift[i]}, {shift[i + 1]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+            # print(f"{i}, {pigment[i]}, {pigment[i + 1]}, {shift[i]}, {shift[i + 1]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
         if dg < 0.0:
             k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
         elif dg > 0.0:
             k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
-        print(f"{i}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {k_b[2 * i]:6.4e}, k_b[in] = {k_b[(2 * i) + 1]:6.4e}")
+        # print(f"{i}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {k_b[2 * i]:6.4e}, k_b[in] = {k_b[(2 * i) + 1]:6.4e}")
         '''
         the first n_rc pairs of rates are the transfer to and from
         the excited state of the RCs and the antenna. these are
@@ -637,9 +635,9 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
         for i in range(n_rc_states):
             ind = i + j # total index
             initial = rcp["states"][i] # tuple with current RC state
-            if i in rcp["nu_e_ind"]:
+            if i in rcp["inds"]["nu_e"]:
                 lindices.append(ind)
-            if i in rcp["nu_cyc_ind"]:
+            if i in rcp["inds"]["cyc"]:
                 cycdices.append(ind)
 
             for k in range(n_rc_states):
@@ -738,11 +736,11 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                    print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
+                    # print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
                 if bi < (p.n_s - 1):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi)]
-                    print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
+                    # print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
 
     k = np.zeros((side + 1, side), dtype=ctypes.c_double,
                  order='F')
@@ -775,10 +773,14 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
     for i in range(side):
         elt[i, i] = np.exp(lam[i] * tinf)
     p_eq_diag = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
+    # normalise explicitly, it won't be necessarily
+    p_eq_diag /= np.sum(p_eq_diag)
     if not np.all(np.isreal(p_eq_diag)):
         imax = np.max(np.imag(p_eq_diag))
-        p_eq_diag = np.real(p_eq_diag)
-    p_eq_diag /= np.sum(p_eq_diag)
+        p_eq_diag_real = np.real(p_eq_diag)
+    else:
+        p_eq_diag_real = p_eq_diag
+    p_eq_diag_real /= np.sum(p_eq_diag_real)
     end = time.time()
     diag_time = end - start
 
@@ -835,7 +837,8 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 "gamma": gamma,
                 "k_b": k_b,
                 "p_eq": p_eq,
-                "p_eq_diag": p_eq,
+                "p_eq_diag": p_eq_diag,
+                "p_eq_diag_real": p_eq_diag_real,
                 "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
@@ -851,6 +854,9 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 'e_l': e_l,
                 'norms': norms,
                 'k_b': k_b,
+                'C': C,
+                'lam': lam,
+                'Cinv': Cinv,
                 'nnls_time': nnls_time,
                 'diag_time': diag_time,
                 'setup_time': setup_time,
@@ -881,9 +887,6 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     start = time.time()
 
     gamma, k_b, rc_mat, k_cyc = utils.calc_rates(p, spectrum)
-    if np.isnan(k_cyc):
-        print("something wrong with k_cyc calculation")
-    print(f"start of new antenna rc, k_b = {k_b}")
     n_rc = rcm.n_rc[p.rc]
     n_rc_states = 4**n_rc
     rcp = rcm.params[p.rc]
@@ -929,10 +932,13 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     for i in range(side):
         elt[i, i] = np.exp(lam[i] * tinf)
     p_eq_diag = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
+    p_eq_diag /= np.sum(p_eq_diag)
     if not np.all(np.isreal(p_eq_diag)):
         imax = np.max(np.imag(p_eq_diag))
-        p_eq_diag = np.real(p_eq_diag)
-    p_eq_diag /= np.sum(p_eq_diag)
+        p_eq_diag_real = np.real(p_eq_diag)
+    else:
+        p_eq_diag_real = p_eq_diag
+    p_eq_diag_real /= np.sum(p_eq_diag_real)
     end = time.time()
     diag_time = end - start
 
@@ -998,6 +1004,7 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
                 "k_b": k_b,
                 "p_eq": p_eq,
                 "p_eq_diag": p_eq_diag,
+                "p_eq_diag_real": p_eq_diag_real,
                 "nu_e_diag": nu_e_diag,
                 'k_b': k_b,
                 'nnls_time': nnls_time,
