@@ -9,7 +9,7 @@ import time
 import ctypes
 import numpy as np
 import xarray as xr
-from scipy.optimize import nnls
+from scipy.optimize import nnls as scipy_nnls
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
 import constants
@@ -20,10 +20,31 @@ import rc as rcm
 import build_matrix
 
 
-def diag(k, t):
+'''
+note - the two different solver methods below (diag and NNLS)
+necessarily have different things to return. the NNLS method will return
+residuals so you can check how close the solution is if you choose; the
+diagonalisation has the eigenvalues and eigenvectors, which I return for
+inspection if the solver's set to debug mode. i've chosen to return
+p_eq first and then k for both methods so that those are consistent at
+least, but there's maybe a better way to do this by forwarding the debug
+kwarg and changing the return values based on that, or something
+'''
+
+def diag(transfer_matrix, t=constants.tinf):
     '''
-    calculate occupation probabilites for matrix k at time t
+    calculate equilibrium occupation probabilites from the transfer
+    matrix `transfer_matrix` at time t via diagonalisation
     '''
+    side = transfer_matrix.shape[0]
+    k = np.zeros((side, side), dtype=ctypes.c_double,
+                 order='F')
+    for i in range(side):
+        for j in range(side):
+            if (i != j):
+                k[i][j]      = transfer_matrix[j][i]
+                k[i][i]     -= transfer_matrix[i][j]
+
     lam, C = np.linalg.eig(k)
     Cinv = np.linalg.inv(C)
     elt = np.zeros_like(C)
@@ -32,15 +53,28 @@ def diag(k, t):
     for i in range(k.shape[0]):
         elt[i, i] = np.exp(lam[i] * t)
     p_eq = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
-    return lam, C, Cinv, p_eq
+    p_eq /= np.sum(p_eq)
+    return np.real(p_eq), k, lam, C, Cinv
 
-def solve(k, method='fortran', debug=False):
+def nnls(transfer_matrix, method='fortran', debug=False):
     '''
-    solve the nnls problem using the given method.
+    calculate equilibrium occupation probabilites from the transfer
+    matrix `transfer_matrix` via non-negative least squares (NNLS).
+    solves the nnls problem using the given method.
     default's fortran, otherwise it'll use scipy.
-    note that k should be given fortran-ordered if using
-    the fortran solver
     '''
+
+    side = transfer_matrix.shape[0]
+    k = np.zeros((side + 1, side), dtype=ctypes.c_double,
+                 order='F')
+    for i in range(side):
+        for j in range(side):
+            if (i != j):
+                k[i][j]      = transfer_matrix[j][i]
+                k[i][i]     -= transfer_matrix[i][j]
+        # add a row for the probability constraint
+        k[side][i] = 1.0
+
     m = k.shape[0]
     n = k.shape[1]
     b = np.zeros(m, dtype=ctypes.c_double)
@@ -89,19 +123,12 @@ def solve(k, method='fortran', debug=False):
 
     elif method == 'scipy':
         try:
-            p_eq, p_eq_res = nnls(k, b, maxiter=1000)
+            p_eq, p_eq_res = scipy_nnls(k, b, maxiter=1000)
         except RuntimeError:
             p_eq = None
             p_eq_res = None
             print("NNLS RuntimeError - reached iteration limit")
-    return p_eq, p_eq_res
-
-def long_time(k):
-    '''
-    diagonalise the K matrix and then evolve it to long time
-    '''
-    kd = np.linalg.eig(k)
-
+    return p_eq, k, p_eq_res
 
 def antenna_only(l, ip_y, p, overlaps, gammas, debug=False):
     '''
@@ -283,7 +310,7 @@ def antenna_only(l, ip_y, p, overlaps, gammas, debug=False):
     else:
         return np.array([nu_e, phi_e_g, phi_e])
 
-def RC_only(rc_type, spectrum, **kwargs):
+def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
     '''
     parameters
     ----------
@@ -434,27 +461,17 @@ def RC_only(rc_type, spectrum, **kwargs):
             if jind > 0 and jind <= n_rc:
                 twa[i][ind] = gamma[jind - 1] # absorption by RCs
 
-    k = np.zeros((side + 1, side), dtype=np.float64,
-                 order='F')
-    for i in range(side):
-        for j in range(side):
-            if (i != j):
-                # row i in the k matrix should have all the gains to state i
-                # but twa is the other way round, so invert as we go
-                k[i][j]      = twa[j][i]
-                k[i][i]     -= twa[i][j]
-        # constraint for NNLS
-        k[side][i] = 1.0
-
-    # for i in range(side):
-    #     # renormalise column sum
-    #     cs = np.sum(k[:side, i])
-    #     print(i, cs)
-    #     k[i, i] -= cs
-    #     print(i, np.sum(k[:side, i]))
-
-    p_eq, p_eq_res = solve(k, method='fortran')
-
+    if solver_method == 'nnls':
+        if 'nnls_method' in kwargs:
+            p_eq, k, p_eq_res = nnls(twa, method=kwargs['nnls_method'])
+        else:
+            p_eq, k, p_eq_res = nnls(twa, method='fortran')
+    elif solver_method == 'diag':
+        if 'diag_time' in kwargs:
+            p_eq, k, lam, C, Cinv = diag(twa, kwargs['diag_time'])
+        else:
+            p_eq, k, lam, C, Cinv = diag(twa)
+        
     nu_e = 0.0
     nu_cyc = 0.0
     trap_indices = [3*i + (n_rc) for i in range(n_rc)]
@@ -494,7 +511,8 @@ def RC_only(rc_type, spectrum, **kwargs):
     else:
         return (nu_e, nu_cyc, redox, recomb)
 
-def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
+def explicit_antenna_RC(p, spectrum, debug=False,
+        solver_method='diag', **kwargs):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
     this one's done by explicitly generating a tuple of possible system
@@ -514,6 +532,11 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
     else:
     TBC. probably nu_e and nu_cyc
     '''
+    # in debug mode we want to output lots of details; add these to
+    # a dict as we go. previously i built the dict at the end, but
+    # what with different solvers having different return values and
+    # so on, it's easier to do this way
+    output = {}
     start = time.time()
     l = spectrum[:, 0]
     ip_y = spectrum[:, 1]
@@ -565,42 +588,46 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             gamma[i] = (n_p[i] * constants.sig_chl *
                             utils.overlap(l, fp_y, a_l[i]))
 
+    if debug:
+        output['a_l'] = a_l
+        output['e_l'] = e_l
+        output['norms'] = norms
+        output['gamma'] = gamma
+
+    print()
+    print("k_b calc:")
     for i in range(p.n_s + n_rc):
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
-            if got_lookups:
-                inward = overlaps.loc[pigment[n_rc], shift[n_rc],
-                        pigment[i], shift[i]].to_numpy()
-                outward = overlaps.loc[pigment[i], shift[i],
-                        pigment[n_rc], shift[n_rc]].to_numpy()
-            else:
-                inward  = utils.overlap(l, a_l[i], e_l[n_rc]) / norms[i]
-                outward = utils.overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
-            n = float(n_p[i]) / float(n_p[n_rc])
-            dg = utils.dG(utils.peak(shift[i], pigment[i]),
-                    utils.peak(shift[n_rc], pigment[n_rc]), n, constants.T)
-            # print(f"{i}, {pigment[i]}, {pigment[n_rc]}, {shift[i]}, {shift[n_rc]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+            ind1 = i
+            ind2 = n_rc
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
-            if got_lookups:
-                inward  = overlaps.loc[pigment[i + 1], shift[i + 1],
-                        pigment[i], shift[i]]
-                outward  = overlaps.loc[pigment[i], shift[i],
-                        pigment[i + 1], shift[i + 1]]
-            else:
-                inward  = utils.overlap(l, a_l[i], e_l[i + 1]) / norms[i]
-                outward = utils.overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
-            n = float(n_p[i]) / float(n_p[i + 1])
-            dg = utils.dG(utils.peak(shift[i], pigment[i]),
-                    utils.peak(shift[i + 1], pigment[i + 1]), n, constants.T)
-            # print(f"{i}, {pigment[i]}, {pigment[i + 1]}, {shift[i]}, {shift[i + 1]}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+            ind1 = i
+            ind2 = i + 1
+        n = float(n_p[ind1]) / float(n_p[ind2])
+        if got_lookups:
+            pass # need to revamp this
+        else:
+            inward  = utils.overlap(l, a_l[ind1], e_l[ind2]) / norms[ind1]
+            dgi = utils.dG(utils.peak(shift[ind2], pigment[ind2], 'ems'),
+                    utils.peak(shift[ind1], pigment[ind1], 'abs'),
+                    1./n, constants.T)
+            if dgi > 0.0:
+                inward *= np.exp(-1.0 * dgi / (constants.T * kB))
+
+            outward = utils.overlap(l, e_l[ind1], a_l[ind2]) / norms[ind2]
+            dgo = utils.dG(utils.peak(shift[ind1], pigment[ind1], 'ems'),
+                    utils.peak(shift[ind2], pigment[ind2], 'abs'),
+                    n, constants.T)
+            if dgo > 0.0:
+                outward *= np.exp(-1.0 * dgo / (constants.T * kB))
+        print(f"index {i}:")
+        print(f"pigments: {pigment[ind1]}, {pigment[ind2]} with shifts {shift[ind1]}, {shift[ind2]}. peaks (ind1 abs, ind1 ems, ind2 abs, ind2 ems): {utils.peak(shift[ind1], pigment[ind1], 'abs')}, {utils.peak(shift[ind1], pigment[ind1], 'ems')}, {utils.peak(shift[ind2], pigment[ind2], 'abs')}, {utils.peak(shift[ind2], pigment[ind2], 'ems')}. n_p: {n_p[ind1]}, {n_p[ind2]}.")
+        print(f" inward, outward deltaG: {dgi}, {dgo}. overall inward, outward multipliers: {inward}, {outward}. outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+        print()
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
-        if dg < 0.0:
-            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
-        elif dg > 0.0:
-            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
-        # print(f"{i}, {inward}, {outward}, outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {k_b[2 * i]:6.4e}, k_b[in] = {k_b[(2 * i) + 1]:6.4e}")
         '''
         the first n_rc pairs of rates are the transfer to and from
         the excited state of the RCs and the antenna. these are
@@ -618,6 +645,12 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             if 'aff' in ga.genome_parameters:
                 k_b[2 * j] *= p.aff[j]
                 k_b[2 * j + 1] *= p.aff[j]
+
+    if debug:
+        output['k_b'] = k_b
+    print("k_b:")
+    print(k_b)
+    print()
 
     end = time.time()
     setup_time = end - start
@@ -665,7 +698,6 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                     # set the correct element with the corresponding rate
                     if rt == "red":
                         twa[ind][indf] = rcm.rates[rt]
-                        # print(f"RED: {toti[ind]} -> {toti[indf]} = {rcm.rates[rt]}")
                     if rt == "lin":
                         # the first place where the population decreases
                         # is the first in the chain of linear flow
@@ -674,7 +706,6 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                         if 'rho' in ga.genome_parameters:
                             twa[ind][indf] *= (p.rho[which_rc]
                                 * p.rho[which_rc + 1])
-                        # print(f"LIN: {toti[ind]} -> {toti[indf]} = {rcm.rates[rt]}")
                     if rt == "ox":
                         # get diffusion time for the relevant RC type
                         ratio = 0.0
@@ -682,7 +713,6 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                             if p.rc in kwargs['diff_ratios']:
                                 ratio = kwargs['diff_ratios'][p.rc]
                         twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
-                        # print(f"OX: {toti[ind]} -> {toti[indf]} = {rcm.rates[rt]}")
                     if rt == "trap":
                         which_rc = np.where(np.array(diff) == 1)[0][0]//3
                         # find which trap state is being filled here
@@ -737,67 +767,76 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
                 # index on branch
+                print()
+                print(f"Branch number {(jind - n_rc - 1) // p.n_s}")
+                bn = (jind - n_rc - 1) // p.n_s
                 bi = (jind - n_rc - 1) % p.n_s
+                print(f"Branch index (subunit number) {bi}")
                 twa[i][ind] = gamma[n_rc + bi] # absorption by this block
                 if bi == 0:
                     # root of branch - transfer to RC exciton states possible
                     for k in range(n_rc):
                         # transfer to RC 0 is transfer to jind 1
+                        # so offset is the start of the correct block
                         offset = (n_rc - k) * n_rc_states
                         # inward transfer to RC k
-                        twa[ind][ind - offset] = k_b[2 * k + 1]
+                        # i is the current RC state within a block, and
+                        # this transfer doesn't change that
+                        twa[ind][offset + i] = k_b[2 * k + 1]
+                        print(f"inward: {toti[ind]} -> {toti[offset + i]} = {k_b[2 * k + 1]:6.4e}, kbi = {2 * k + 1}, offset = {offset}, i = {i}, ind = {ind}")
                         # outward transfer from RC k
-                        twa[ind - offset][ind] = k_b[2 * k]
+                        twa[offset + i][ind] = k_b[2 * k]
+                        print(f"outward: {toti[offset + i]} -> {toti[ind]} = {k_b[2 * k]:6.4e}, kbi = {2 * k}, offset = {offset}, i = {i}, ind = {ind}")
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                    # print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
+                    print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
                 if bi < (p.n_s - 1):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi)]
-                    # print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
-
-    k = np.zeros((side + 1, side), dtype=ctypes.c_double,
-                 order='F')
-    for i in range(side):
-        for j in range(side):
-            if (i != j):
-                k[i][j]      = twa[j][i]
-                k[i][i]     -= twa[i][j]
-        # add a row for the probability constraint
-        k[side][i] = 1.0
+                    print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
+    if debug:
+        output["twa"]      = twa,
+        output["states"]   = total_states,
+        output["lindices"] = lindices,
+        output["cycdices"] = cycdices,
 
     end = time.time()
     mat_time = end - start
 
     start = time.time()
-    if 'nnls' in kwargs:
-        p_eq, p_eq_res = solve(k, method=kwargs['nnls'])
-    else:
-        p_eq, p_eq_res = solve(k, method='fortran')
-    end = time.time()
-    nnls_time = end - start
-
-    start = time.time()
-    tinf = 1e6
-    lam, C = np.linalg.eig(k[:side, :])
-    Cinv = np.linalg.inv(C)
-    elt = np.zeros_like(C)
-    p0 = np.zeros(side)
-    p0[0] = 1.0
-    for i in range(side):
-        elt[i, i] = np.exp(lam[i] * tinf)
-    p_eq_diag = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
-    # normalise explicitly, it won't be necessarily
-    p_eq_diag /= np.sum(p_eq_diag)
-    if not np.all(np.isreal(p_eq_diag)):
-        imax = np.max(np.imag(p_eq_diag))
-        p_eq_diag_real = np.real(p_eq_diag)
-    else:
-        p_eq_diag_real = p_eq_diag
-    p_eq_diag_real /= np.sum(p_eq_diag_real)
-    end = time.time()
-    diag_time = end - start
+    if solver_method == 'nnls':
+        if 'nnls_method' in kwargs:
+            p_eq, k, p_eq_res = nnls(twa, method=kwargs['nnls_method'])
+        else:
+            p_eq, k, p_eq_res = nnls(twa, method='fortran')
+        '''
+        check here whether the solver actually found a solution or not.
+        do it here because redox and recomb have to be allocated, otherwise
+        the shapes of the returned values would differ based on the
+        success/failure of the solver, and we don't want that.
+        if it failed, return a tuple that tells main.py it failed
+        '''
+        if p_eq_res == None:
+            print("NNLS failure. Genome details:")
+            print(p)
+            return ({'nu_e': None, 'nu_cyc': None,
+                'redox': None, 'recomb': None}, -1)
+        if debug:
+            output['p_eq'] = p_eq
+            output['k'] = k
+            output['p_eq_res'] = p_eq_res
+    elif solver_method == 'diag':
+        if 'diag_time' in kwargs:
+            p_eq, k, lam, C, Cinv = diag(twa, kwargs['diag_time'])
+        else:
+            p_eq, k, lam, C, Cinv = diag(twa)
+        if debug:
+            output['p_eq'] = p_eq
+            output['k'] = k
+            output['lam'] = lam
+            output['C'] = C
+    solve_time = end - start
 
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
@@ -814,18 +853,6 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
     ox_states = []
     red_states = []
 
-    '''
-    check here whether the solver actually found a solution or not.
-    do it here because redox and recomb have to be allocated, otherwise
-    the shapes of the returned values would differ based on the
-    success/failure of the solver, and we don't want that.
-    if it failed, return a tuple that tells main.py it failed
-    '''
-    if p_eq_res == None:
-        print("NNLS failure. Genome details:")
-        print(p)
-        return ({'nu_e': nu_e, 'nu_cyc': nu_cyc,
-            'redox': redox, 'recomb': recomb}, -1)
 
     for i, p_i in enumerate(p_eq):
         s = toti[i]
@@ -841,47 +868,28 @@ def explicit_antenna_RC(p, spectrum, debug=False, **kwargs):
                 red_states.append(s)
         if i in lindices:
             nu_e += rcm.rates["red"] * p_i
-            nu_e_diag += rcm.rates["red"] * p_eq_diag[i]
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
     if debug:
-        return {
-                "k": k,
-                "twa": twa,
-                "gamma": gamma,
-                "k_b": k_b,
-                "p_eq": p_eq,
-                "p_eq_diag": p_eq_diag,
-                "p_eq_diag_real": p_eq_diag_real,
-                "states": total_states,
-                "lindices": lindices,
-                "cycdices": cycdices,
+        return {**output, **{
                 "trap_states": trap_states,
                 "ox_states": ox_states,
                 "red_states": red_states,
                 "redox": redox,
                 "recomb": redox,
                 "nu_e": nu_e,
-                "nu_e_diag": nu_e,
                 "nu_cyc": nu_cyc,
-                'a_l': a_l,
-                'e_l': e_l,
-                'norms': norms,
-                'k_b': k_b,
-                'C': C,
-                'lam': lam,
-                'Cinv': Cinv,
-                'nnls_time': nnls_time,
-                'diag_time': diag_time,
+                'solve_time': solve_time,
                 'setup_time': setup_time,
                 'mat_time': mat_time,
-                }
+                }}
     else:
         return {'nu_e': nu_e, 'nu_cyc': nu_cyc,
             'redox': redox, 'recomb': recomb}
 
-def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
+def antenna_RC(p, spectrum, debug=False, do_redox=False,
+        solver_method='diag', **kwargs):
     '''
     generate matrix for combined antenna-RC supersystem and solve it.
 
@@ -899,55 +907,56 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     else:
     TBC. probably nu_e and nu_cyc
     '''
+    output = {}
     start = time.time()
 
     gamma, k_b, rc_mat, k_cyc = utils.calc_rates(p, spectrum)
+
     n_rc = rcm.n_rc[p.rc]
     n_rc_states = 4**n_rc
     rcp = rcm.params[p.rc]
-    end = time.time()
 
-    setup_time = end - start
-
-    start = time.time()
+    if debug:
+        end = time.time()
+        output['setup_time'] = end - start
+        output['gamma'] = gamma
+        output['k_b'] = k_b
+        start = time.time()
 
     twa = build_matrix.build_matrix(p.n_b, p.n_s, n_rc, rc_mat,
             constants.alpha, constants.k_diss, rcm.rates['trap'],
             rcm.rates['detrap'], gamma, k_b)
 
-    side = twa.shape[0]
-    k = np.zeros((side + 1, side), dtype=ctypes.c_double,
-                 order='F')
-    for i in range(side):
-        for j in range(side):
-            if (i != j):
-                k[i][j]      = twa[j][i]
-                k[i][i]     -= twa[i][j]
-        # add a row for the probability constraint
-        k[side][i] = 1.0
+    if debug:
+        output['twa'] = twa
+        end = time.time()
+        output['mat_time'] = end - start
+        start = time.time()
 
-    end = time.time()
-    mat_time = end - start
+    if solver_method == 'nnls':
+        if 'nnls_method' in kwargs:
+            p_eq, k, p_eq_res = nnls(twa, method=kwargs['nnls_method'])
+        else:
+            p_eq, k, p_eq_res = nnls(twa, method='fortran')
+        if debug:
+            output['p_eq'] = p_eq
+            output['k'] = k
+            output['p_eq_res'] = p_eq_res
+    elif solver_method == 'diag':
+        if 'diag_time' in kwargs:
+            p_eq, k, lam, C, Cinv = diag(twa, kwargs['diag_time'])
+        else:
+            p_eq, k, lam, C, Cinv = diag(twa)
+        if debug:
+            output['p_eq'] = p_eq
+            output['k'] = k
+            output['lam'] = lam
+            output['C'] = C
 
-    start = time.time()
-    if 'nnls' in kwargs:
-        p_eq, p_eq_res = solve(k, method=kwargs['nnls'])
-    else:
-        p_eq, p_eq_res = solve(k, method='fortran')
-    end = time.time()
-    nnls_time = end - start
-
-    start = time.time()
-    lam, C, Cinv, p_eq_diag = diag(k[:side, :], constants.tinf)
-    p_eq_diag /= np.sum(p_eq_diag)
-    if not np.all(np.isreal(p_eq_diag)):
-        imax = np.max(np.imag(p_eq_diag))
-        p_eq_diag_real = np.real(p_eq_diag)
-    else:
-        p_eq_diag_real = p_eq_diag
-    p_eq_diag_real /= np.sum(p_eq_diag_real)
-    end = time.time()
-    diag_time = end - start
+    if debug:
+        end = time.time()
+        solve_time = end - start
+        output['solve_time'] = solve_time
 
     # nu_e === nu_ch2o here; we treat them as identical
     nu_e = 0.0
@@ -980,7 +989,6 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     for i, p_i in enumerate(p_eq):
         if i % n_rc_states in rcp["inds"]['nu_e']:
             nu_e += rcm.rates["red"] * p_i
-            nu_e_diag += rcm.rates["red"] * p_eq_diag[i]
         if i % n_rc_states in rcp["inds"]['cyc']:
             nu_cyc += k_cyc * p_i
 
@@ -996,6 +1004,10 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
                 if s[reduced_indices[j]] == 1:
                     redox[j, 1] += p_i
                     red_states.append(i)
+            if debug:
+                output['trap_states'] = trap_states
+                output['ox_states'] = ox_states
+                output['red_states'] = red_states
 
     # |= is the new way to merge dicts but I have some stupid python
     # thing going on with jupyter where it's using 3.8 even
@@ -1004,30 +1016,7 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     if do_redox:
         od = {**od, **{"redox": redox, "recomb": redox}}
     if debug:
-        od = {**od, **{
-                "k": k,
-                "twa": twa,
-                "lam": lam,
-                "gamma": gamma,
-                "k_b": k_b,
-                "p_eq": p_eq,
-                "p_eq_diag": p_eq_diag,
-                "p_eq_diag_real": p_eq_diag_real,
-                "nu_e_diag": nu_e_diag,
-                'k_b': k_b,
-                'nnls_time': nnls_time,
-                'diag_time': diag_time,
-                'setup_time': setup_time,
-                'mat_time': mat_time,
-                }
-                }
-        if do_redox:
-            od = {**od, **{"states": total_states,
-                "trap_states": trap_states,
-                "ox_states": ox_states,
-                "red_states": red_states,
-                }
-                }
+        od = {**od, **output}
     return od
 
 if __name__ == "__main__":

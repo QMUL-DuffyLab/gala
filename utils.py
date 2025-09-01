@@ -16,7 +16,42 @@ import rc as rcm
 
 hcnm = (h * c) / (1.0E-9)
 
-def lookups(spectrum):
+def generate_arrays():
+    d = {}
+    for k, v in ga.genome_parameters.items():
+        if ga.get_type(k) == "U10":
+            if k == 'pigment':
+                # the RC pigments should be included here!
+                antenna_pigments = ga.genome_parameters['pigment']['bounds']
+                rcs = ga.genome_parameters['rc']['bounds']
+                rc_pigments = [rcm.params[rc]['pigments'] for rc in rcs]
+                # rc_pigments will be a list of lists; flatten it
+                rc_flat = [rc for rcs in rc_pigments for rc in rcs]
+                all_pigments = antenna_pigments + rc_flat
+                d[k] = all_pigments
+            else:
+                d[k] = v['bounds']
+        elif ga.get_type(k) == np.float64:
+            # lookup tables for float parameters would require some
+            # kind of mesh, snapping to the nearest value, etc, and
+            # we do not currently need that. so set to None and move on
+            d[k] = None
+        elif ga.get_type(k) == np.int32:
+            d[k] = np.arange(v['bounds'][0], v['bounds'][1] + 1)
+        else:
+            raise TypeError("utils.generate_indices() can't find type")
+    return d
+
+index_arrays = generate_arrays()
+
+def get_index(parameter, value):
+    if parameter in index_arrays:
+        index = np.where(index_arrays[parameter] == value)
+    else:
+        raise KeyError("invalid key given to utils.get_index")
+    return index
+
+def overlaps(spectrum):
     '''
     precalculate gamma (photon absorption rates) and overlaps
     for the set of pigments and shifts available.
@@ -25,42 +60,36 @@ def lookups(spectrum):
     '''
     l = spectrum[:, 0]
     fp_y = (spectrum[:, 1] * l) / hcnm
-    sb = ga.genome_parameters['shift']['bounds']
-    shifts = np.arange(sb[0], sb[1] + 1)
-    antenna_pigments = ga.genome_parameters['pigment']['bounds']
-    rcs = ga.genome_parameters['rc']['bounds']
-    rc_pigments = [rcm.params[rc]['pigments'] for rc in rcs]
-    # rc_pigments will be a list of lists; flatten it
-    rc_flat = [rc for rcs in rc_pigments for rc in rcs]
-    all_pigments = antenna_pigments + rc_flat
-    # quick way of taking unique entries and preserving order
-    pigments = list(dict.fromkeys(all_pigments))
-    gammas = xr.DataArray(np.zeros((len(pigments), len(shifts))),
-                          coords = [pigments, shifts],
-                          dims = ["pigment", "shift"])
-    overlaps = xr.DataArray(np.zeros((len(pigments), len(shifts),
-                                      len(pigments), len(shifts))),
-                          coords = [pigments, shifts, pigments, shifts],
-                          dims = ["p1", "s1", "p2", "s2"])
-    print(f"Calculating lookups for pigments {pigments}, shift bounds {sb}")
-    for p1 in pigments:
-        for s1 in shifts:
+    p_length = len(index_arrays['pigment'])
+    s_length = len(index_arrays['shift'])
+    overlaps = np.zeros((p_length, s_length,
+        p_length, s_length), dtype=np.float64)
+    gammas = np.zeros((p_length, s_length), dtype=np.float64)
+    for i in range(p_length):
+        for j in range(s_length):
             # s1 is the integer shift which is multiplied by shift_inc
             # use the integer for indexing so we don't have to worry
             # about floating point precision, but we need to do the
             # multiplication for the actual calculation
+            p1 = index_arrays['pigment'][i]
+            s1 = index_arrays['shift'][j]
+
             s = s1 * constants.shift_inc
             a1 = absorption(l, p1, s)
             e1 = emission(l, p1, s)
             n1 = overlap(l, a1, e1)
-            gammas.loc[p1, s1] = constants.sig_chl * overlap(l, fp_y, a1)
-            for p2 in pigments:
-                for s2 in shifts:
+            gammas[i, j] = constants.sig_chl * overlap(l, fp_y, a1)
+
+            for k in range(p_length):
+                for m in range(s_length):
+                    p2 = index_arrays['pigment'][k]
+                    s2 = index_arrays['shift'][m]
+
                     s = s2 * constants.shift_inc
                     a2 = absorption(l, p2, s)
                     e2 = emission(l, p2, s)
                     n2 = overlap(l, a2, e2)
-                    overlaps.loc[p1, s1, p2, s2] = overlap(l, e1, a2) / n2
+                    overlaps[p1, s1, p2, s2] = overlap(l, e1, a2) / n2
     return gammas, overlaps
 
 def get_hash_table(prefix):
@@ -132,14 +161,14 @@ def dG(l1, l2, n, T):
     s12 = -kB * np.log(n)
     return h12 - (s12 * T)
 
-def peak(shift, pigment):
+def peak(shift, pigment, which):
     '''
     returns the 0-0 line for a given index on a given individual
     assume this is the fluorescence 0-0 line because we assume
     ultrafast equilibriation on each block.
     '''
     params = constants.pigment_data[pigment]
-    return shift + params['ems']['0-0']
+    return shift + params[which]['mu'][0]
 
 def calc_rates(p, spectrum, **kwargs):
     '''
@@ -214,37 +243,35 @@ def calc_rates(p, spectrum, **kwargs):
     for i in range(p.n_s + n_rc):
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
-            if got_lookups:
-                inward = overlaps.loc[pigment[n_rc], shift[n_rc],
-                        pigment[i], shift[i]].to_numpy()
-                outward = overlaps.loc[pigment[i], shift[i],
-                        pigment[n_rc], shift[n_rc]].to_numpy()
-            else:
-                inward  = overlap(l, a_l[i], e_l[n_rc]) / norms[i]
-                outward = overlap(l, e_l[i], a_l[n_rc]) / norms[n_rc]
-            # print(inward, outward)
-            n = float(n_p[i]) / float(n_p[n_rc])
-            dg = dG(peak(shift[i], pigment[i]),
-                    peak(shift[n_rc], pigment[n_rc]), n, constants.T)
+            ind1 = i
+            ind2 = n_rc
         elif i >= n_rc and i < (p.n_s + n_rc - 1):
             # one subunit and the next
-            if got_lookups:
-                inward  = overlaps.loc[pigment[i + 1], shift[i + 1],
-                        pigment[i], shift[i]]
-                outward  = overlaps.loc[pigment[i], shift[i],
-                        pigment[i + 1], shift[i + 1]]
-            else:
-                inward  = overlap(l, a_l[i], e_l[i + 1]) / norms[i]
-                outward = overlap(l, e_l[i], a_l[i + 1]) / norms[i + 1]
-            n = float(n_p[i]) / float(n_p[i + 1])
-            dg = dG(peak(shift[i], pigment[i]),
-                    peak(shift[i + 1], pigment[i + 1]), n, constants.T)
+            ind1 = i
+            ind2 = i + 1
+        n = float(n_p[ind1]) / float(n_p[ind2])
+        if got_lookups:
+            pass # need to revamp this
+        else:
+            inward  = overlap(l, a_l[ind1], e_l[ind2]) / norms[ind1]
+            dgi = dG(peak(shift[ind2], pigment[ind2], 'ems'),
+                    peak(shift[ind1], pigment[ind1], 'abs'),
+                    1./n, constants.T)
+            if dgi > 0.0:
+                inward *= np.exp(-1.0 * dgi / (constants.T * kB))
+
+            outward = overlap(l, e_l[ind1], a_l[ind2]) / norms[ind2]
+            dgo = dG(peak(shift[ind1], pigment[ind1], 'ems'),
+                    peak(shift[ind2], pigment[ind2], 'abs'),
+                    n, constants.T)
+            if dgo > 0.0:
+                outward *= np.exp(-1.0 * dgo / (constants.T * kB))
+        print(f"index {i}:")
+        print(f"pigments: {pigment[ind1]}, {pigment[ind2]} with shifts {shift[ind1]}, {shift[ind2]}. peaks (ind1 abs, ind1 ems, ind2 abs, ind2 ems): {peak(shift[ind1], pigment[ind1], 'abs')}, {peak(shift[ind1], pigment[ind1], 'ems')}, {peak(shift[ind2], pigment[ind2], 'abs')}, {peak(shift[ind2], pigment[ind2], 'ems')}. n_p: {n_p[ind1]}, {n_p[ind2]}.")
+        print(f" inward, outward deltaG: {dgi}, {dgo}. overall inward, outward multipliers: {inward}, {outward}. outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+        print()
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
-        if dg < 0.0:
-            k_b[(2 * i) + 1] *= np.exp(dg / (constants.T * kB))
-        elif dg > 0.0:
-            k_b[2 * i] *= np.exp(-1.0 * dg / (constants.T * kB))
         '''
         the first n_rc pairs of rates are the transfer to and from
         the excited state of the RCs and the antenna. these are
@@ -255,7 +282,7 @@ def calc_rates(p, spectrum, **kwargs):
         "array_len": "n_s" or "rc", which can be used in the GA
         '''
         for j in range(n_rc):
-            # odd - inward, even - outward
+            # TODO: check this before starting on samir's data
             if 'rho' in ga.genome_parameters:
                 k_b[2 * j] *= (p.rho[j] * p.rho[-1])
                 k_b[2 * j + 1] *= (p.rho[j] * p.rho[-1])
@@ -263,6 +290,16 @@ def calc_rates(p, spectrum, **kwargs):
                 k_b[2 * j] *= p.aff[j]
                 k_b[2 * j + 1] *= p.aff[j]
 
+    '''
+    rc.py generates matrices representing initial and final states
+    and the processes that connect them. but some of those processes
+    are genome-dependent, e.g. cyclic depends on the number of RCs, the
+    size of the antenna, and so on. likewise trapping can only occur
+    in the presence of some exciton manifold, i.e. the combined antenna-RC
+    system, which rc.py doesn't know about. so i make the matrix out of
+    strings in rc.py to denote which process is happening, and then here
+    we do the quantitative part for this specific genome.
+    '''
     n_rc_states = len(rcp["states"]) # total number of states of all RCs
     rc_mat = np.zeros((n_rc_states, n_rc_states), dtype=np.float64)
     for i in range(n_rc_states):
@@ -273,10 +310,10 @@ def calc_rates(p, spectrum, **kwargs):
             if rt == "lin" and 'rho' in ga.genome_parameters:
                 # do not ask why this works. it's to do with
                 # how the RC states are indexed in rc.py and then
-                # into the matrix. took ages to work out.
+                # into the matrix. took a while to work out.
                 which_rc = np.abs(k - i) // (n_rc - 1) % 2
-                rc_mat[i][k] *= (kwargs['rho'][which_rc]
-                    * kwargs['rho'][which_rc + 1])
+                rc_mat[i][k] *= (p.rho[which_rc]
+                    * p.rho[which_rc + 1])
             if rt == "ox" and 'diff_ratios' in kwargs:
                 # get diffusion time for the relevant RC type
                 if p.rc in kwargs['diff_ratios']:
