@@ -21,6 +21,11 @@ n_runs = 3
 alpha = 0.0
 # no longer used - low light factor for quantum efficiency calculation
 gamma_fac = 1e-4
+# long time to use for diagonalisation
+# note that choosing too long a time here (~10^6 s) will blow up
+# the diagonalisation because of compounding float rounding errors
+# and the explosion in e^{lambda t}
+tinf = 100
 
 ''' Genetic algorithm stuff '''
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'

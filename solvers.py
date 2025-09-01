@@ -19,6 +19,21 @@ import genetic_algorithm as ga
 import rc as rcm
 import build_matrix
 
+
+def diag(k, t):
+    '''
+    calculate occupation probabilites for matrix k at time t
+    '''
+    lam, C = np.linalg.eig(k)
+    Cinv = np.linalg.inv(C)
+    elt = np.zeros_like(C)
+    p0 = np.zeros(k.shape[0])
+    p0[0] = 1.0
+    for i in range(k.shape[0]):
+        elt[i, i] = np.exp(lam[i] * t)
+    p_eq = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
+    return lam, C, Cinv, p_eq
+
 def solve(k, method='fortran', debug=False):
     '''
     solve the nnls problem using the given method.
@@ -366,8 +381,8 @@ def RC_only(rc_type, spectrum, **kwargs):
                         # start there and modify if a ratio was given
                         ratio = 0.0
                         if 'diff_ratios' in kwargs:
-                            if p.rc in kwargs['diff_ratios']:
-                                ratio = kwargs['diff_ratios'][p.rc]
+                            if rc_type in kwargs['diff_ratios']:
+                                ratio = kwargs['diff_ratios'][rc_type]
                         twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
                     if rt == "trap":
                         # find which trap state is being filled here
@@ -431,12 +446,12 @@ def RC_only(rc_type, spectrum, **kwargs):
         # constraint for NNLS
         k[side][i] = 1.0
 
-    for i in range(side):
-        # renormalise column sum
-        cs = np.sum(k[:side, i])
-        print(i, cs)
-        k[i, i] -= cs
-        print(i, np.sum(k[:side, i]))
+    # for i in range(side):
+    #     # renormalise column sum
+    #     cs = np.sum(k[:side, i])
+    #     print(i, cs)
+    #     k[i, i] -= cs
+    #     print(i, np.sum(k[:side, i]))
 
     p_eq, p_eq_res = solve(k, method='fortran')
 
@@ -923,15 +938,7 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
     nnls_time = end - start
 
     start = time.time()
-    tinf = 1e6
-    lam, C = np.linalg.eig(k[:side, :])
-    Cinv = np.linalg.inv(C)
-    elt = np.zeros_like(C)
-    p0 = np.zeros(side)
-    p0[0] = 1.0
-    for i in range(side):
-        elt[i, i] = np.exp(lam[i] * tinf)
-    p_eq_diag = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
+    lam, C, Cinv, p_eq_diag = diag(k[:side, :], constants.tinf)
     p_eq_diag /= np.sum(p_eq_diag)
     if not np.all(np.isreal(p_eq_diag)):
         imax = np.max(np.imag(p_eq_diag))
@@ -1000,6 +1007,7 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False, **kwargs):
         od = {**od, **{
                 "k": k,
                 "twa": twa,
+                "lam": lam,
                 "gamma": gamma,
                 "k_b": k_b,
                 "p_eq": p_eq,
