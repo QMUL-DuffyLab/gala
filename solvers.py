@@ -18,6 +18,7 @@ import utils
 import genetic_algorithm as ga
 import rc as rcm
 import build_matrix
+import matplotlib.pyplot as plt
 
 
 '''
@@ -594,8 +595,8 @@ def explicit_antenna_RC(p, spectrum, debug=False,
         output['norms'] = norms
         output['gamma'] = gamma
 
-    print()
-    print("k_b calc:")
+    # print()
+    # print("k_b calc:")
     for i in range(p.n_s + n_rc):
         if i < n_rc:
             # RCs - overlap/dG with 1st subunit (n_rc + 1 in list, so [n_rc])
@@ -610,6 +611,9 @@ def explicit_antenna_RC(p, spectrum, debug=False,
             pass # need to revamp this
         else:
             inward  = utils.overlap(l, a_l[ind1], e_l[ind2]) / norms[ind1]
+
+            # print(f"inward {inward}. norm[{ind1}] = {norms[ind1]}, overlap = {utils.overlap(l, a_l[ind1], e_l[ind2])}")
+            # print("dgi:")
             dgi = utils.dG(utils.peak(shift[ind2], pigment[ind2], 'ems'),
                     utils.peak(shift[ind1], pigment[ind1], 'abs'),
                     1./n, constants.T)
@@ -617,15 +621,33 @@ def explicit_antenna_RC(p, spectrum, debug=False,
                 inward *= np.exp(-1.0 * dgi / (constants.T * kB))
 
             outward = utils.overlap(l, e_l[ind1], a_l[ind2]) / norms[ind2]
+            # print(f"outward {outward}. norm[{ind2}] = {norms[ind2]}, overlap = {utils.overlap(l, e_l[ind1], a_l[ind2])}")
+
+            # fig, axes = plt.subplots(figsize=(20,8), ncols=2, sharex=True)
+            # axes[0].plot(l, a_l[ind1], label=f"{pigment[ind1]} abs, norm = {norms[ind1]:6.4f}")
+            # axes[0].plot(l, e_l[ind2], label=f"{pigment[ind2]} ems. overlap = {utils.overlap(l, a_l[ind1], e_l[ind2]):6.4f}")
+            # axes[0].set_xlim([500.0, 800.0])
+            # axes[0].legend()
+            # axes[0].set_title("inward")
+            # axes[1].plot(l, a_l[ind2], label=f"{pigment[ind2]} abs, norm = {norms[ind2]:6.4f}")
+            # axes[1].plot(l, e_l[ind1], label=f"{pigment[ind1]} ems. overlap = {outward * norms[ind2]:6.4f}")
+            # axes[1].set_title("outward")
+            # fig.suptitle(f"index {i}")
+            # axes[1].set_xlim([500.0, 800.0])
+            # axes[1].legend()
+            # plt.show()
+            # plt.close()
+
+            # print(f"outward overlap = {outward}. dgo:")
             dgo = utils.dG(utils.peak(shift[ind1], pigment[ind1], 'ems'),
                     utils.peak(shift[ind2], pigment[ind2], 'abs'),
                     n, constants.T)
             if dgo > 0.0:
                 outward *= np.exp(-1.0 * dgo / (constants.T * kB))
-        print(f"index {i}:")
-        print(f"pigments: {pigment[ind1]}, {pigment[ind2]} with shifts {shift[ind1]}, {shift[ind2]}. peaks (ind1 abs, ind1 ems, ind2 abs, ind2 ems): {utils.peak(shift[ind1], pigment[ind1], 'abs')}, {utils.peak(shift[ind1], pigment[ind1], 'ems')}, {utils.peak(shift[ind2], pigment[ind2], 'abs')}, {utils.peak(shift[ind2], pigment[ind2], 'ems')}. n_p: {n_p[ind1]}, {n_p[ind2]}.")
-        print(f" inward, outward deltaG: {dgi}, {dgo}. overall inward, outward multipliers: {inward}, {outward}. outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
-        print()
+        # print(f"index {i}:")
+        # print(f"pigments: {pigment[ind1]}, {pigment[ind2]} with shifts {shift[ind1]}, {shift[ind2]}. peaks (ind1 abs, ind1 ems, ind2 abs, ind2 ems): {utils.peak(shift[ind1], pigment[ind1], 'abs')}, {utils.peak(shift[ind1], pigment[ind1], 'ems')}, {utils.peak(shift[ind2], pigment[ind2], 'abs')}, {utils.peak(shift[ind2], pigment[ind2], 'ems')}. n_p: {n_p[ind1]}, {n_p[ind2]}.")
+        # print(f" inward, outward deltaG: {dgi}, {dgo}. overall inward, outward multipliers: {inward}, {outward}. outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
+        # print()
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
         '''
@@ -648,9 +670,9 @@ def explicit_antenna_RC(p, spectrum, debug=False,
 
     if debug:
         output['k_b'] = k_b
-    print("k_b:")
-    print(k_b)
-    print()
+    # print("k_b:")
+    # print(k_b)
+    # print()
 
     end = time.time()
     setup_time = end - start
@@ -767,11 +789,11 @@ def explicit_antenna_RC(p, spectrum, debug=False,
             # antenna rate stuff
             if jind > n_rc: # population in antenna subunit
                 # index on branch
-                print()
-                print(f"Branch number {(jind - n_rc - 1) // p.n_s}")
+                # print()
+                # print(f"Branch number {(jind - n_rc - 1) // p.n_s}")
                 bn = (jind - n_rc - 1) // p.n_s
                 bi = (jind - n_rc - 1) % p.n_s
-                print(f"Branch index (subunit number) {bi}")
+                # print(f"Branch index (subunit number) {bi}")
                 twa[i][ind] = gamma[n_rc + bi] # absorption by this block
                 if bi == 0:
                     # root of branch - transfer to RC exciton states possible
@@ -783,18 +805,18 @@ def explicit_antenna_RC(p, spectrum, debug=False,
                         # i is the current RC state within a block, and
                         # this transfer doesn't change that
                         twa[ind][offset + i] = k_b[2 * k + 1]
-                        print(f"inward: {toti[ind]} -> {toti[offset + i]} = {k_b[2 * k + 1]:6.4e}, kbi = {2 * k + 1}, offset = {offset}, i = {i}, ind = {ind}")
+                        # print(f"inward: {toti[ind]} -> {toti[offset + i]} = {k_b[2 * k + 1]:6.4e}, kbi = {2 * k + 1}, offset = {offset}, i = {i}, ind = {ind}")
                         # outward transfer from RC k
                         twa[offset + i][ind] = k_b[2 * k]
-                        print(f"outward: {toti[offset + i]} -> {toti[ind]} = {k_b[2 * k]:6.4e}, kbi = {2 * k}, offset = {offset}, i = {i}, ind = {ind}")
+                        # print(f"outward: {toti[offset + i]} -> {toti[ind]} = {k_b[2 * k]:6.4e}, kbi = {2 * k}, offset = {offset}, i = {i}, ind = {ind}")
                 if bi > 0:
                     # inward along branch
                     twa[ind][ind - n_rc_states] = k_b[2 * (n_rc + bi) - 1]
-                    print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
+                    # print(f"inward: {toti[ind]} -> {toti[ind - n_rc_states]} = {k_b[2 * (n_rc + bi) - 1]:6.4e}, kbi = {2 * (n_rc + bi) - 1}")
                 if bi < (p.n_s - 1):
                     # outward allowed
                     twa[ind][ind + n_rc_states] = k_b[2 * (n_rc + bi)]
-                    print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
+                    # print(f"outward: {toti[ind]} -> {toti[ind + n_rc_states]} = {k_b[2 * (n_rc + bi)]:6.4e}, kbi = {2 * (n_rc + bi)}")
     if debug:
         output["twa"]      = twa,
         output["states"]   = total_states,

@@ -51,7 +51,7 @@ def get_index(parameter, value):
         raise KeyError("invalid key given to utils.get_index")
     return index
 
-def overlaps(spectrum):
+def lookups(spectrum):
     '''
     precalculate gamma (photon absorption rates) and overlaps
     for the set of pigments and shifts available.
@@ -158,7 +158,9 @@ def dG(l1, l2, n, T):
     and n2 are the number of pigments in each.
     '''
     h12 = hcnm * ((l1 - l2) / (l1 * l2))
+    # print(f"{l1}, {l2}, {l1 - l2}, {l1 * l2}, {h12}")
     s12 = -kB * np.log(n)
+    # print(f"{n}, {np.log(n)}, {s12}")
     return h12 - (s12 * T)
 
 def peak(shift, pigment, which):
