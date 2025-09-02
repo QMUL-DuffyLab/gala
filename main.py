@@ -43,11 +43,11 @@ if __name__ == "__main__":
         rc_nu_e = {rct: solvers.RC_only(rct, spectrum)[0] # nu_e
                 for rct in ga.genome_parameters['rc']['bounds']}
         # lookup tables
-        gammas, overlaps = utils.lookups(spectrum)
+        # gammas, overlaps = utils.lookups(spectrum)
         # NB!!! diff ratios not considered in the hash table!!!
         hash_table = utils.get_hash_table(out_name)
         rc_dir = "_".join(ga.genome_parameters['rc']['bounds'])
-        outdir = os.path.join(constants.output_dir, rc_dir,
+        outdir = os.path.join(constants.output_dir, "tests", rc_dir,
         f"cost_{cost}", out_name)
         print(f"Output dir: {outdir}")
         os.makedirs(outdir, exist_ok=True)
@@ -86,16 +86,13 @@ if __name__ == "__main__":
                     # we can't just numpy array the whole thing
                     res = hash_table.get(ga.genome_hash(p))
                     if res == None:
-                        res, fail = solvers.antenna_RC(p,
+                        res = solvers.antenna_RC(p,
                                 spectrum, **solver_kwargs)
-                        if not fail:
-                            hash_table[ga.genome_hash(p)] = res
+                        hash_table[ga.genome_hash(p)] = res
                     else:
                         hash_table_finds += 1
                     for k, v in res.items():
                         results[k].append(v)
-                    if fail < 0:
-                        solver_failures += 1
                     fitness = ga.fitness(p, res['nu_e'],
                             cost, rc_nu_e[p.rc])
                     results['fitness'].append(fitness)
@@ -106,7 +103,10 @@ if __name__ == "__main__":
                 # avgs for current generation
                 df = pd.DataFrame(population)
                 for k, v in results.items():
-                    df[k] = v
+                    # make into a series so that if we're not
+                    # calculating redox, it just fills the redox
+                    # and recomb columns with NAN missing values
+                    df[k] = pd.Series(v, dtype=np.float64)
 
                 # outdir here is unused
                 stat_dict, stat_files = stats.do_stats(df, spectrum,
@@ -139,7 +139,6 @@ if __name__ == "__main__":
                 print(f"Run {run}, gen {gen}:")
                 for key in stat_dict:
                     print(f"<{key}> = {stat_dict[key]}")
-                print(f"solver failures: {solver_failures}")
                 print(f"hash table hits: {hash_table_finds}")
                 print("")
                 if gen % constants.hist_snapshot == 0:
@@ -210,9 +209,7 @@ if __name__ == "__main__":
         # end of all runs
         # save hash table
         print(f"Hash table finds: {hash_table_finds}")
-        htf = os.path.join("tables", f"{out_name}.pkl")
-        with open(htf, "wb") as f:
-            pickle.dump(hash_table, f)
+        utils.save_hash_table(hash_table, out_name)
 
         for run in range(constants.n_runs):
             zipfilename = os.path.join(f"{outdir}",

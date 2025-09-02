@@ -72,9 +72,9 @@ cpdef cnp.ndarray[DTYPE_t, ndim=2] build_matrix(int n_b, int n_s, int n_rc,
                         # transfer to RC 0 is transfer to jind 1
                         offset = (n_rc - k) * n_rc_states
                         # inward transfer to RC k
-                        twav[ind][ind - offset] = kv[2 * k + 1]
+                        twav[ind][offset + i] = kv[2 * k + 1]
                         # outward transfer from RC k
-                        twav[ind - offset][ind] = kv[2 * k]
+                        twav[offset + i][ind] = kv[2 * k]
                 if bi > 0:
                     # inward along branch
                     twav[ind][ind - n_rc_states] = kv[2 * (n_rc + bi) - 1]

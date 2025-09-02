@@ -5,6 +5,7 @@
 utilities - lineshape and free energy calculations
 """
 import os
+import zipfile
 import pickle
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
@@ -93,14 +94,28 @@ def lookups(spectrum):
     return gammas, overlaps
 
 def get_hash_table(prefix):
-    f = os.path.join("tables", f"{prefix}.pkl")
+    f = os.path.join("tables", f"{prefix}.zip")
     if os.path.isfile(f):
-        table = pickle.load(f)
-        print(f"Hash table found for {prefix}.")
+        with zipfile.ZipFile(f,
+                mode="r", compression=zipfile.ZIP_BZIP2) as archive:
+            pf = archive.read(f"{prefix}.pkl")
+            table = pickle.loads(pf)
+            print(f"Hash table found for {prefix}.")
     else:
         table = {}
         print(f"No hash table found for {prefix}. Generating a new one.")
     return table
+
+def save_hash_table(hash_table, prefix):
+    htf = os.path.join("tables", f"{prefix}.pkl")
+    with open(htf, "wb") as f:
+        pickle.dump(hash_table, f)
+    zipfilename = os.path.splitext(htf)[0] + ".zip"
+    with zipfile.ZipFile(zipfilename,
+            mode="w", compression=zipfile.ZIP_BZIP2) as archive:
+            archive.write(htf, arcname=os.path.basename(htf))
+    os.remove(htf)
+    return
 
 def absorption(l, pigment, shift):
     '''
@@ -158,9 +173,7 @@ def dG(l1, l2, n, T):
     and n2 are the number of pigments in each.
     '''
     h12 = hcnm * ((l1 - l2) / (l1 * l2))
-    # print(f"{l1}, {l2}, {l1 - l2}, {l1 * l2}, {h12}")
     s12 = -kB * np.log(n)
-    # print(f"{n}, {np.log(n)}, {s12}")
     return h12 - (s12 * T)
 
 def peak(shift, pigment, which):
@@ -268,10 +281,6 @@ def calc_rates(p, spectrum, **kwargs):
                     n, constants.T)
             if dgo > 0.0:
                 outward *= np.exp(-1.0 * dgo / (constants.T * kB))
-        print(f"index {i}:")
-        print(f"pigments: {pigment[ind1]}, {pigment[ind2]} with shifts {shift[ind1]}, {shift[ind2]}. peaks (ind1 abs, ind1 ems, ind2 abs, ind2 ems): {peak(shift[ind1], pigment[ind1], 'abs')}, {peak(shift[ind1], pigment[ind1], 'ems')}, {peak(shift[ind2], pigment[ind2], 'abs')}, {peak(shift[ind2], pigment[ind2], 'ems')}. n_p: {n_p[ind1]}, {n_p[ind2]}.")
-        print(f" inward, outward deltaG: {dgi}, {dgo}. overall inward, outward multipliers: {inward}, {outward}. outward_index = {2 * i}, inward_index = {(2 * i) + 1}, k_b[out] = {constants.k_hop * outward:6.4e}, k_b[in] = {constants.k_hop * inward:6.4e}")
-        print()
         k_b[2 * i] = constants.k_hop * outward
         k_b[(2 * i) + 1] = constants.k_hop * inward
         '''

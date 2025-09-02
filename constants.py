@@ -37,7 +37,7 @@ d_recomb = 0.4 # random perturbation of values during crossover
 mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05 # proportion of genomes to mutate after each generation
 tourney_k = 5 # selection tournament size
-shift_inc = 10.0 # increment to shift lineshapes by
+shift_inc = 10.0 # increment (nm) to shift lineshapes by
 
 ''' some rates that I think are going to be fixed (all in s^{-1}) '''
 # RC specific rates are now in rc.py
