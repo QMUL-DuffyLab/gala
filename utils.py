@@ -18,6 +18,12 @@ import rc as rcm
 hcnm = (h * c) / (1.0E-9)
 
 def generate_arrays():
+    '''
+    generate a dict containing a set of keyed arrays; each
+    one should hold the set of possible values of a relevant Genome
+    member, so that we can use np.where or similar to index into a big
+    array of overlaps
+    '''
     d = {}
     for k, v in ga.genome_parameters.items():
         if ga.get_type(k) == "U10":
@@ -46,6 +52,13 @@ def generate_arrays():
 index_arrays = generate_arrays()
 
 def get_index(parameter, value):
+    '''
+    complementary function to generate_arrays - search the
+    dict of arrays for the parameter and the value given; if not
+    found, raise a KeyError. i think this is the behaviour we want,
+    because who knows what else could go wrong if it returns an invalid
+    value for whatever reason
+    '''
     if parameter in index_arrays:
         index = np.where(index_arrays[parameter] == value)
     else:

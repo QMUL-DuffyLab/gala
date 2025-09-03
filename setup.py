@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+20/8/25
+@author: callum
+cython for building transfer matrices
+"""
 from setuptools import Extension, setup
 from Cython.Build import cythonize
 import numpy

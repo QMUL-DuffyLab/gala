@@ -5,9 +5,9 @@
 
 """
 import os
-import numpy as np
 import argparse
 import itertools
+import numpy as np
 import constants
 import light
 
@@ -79,7 +79,9 @@ def parameters(pigments, gap):
     one_rc = [[0,0,0], [1,0,0], [0,1,0], [0,0,1]]
     for i in range(n_rc):
         n_states = len(one_rc)**n_rc
-        states = np.array(list(map(list, itertools.product(one_rc, repeat=n_rc)))).reshape(n_states, n_rc * len(one_rc[0]))
+        states = np.array(list(map(list,
+        itertools.product(one_rc, repeat=n_rc)))).reshape(n_states,
+                n_rc * len(one_rc[0]))
         indices = {tuple(states[j]): j for j in range(n_states)}
     procs = {}
     inds = {k: [] for k in ['ox', 'red', 'trap', 'nu_e', 'cyc']}
@@ -109,7 +111,6 @@ def parameters(pigments, gap):
                             all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "trap"})
-                        # mat[i][j] = rates["trap"]
                         mat[i][j] = "trap"
                 if diff[kt] == -1:
                     all_zero = True
@@ -122,17 +123,15 @@ def parameters(pigments, gap):
                         # detrapping, since ps_ox can't do cyclic.
                         # check for "cyc" in supersystem.py and insert both
                         procs.update({tuple(diff): "cyc"})
-                        # mat[i][j] = rates["cyc"]
                         mat[i][j] = "cyc"
                 if (tuple(diff[0:3]) == (-1, 0, 1) or
                     tuple(diff[0:3]) == (0, -1, 0)):
                     all_zero = True
                     for m in range(len(diff)):
                         if m >= 3 and diff[m] != 0:
-                                all_zero = False
+                            all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "ox"})
-                        # mat[i][j] = rates["ox"]
                         mat[i][j] = "ox"
                 if (n_rc > 1 and k < (n_rc - 1)):
                     lin_diffs = [
@@ -141,7 +140,7 @@ def parameters(pigments, gap):
                         (0, 0, -1, -1, 0, 1),
                         (0, 0, -1, 0, -1, 0),
                         ]
-                    if (tuple(diff[kt:kt + 6]) in lin_diffs):
+                    if tuple(diff[kt:kt + 6]) in lin_diffs:
                         all_zero = True
                         for m in range(len(diff)):
                             if m < kt or m >= kt + 6:
@@ -149,7 +148,6 @@ def parameters(pigments, gap):
                                     all_zero = False
                         if all_zero:
                             procs.update({tuple(diff): "lin"})
-                            # mat[i][j] = rates["lin"]
                             mat[i][j] = "lin"
                 if (tuple(diff[-3:]) == (-1, 1, 0) or
                     tuple(diff[-3:]) == (0, 0, -1)):
@@ -159,7 +157,6 @@ def parameters(pigments, gap):
                             all_zero = False
                     if all_zero:
                         procs.update({tuple(diff): "red"})
-                        # mat[i][j] = rates["red"]
                         mat[i][j] = "red"
     params = {
             "pigments": pigments,
@@ -176,14 +173,12 @@ def parameters(pigments, gap):
 params = {
     "ox_diff":   parameters(["ps_ox", "ps_r"], 10.0),
     "ox":   parameters(["ps_r", "ps_r"], 10.0),
-    # "ox":   parameters(["ps_ox", "ps_r"], 10.0),
-    #"ox_id":   parameters(["ps_r", "ps_r"], 10.0),
     "frl":  parameters(["ps_r_frl", "ps_r_frl"], 10.0),
     "anox": parameters(["ps_anox"], 10.0),
     "exo":  parameters(["ps_exo","ps_exo", "ps_exo"], 10.0),
 }
 
-n_rc = {rct: len(params[rct]["pigments"]) for rct in params.keys()}
+n_rc = {rct: len(rcp["pigments"]) for rct, rcp in params.items()}
 
 if __name__ == "__main__":
     import solvers
@@ -199,10 +194,10 @@ if __name__ == "__main__":
             help=r'Detrapping regime: "fast", "thermal", "energy_gap" or "none"')
     parser.add_argument('-p', '--per_rc', type=bool,
             default=True,
-            help=f"Print quantities per RC")
+            help="Print quantities per RC")
     parser.add_argument('-d', '--debug', type=bool,
             default=True,
-            help=f"Print debug information")
+            help="Print debug information")
     args = parser.parse_args()
 
     spectrum, out_name = light.spectrum_setup("phoenix",
