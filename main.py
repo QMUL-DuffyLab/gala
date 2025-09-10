@@ -200,12 +200,6 @@ if __name__ == "__main__":
                             f"{run}_final_population.csv")
             df.to_csv(pop_file)
 
-            try:
-                bestfiles = plots.plot_best(best_file, spectrum)
-                zf[run].extend(bestfiles)
-            except AttributeError:
-                pass
-
         # end of all runs
         # save hash table
         print(f"Hash table finds: {hash_table_finds}")

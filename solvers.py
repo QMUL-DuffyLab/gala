@@ -417,6 +417,8 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False,
         total_states = [s1 + tuple(s2) for s1 in ast for s2 in rcp["states"]]
         toti = {i: total_states[i] for i in range(len(total_states))}
         tots = {total_states[i]: i for i in range(len(total_states))}
+        if debug:
+            output['states'] = toti
 
         trap_indices = [-(3 + 3*i) for i in range(n_rc)][::-1]
         oxidised_indices = [-(2 + 3*i) for i in range(n_rc)][::-1]

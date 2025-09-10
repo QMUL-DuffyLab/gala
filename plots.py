@@ -16,6 +16,7 @@ from matplotlib.collections import PolyCollection
 import constants
 import light
 import rc
+import genetic_algorithm as ga
 
 target_spectra = {
     "PSII": os.path.join("spectra", "psii_wientjies.csv"),
@@ -46,22 +47,9 @@ genome_labels = {
         "phi": r'  \phi ',
         }
 
-# this is no longer a spectrum colour - what have i done here? fix
-def get_spectrum_colour(name):
-    cmap = mpl.colormaps["turbo"]
-    names = constants.bounds['pigment']
-    colours = [cmap(i / float(len(names))) for i in range(len(names))]
-    cdict = dict(zip(names, colours))
-    for k, v in cdict.items():
-        if k in name: # ignore the intensity part of the output name
-            return v
-    else:
-        print("spectrum colour not found")
-        return '#99999999'
-
 def get_pigment_colour(name):
     cmap = mpl.colormaps["turbo"]
-    names = constants.bounds['pigment']
+    names = ga.genome_parameters['pigment']['bounds']
     colours = [cmap(i / float(len(names))) for i in range(len(names))]
     cdict = dict(zip(names, colours))
     for k, v in cdict.items():
@@ -144,81 +132,6 @@ def antenna_spectra(p, l, ip_y,
     plt.close()
     # return fig, ax
 
-def get_best_from_file(input_file):
-    '''
-    get parameters for the best antenna and instantiate.
-    again, this is incredibly ugly - i've been just
-    printing out str(genome) to keep track of the best ones, and
-    i figured i could eval them back in or something, but that
-    does not work, so read in the final best antenna as a string
-    and then parse with regular expressions lol
-    '''
-    with open(input_file) as f:
-        '''
-        this is very inefficient, reading in the whole file - if
-        the genomes get huge or the runs get really long, might be worth
-        looking into reading from end of file. alternatively call sed via
-        subprocess or something
-        '''
-        fstring = ' '.join(f.read().splitlines())
-    f.close()
-    matches = re.finditer(r'Genome\(*', fstring)
-    for m in matches:
-        pass # we only want the last one
-    best = fstring[m.start():]
-    print("best = ", best)
-    n_b = int(re.search(r'n_b=(\d+)', best).group(1))
-    n_s = int(re.search(r'n_s=(\d+)', best).group(1))
-    shiftm = re.search(r"shift=array\(\[\s*([0-9e.\-]+[,\s\]]+)+",
-                       best).group(0)
-    shifta = re.search(r"\[(.*)\]", shiftm).group(0)
-    shift = np.fromstring(shifta[1:-1], sep=',')
-    n_pm = re.search(r"n_p=array\(\[\s*([0-9e.\-]+[,\s\]]+)+", best).group(0)
-    n_pa = re.search(r"\[(.*)\]", n_pm).group(0)
-    n_p = np.fromstring(n_pa[1:-1], sep=',', dtype=int)
-    pigm = re.search(r"pigment=array\(\[\s*([a-z_\-']+[,\s\]]+)+", best).group(0)
-    piga = re.search(r"\[(.*)\]", pigm).group(0)
-    # numpy doesn't know how to fromstring() this so do it manually
-    pigment = np.array(piga[1:-1]
-                       .replace("'", "")
-                       .replace(" ", "")
-                       .split(","), dtype='U10')
-    return constants.Genome(n_b, n_s, n_p, shift, pigment)
-
-def plot_from_file(infile, spectrum):
-    fig, ax = plt.subplots(figsize=(9,9))
-    plt.plot(spectrum[:, 0], spectrum[:, 1], label='Incident',
-            color='#99999999', ls='--', lw=2.0)
-    avg_spectrum = np.loadtxt(infile)
-    x = avg_spectrum[:, 0]
-    y = avg_spectrum[:, 1]/np.sum(avg_spectrum[:, 1])
-    plt.plot(avg_spectrum[:, 0], avg_spectrum[:, 1] / np.max(avg_spectrum[:, 1]),
-            color='k', lw=5.0,
-            label=r'$ \left<A\left(\lambda\right)\right> $')
-    ax.set_xlabel(r'wavelength (nm)')
-    ax.set_ylabel("intensity (arb.)")
-    ax.set_xlim(constants.x_lim)
-    plt.grid(True)
-    # plt.legend()
-    fig.tight_layout()
-    outfile = os.path.splitext(infile)[0] + ".pdf"
-    plt.close()
-    return outfile
-
-def plot_best(best_file, spectrum):
-    '''
-    just wraps the get_best and spectrum functions
-    to call in one line from main.py
-    '''
-    p = get_best_from_file(best_file)
-    prefix = os.path.splitext(best_file)[0]
-    lines_file  = prefix + "_lines.pdf"
-    total_file  = prefix + "_total.pdf"
-
-    antenna_spectra(p, spectrum[:, 0],
-                         spectrum[:, 1], lines_file, total_file)
-    return [lines_file, total_file]
-
 def plot_average(population, spectrum, outfile, **kwargs):
     '''
     plot the average absorption spectrum of the whole population.
@@ -292,42 +205,6 @@ def plot_average(population, spectrum, outfile, **kwargs):
     plt.close()
     return (np.column_stack((l, norm_total))), [datafile, plotfile]
 
-def plot_running(infile, scalars):
-    '''
-    plot the running average of scalar parameters with errors.
-
-    parameters
-    ----------
-    infile: location of the file to read in and plot
-    scalars: list of scalars.
-
-    outputs
-    -------
-    outfiles: location of the PDF files output (one per scalar)
-    '''
-    df = pd.read_csv(infile)
-    outfiles = []
-    for s in scalars:
-        fig, ax = plt.subplots(figsize=(12,8))
-        y = df[s]
-        ax.plot(y)
-        serr = f"{s}_err"
-        ax.fill_between(df.index, y - df[serr], y + df[serr], alpha=0.5)
-        ax.set_ylim(constants.bounds[s])
-        ax.set_xlabel("Generation")
-        if s in genome_labels:
-            ax.set_ylabel(fr"$ \left<{genome_labels[s]}\right> $")
-        else:
-            ax.set_ylabel(fr"$ \left< {s} \right>$")
-        dn = os.path.dirname(infile)
-        bn = os.path.splitext(os.path.basename(infile))[0]
-        outfile = os.path.join(dn, f"{s}_{bn}.pdf")
-        print(outfile)
-        outfiles.append(outfile)
-        fig.savefig(outfile)
-        plt.close()
-    return outfiles
-
 def plot_bar(infile, name=None):
     '''
     plot a bar chart for int, float and string parameters.
@@ -358,54 +235,6 @@ def plot_bar(infile, name=None):
     fig.savefig(outfile)
     plt.close()
     return outfile
-
-def plot3d(infile, name=None):
-    '''
-    make a 3d plot of the histogram of the per-subunit
-    quantities like n_p etc. reads in the dataframe from
-    infile and outputs a pdf.
-
-    parameters
-    ----------
-    infile: location of the file to read in
-    name: name of the Genome parameter
-
-    outputs
-    -------
-    outfile: location of the ouput PDF
-    '''
-    avg = pd.read_csv(infile).to_numpy()
-    bins = avg[:, 0]
-    props = avg[:, 1:]
-    
-    fig = plt.figure(figsize=(20, 20))
-    ax = fig.add_subplot(projection='3d')
-    
-    for k in reversed(range(props.shape[1])):
-        ys = props[:, k]
-        xs = bins
-        color = 'C{:1d}'.format(k)
-        ax.bar(xs, ys, zs=k, zdir='y', color=color, alpha = 0.7)
-     
-    for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
-        axis.labelpad = 20
-    
-    ax.set_ylabel("Subunit")
-    ax.set_zlabel("Proportion")
-    if name is not None:
-        if name in genome_labels:
-            ax.set_xlabel(fr" $ {genome_labels[name]} $")
-        else:
-            ax.set_xlabel(name)
-    ax.set_zlim([0.0, 1.0])
-    ax.set_yticks(np.arange(props.shape[1]))
-    ax.set_yticklabels(["{:1d}".format(i) for i in np.arange(1, props.shape[1] + 1)])
-
-    outfile = os.path.splitext(infile)[0] + ".pdf"
-    fig.savefig(outfile)
-    plt.close()
-    return outfile
-
 
 def pigment_bar(infile, name=None):
     '''
