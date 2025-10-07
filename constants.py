@@ -18,9 +18,7 @@ population_size = 500
 max_gen = 500
 n_runs = 3
 # multiplier for cyclic electron flow
-alpha = 0.0
-# no longer used - low light factor for quantum efficiency calculation
-gamma_fac = 1e-4
+alpha = 0.0015
 # long time to use for diagonalisation
 # note that choosing too long a time here (~10^6 s) will blow up
 # the diagonalisation because of compounding float rounding errors
@@ -41,8 +39,8 @@ shift_inc = 10.0 # increment (nm) to shift lineshapes by
 
 ''' some rates that I think are going to be fixed (all in s^{-1}) '''
 # RC specific rates are now in rc.py
-tau_prime = 150.0E-12 # transfer from PBS to RCs
-tau_hop   = 10.0E-12 # transfer from PBS to RCs
+tau_hop   = 150.0E-12 # transfer from PBS to RCs
+# tau_hop   = 10.0E-12 # transfer from PBS to RCs
 k_hop     = 1.0 / tau_hop # change to tau_prime for PBS simulations
 k_diss    = 1.0 / 1.0E-9 # Chl excited state decay rate
 

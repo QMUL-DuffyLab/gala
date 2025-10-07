@@ -215,12 +215,17 @@ def colour(**kwargs):
         print(f"Got: {kwargs}")
         raise
     colours = ["UV", "blue", "light_blue", "green", "orange",
-            "red", "far_red"]
+            "red", "far_red", "white"]
     if col not in colours:
         raise KeyError("Invalid colour choice in light.colour()")
     output_prefix = f"colour_{col}"
-    data = pd.read_csv(os.path.join(constants.spectrum_prefix,
-        "100_plotted_dataset.csv"))
+    if intensity in [5, 25, 100]:
+        print(f"Using dataset for {intensity:d} muE")
+        data = pd.read_csv(os.path.join(constants.spectrum_prefix,
+            f"{intensity:d}_plotted_dataset.csv"))
+    else:
+        data = pd.read_csv(os.path.join(constants.spectrum_prefix,
+            f"100_plotted_dataset.csv"))
     x = data[f"Wavelength"].to_numpy()
     y = data[f"{col}_normalized"].to_numpy()
     y[y < 0.0] = 0.0 # input data has some small negative values
@@ -336,8 +341,8 @@ def spectrum_setup(spectrum_type, **kwargs):
             output_prefix += f"_{kwargs['intensity']}muE"
         else:
             # assume PAR over [400, 700] nm
-            print("spectrum_setup: intensity but no region given. Assuming [400, 700]nm")
-            lower, upper = [400.0, 700.0]
+            lower, upper = [np.min(spectrum[:, 0]), np.max(spectrum[:, 0])]
+            print(f"spectrum_setup: intensity but no region given. Assuming the entire range: [{lower}, {upper}].")
             muM_init = micromole_in_region(spectrum, lower, upper)
             spectrum[:, 1] *= kwargs["intensity"] / muM_init
             output_prefix += f"_{kwargs['intensity']}muE"
@@ -360,6 +365,25 @@ def build(spectra_dicts):
         out_prefs.append(out_pref)
     return zip(spectra, out_prefs)
 
+def plot(spectrum, output_prefix, outdir):
+    '''
+    plot a spectrum to check what it looks like
+    '''
+    os.makedirs(outdir, exist_ok=True)
+    np.savetxt(os.path.join(outdir,
+              f"{output_prefix}_spectrum.dat"), spectrum)
+    fig, ax = plt.subplots(figsize=(12, 8))
+    plt.plot(spectrum[:, 0], spectrum[:, 1])
+    ax.set_xlabel("wavelength (nm)")
+    ax.set_xlim(constants.x_lim)
+    ax.set_ylabel(r'intensity')
+    ax.set_title(output_prefix)
+    of = os.path.join(outdir,
+                f"{output_prefix}_test_plot.pdf")
+    fig.savefig(of)
+    plt.close()
+    return of
+
 def check(spectra_dicts):
     '''
     take a list of dicts and plot the spectrum that would be used in
@@ -371,17 +395,7 @@ def check(spectra_dicts):
     outdir = os.path.join(constants.output_dir, "input_spectra")
     os.makedirs(outdir, exist_ok=True)
     for spectrum, out_pref in zipped:
-        np.savetxt(os.path.join(outdir,
-                  f"{out_pref}_spectrum.dat"), spectrum)
-        fig, ax = plt.subplots(figsize=(12, 8))
-        plt.plot(spectrum[:, 0], spectrum[:, 1])
-        ax.set_xlabel("wavelength (nm)")
-        ax.set_xlim(constants.x_lim)
-        ax.set_ylabel(r'intensity')
-        ax.set_title(out_pref)
-        fig.savefig(os.path.join(outdir,
-                    f"{out_pref}_test_plot.pdf"))
-        plt.close()
+        outfile = plot(spectrum, out_pref, outdir)
 
 if __name__ == "__main__":
     '''

@@ -14,10 +14,10 @@ There's probably a way to do this more cleverly,
 but I haven't figured it out yet. Unsure it's necessary.
 """
 import dataclasses
-import hashlib
 import numpy as np
 import scipy.stats as ss
 import constants
+import rc as rcm
 
 '''
 This dict of dicts will be used to generate a Genome dataclass, so
@@ -47,7 +47,7 @@ genome_parameters = {
         'array'   : False,
         'depends' : None,
         'default' : '',
-        'bounds'  : ['anox'],
+        'bounds'  : ['ox_diff'],
         'mutable' : False,
         'norm'    : None
     },
@@ -93,21 +93,21 @@ genome_parameters = {
         'depends' : 'n_s',
         'size'    : lambda g: getattr(g, "n_s"),
         # 'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
-        'bounds'  : ['averaged'],
+        'bounds'  : ['pe', 'pc', 'apc'],
         'mutable' : True,
         'norm'    : None,
     },
-    # 'rho': {
-    #     'type'    : np.float64,
-    #     'array'   : True,
-    #     'depends' : 'rc',
-    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
-    #     # note that this is a bit fake - upper bound must just be
-    #     # >= the largest possible sum
-    #     'bounds'  : [0.1, 5.0],
-    #     'mutable' : True,
-    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
-    # },
+    'rho': {
+        'type'    : np.float64,
+        'array'   : True,
+        'depends' : 'rc',
+        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
+        # note that this is a bit fake - upper bound must just be
+        # >= the largest possible sum
+        'bounds'  : [0.1, 5.0],
+        'mutable' : True,
+        'norm'    : lambda p: p * (len(p) / np.sum(p)),
+    },
     # 'aff': {
     #     'type'    : np.float64,
     #     'array'   : True,
@@ -277,12 +277,18 @@ def genome_hash(g):
     '''
     return str(dataclasses.asdict(g))
 
-def fitness(g, nu_e, cost, rc_nu_e):
+def fitness(g, nu_e, cost):
     '''
-    hmm.
+    hmm. this is basically identically zero because c is too large.
+    how to deal with this? we can allow negative fitnesses here and then
+    do fitnesses - np.min(fitnesses), to set the minimum to 0?
     '''
-    # return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
-    f = ((nu_e - rc_nu_e) - (cost * (g.n_b * np.sum(g.n_p))))
+    # antenna cost first
+    c = cost * (g.rho[-1] * g.n_b * np.sum(g.n_p))
+    # RC costs
+    for i in range(rcm.n_rc[g.rc]):
+        c += cost * g.rho[i] * rcm.params[g.rc]["n_p"][i]
+    f = nu_e - c
     return f if f >= 0.0 else 0.0
 
 def fill_arrays(rng, parent_values, res_length, parameter):
