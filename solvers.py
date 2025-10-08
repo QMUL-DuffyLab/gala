@@ -8,7 +8,6 @@ import os
 import time
 import ctypes
 import numpy as np
-import xarray as xr
 from scipy.optimize import nnls as scipy_nnls
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
@@ -18,8 +17,6 @@ import utils
 import genetic_algorithm as ga
 import rc as rcm
 import build_matrix
-import matplotlib.pyplot as plt
-
 
 '''
 note - the two different solver methods below (diag and NNLS)
@@ -131,7 +128,7 @@ def nnls(transfer_matrix, method='fortran', debug=False):
             print("NNLS RuntimeError - reached iteration limit")
     return p_eq, k, p_eq_res
 
-def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
+def RC_only(rc_type, spectrum, solver_method='diag', **kwargs):
     '''
     parameters
     ----------

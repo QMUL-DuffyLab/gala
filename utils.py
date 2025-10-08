@@ -9,7 +9,6 @@ import zipfile
 import pickle
 from scipy.constants import h, c
 from scipy.constants import Boltzmann as kB
-import xarray as xr
 import numpy as np
 import constants
 import genetic_algorithm as ga
@@ -107,11 +106,11 @@ def lookups(spectrum):
     return gammas, overlaps
 
 def get_hash_table(prefix):
-    f = os.path.join("tables", f"{prefix}.zip")
+    f = os.path.join(prefix, "hash_table.zip")
     if os.path.isfile(f):
         with zipfile.ZipFile(f,
                 mode="r", compression=zipfile.ZIP_BZIP2) as archive:
-            pf = archive.read(f"{prefix}.pkl")
+            pf = archive.read(f"hash_table.pkl")
             table = pickle.loads(pf)
             print(f"Hash table found for {prefix}.")
     else:
@@ -120,7 +119,7 @@ def get_hash_table(prefix):
     return table
 
 def save_hash_table(hash_table, prefix):
-    htf = os.path.join("tables", f"{prefix}.pkl")
+    htf = os.path.join(prefix, f"hash_table.pkl")
     with open(htf, "wb") as f:
         pickle.dump(hash_table, f)
     zipfilename = os.path.splitext(htf)[0] + ".zip"
@@ -236,14 +235,14 @@ def calc_rates(p, spectrum, **kwargs):
     gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
     k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
     got_lookups = False
-    gammas = xr.DataArray()
-    overlaps = xr.DataArray()
     k_cyc = np.nan
     if 'lookups' in kwargs:
         try:
             gammas, overlaps = kwargs['lookups']
             got_lookups = True
         except:
+            gammas = None
+            overlaps = None
             print("kwarg 'lookups' passed to solver incorrectly")
             print(kwargs['lookups'])
             raise
@@ -260,7 +259,10 @@ def calc_rates(p, spectrum, **kwargs):
         shift *= constants.shift_inc
     for i in range(p.n_s + n_rc):
         if got_lookups:
-            gamma[i] = (n_p[i] * gammas.loc[pigment[i], shift[i]].to_numpy())
+            gamma[i] = (n_p[i] * gammas[
+                get_index("pigment", pigment[i]),
+                get_index("shift", shift[i])
+                ])
         else:
             a_l[i] = absorption(l, pigment[i], shift[i])
             e_l[i] = emission(l, pigment[i], shift[i])

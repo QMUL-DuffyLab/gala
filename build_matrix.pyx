@@ -17,7 +17,7 @@ cpdef cnp.ndarray[DTYPE_t, ndim=2] build_matrix(int n_b, int n_s, int n_rc,
         double alpha, double k_diss, double k_trap, double k_detrap,
         cnp.ndarray[DTYPE_t, ndim=1] gamma, cnp.ndarray[DTYPE_t, ndim=1] k_b):
     
-    cdef int n_rc_states = 4**n_rc # total number of states of all RCs
+    cdef int n_rc_states = <int>(4**n_rc) # total number of states of all RCs
     cdef int side = n_rc_states * ((n_b * n_s) + n_rc + 1)
     cdef int i, j, k, logi, ind, indf, which_rc, jind, bi, offset
 

@@ -48,14 +48,14 @@ Lsol = 3.828E26
 # (Tstar, Lstar/Lsol, Rstar/Rsol) - 4Gyr isochrones from Isabelle Baraffe
 phz_stars = [
  (2343,  -3.58,  0.099),
- (2811,  -3.06,  0.124),
- (3131,  -2.58,  0.174),
- (3416,  -1.97,  0.297),
- (3680,  -1.45,  0.465),
- (4418,  -0.85,  0.646),
- (5297,  -0.29,  0.850),
- (5697,  -0.03,  0.994),
- (6053,   0.43,  1.491)
+ # (2811,  -3.06,  0.124),
+ # (3131,  -2.58,  0.174),
+ # (3416,  -1.97,  0.297),
+ # (3680,  -1.45,  0.465),
+ # (4418,  -0.85,  0.646),
+ # (5297,  -0.29,  0.850),
+ # (5697,  -0.03,  0.994),
+ # (6053,   0.43,  1.491)
  ]
 
 def calculate_phz_radii(Tstar, Lstar, n_radii=20,
@@ -319,6 +319,9 @@ def spectrum_setup(spectrum_type, **kwargs):
     intensity normalisation here and added it to the output prefix
     if it's present; i think that's the most consistent way of doing
     things.
+    note: this now saves the file and outputs the filename. this leads
+    to some weird saving and then reloading below, but it'll be
+    necessary to do this on apocrita because of how array jobs work, i think
     '''
     try:
         # get the corresponding function passed as a str via getattr
@@ -341,6 +344,25 @@ def spectrum_setup(spectrum_type, **kwargs):
             muM_init = micromole_in_region(spectrum, lower, upper)
             spectrum[:, 1] *= kwargs["intensity"] / muM_init
             output_prefix += f"_{kwargs['intensity']}muE"
+    if "output_dir" in kwargs:
+        outdir = kwargs["output_dir"]
+    else:
+        outdir = constants.output_dir
+    outdir = os.path.join(outdir, f"{output_prefix}")
+    os.makedirs(outdir, exist_ok=True)
+    filename = os.path.join(outdir, "spectrum.txt")
+    np.savetxt(filename, spectrum)
+    return filename
+
+def load_spectrum(filename):
+    '''
+    take a filename output by spectrum_setup above and load back in
+    the spectrum itself and the output prefix. the reason for this is
+    so that i can output a load of spectra and then run one simulation
+    for each using the filenames, which will be necessary on apocrita
+    '''
+    spectrum = np.loadtxt(filename)
+    output_prefix = os.path.dirname(filename).split(os.sep)[-1]
     return spectrum, output_prefix
 
 def build(spectra_dicts):
@@ -351,11 +373,14 @@ def build(spectra_dicts):
     e.g. temperature for the PHOENIX or depth for a marine spectrum,
     you can't pass them as an array, at least not yet. use one line for
     each value you want to simulate and just copy-paste.
+    again, this saves and loads the spectra, which is unnecessary in general,
+    but will make job submission possible/easier on clusters
     '''
     spectra = []
     out_prefs = []
     for sp in spectra_dicts:
-        s, out_pref = spectrum_setup(sp['type'], **sp['kwargs'])
+        filename = spectrum_setup(sp['type'], **sp['kwargs'])
+        s, out_pref = load_spectrum(filename)
         spectra.append(s)
         out_prefs.append(out_pref)
     return zip(spectra, out_prefs)

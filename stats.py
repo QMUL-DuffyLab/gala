@@ -203,29 +203,31 @@ def hist(df, prefix, key, split=None, **kwargs):
             v = np.array(df[key][j]).flatten()
             if i < len(v):
                 col[j] = v[i]
-        # add col to the dataframe so that we can plot it with seaborn
-        str_id = f"{key}[{i}]"
-        df[str_id] = col
-        if hmax == 1:
-            curr_ax = axes # otherwise the histplot will fail below
-        elif hmax > 1 and (ncols == 1 or nrows == 1):
-            curr_ax = axes[i] # otherwise the histplot will fail below
-        else:
-            curr_ax = axes[i // 2, i % 2]
-        sns_kwargs = {'ax': curr_ax, 'data': df, 'x': str_id,
-                'discrete': discrete}
-        if split is not None:
-            sns_kwargs['hue'] = split
-            sns_kwargs['multiple'] = 'dodge'
-        # sometimes seaborn will get confused trying to make the
-        # histogram, which i think is a bin issue, so here try to
-        # give it a sensible bin width to work with
-        bw = (np.nanmax(col) - np.nanmin(col)) / 50
-        if bw > 0.0 and bw != np.nan:
-            sns_kwargs['binwidth'] = bw
-        sns.histplot(**sns_kwargs)
-        # delete the temporary index now we don't need it
-        df.drop(columns=str_id, inplace=True)
+        # if they're all nans then don't bother trying to plot
+        if not np.all(np.isnan(col)):
+            # add col to the dataframe so that we can plot it with seaborn
+            str_id = f"{key}[{i}]"
+            df[str_id] = col
+            if hmax == 1:
+                curr_ax = axes # otherwise the histplot will fail below
+            elif hmax > 1 and (ncols == 1 or nrows == 1):
+                curr_ax = axes[i] # otherwise the histplot will fail below
+            else:
+                curr_ax = axes[i // 2, i % 2]
+            sns_kwargs = {'ax': curr_ax, 'data': df, 'x': str_id,
+                    'discrete': discrete}
+            if split is not None:
+                sns_kwargs['hue'] = split
+                sns_kwargs['multiple'] = 'dodge'
+            # sometimes seaborn will get confused trying to make the
+            # histogram, which i think is a bin issue, so here try to
+            # give it a sensible bin width to work with
+            bw = (np.nanmax(col) - np.nanmin(col)) / 50
+            if bw > 0.0 and bw != np.nan:
+                sns_kwargs['binwidth'] = bw
+            sns.histplot(**sns_kwargs)
+            # delete the temporary index now we don't need it
+            df.drop(columns=str_id, inplace=True)
     if split is not None:
         suffix = f"hist_{key}_split_by_{split}.pdf"
     else:

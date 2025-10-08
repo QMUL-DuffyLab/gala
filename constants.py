@@ -26,6 +26,7 @@ gamma_fac = 1e-4
 # the diagonalisation because of compounding float rounding errors
 # and the explosion in e^{lambda t}
 tinf = 100
+entropy = 0x87351080e25cb0fad77a44a3be03b491 # from numpy
 
 ''' Genetic algorithm stuff '''
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
