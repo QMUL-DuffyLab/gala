@@ -236,19 +236,18 @@ def calc_rates(p, spectrum, **kwargs):
     k_b = np.zeros(2 * (n_rc + p.n_s), dtype=np.float64)
     got_lookups = False
     k_cyc = np.nan
+    gammas = None
+    overlaps = None
     if 'lookups' in kwargs:
         try:
             gammas, overlaps = kwargs['lookups']
             got_lookups = True
         except:
-            gammas = None
-            overlaps = None
             print("kwarg 'lookups' passed to solver incorrectly")
             print(kwargs['lookups'])
             raise
-    # if we have the lookups, the shifts need to be integers, because
-    # that's how they're encoded in the xarray (we don't want to worry about
-    # rounding errors etc.). if we don't have them, shifts should be the
+    # if we have the lookups, the shifts need to be integers, to pass to
+    # get_index above. if we don't have them, shifts should be the
     # actual float values, so multiply by the increment
     if got_lookups:
         shift = np.array([*[0 for _ in range(n_rc)], *p.shift],

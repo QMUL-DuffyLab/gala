@@ -20,7 +20,8 @@ import utils
 import genetic_algorithm as ga
 import rc as rcm
 
-def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio, rng_seed=None):
+def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
+        do_stats, rng_seed=None):
     spectrum, out_name = light.load_spectrum(spectrum_file)
     print("Spectrum output name: ", out_name)
     outdir = os.path.dirname(spectrum_file)
@@ -179,10 +180,11 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio, rng_seed=None):
             gens_since_improvement += 1
 
         # end of run
-        stat_pref = os.path.join(f"{outdir}", f"run_{run}_final")
-        output, ofs = stats.do_stats(df,
-            spectrum, prefix=stat_pref, **stats.big_stats)
-        zf[run].extend(ofs)
+        if do_stats:
+            stat_pref = os.path.join(f"{outdir}", f"run_{run}_final")
+            output, ofs = stats.do_stats(df,
+                spectrum, prefix=stat_pref, **stats.big_stats)
+            zf[run].extend(ofs)
         # arrays might be different lengths; make each into Series
         avg_df = pd.DataFrame({k:pd.Series(v) for k, v in avgs.items()})
         af = os.path.join(f"{outdir}", f"run_{run}_avgs.csv")
@@ -254,6 +256,14 @@ each run for each set of parameters has a different seed, but that they
 are reproducible. the XOR of constants.entropy with the MD5 hash will be
 saved to a file so you can pass that and reproduce the runs.
 ''')
+    parser.add_argument('--stats', action=argparse.BooleanOptionalAction,
+            default=True, help='''
+If stats is passed, the big set of stats (average shifts per subunit,
+histograms of various quantities, etc.) will be done. 
+if --no-stats is passed, they will not. This means that no plots will be
+and the zip files will be much smaller, only containing the snapshots
+of the population in dataframes. there for apocrita mostly.
+''')
     args = parser.parse_args()
     do_simulation(args.spectrum_file, args.cost, args.rc_types,
-            args.anox_diffusion, args.rng_seed)
+            args.anox_diffusion, args.stats, args.rng_seed)

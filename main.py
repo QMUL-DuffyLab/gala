@@ -56,6 +56,14 @@ each run for each set of parameters has a different seed, but that they
 are reproducible. the XOR of constants.entropy with the MD5 hash will be
 saved to a file so you can pass that and reproduce the runs.
 ''')
+    parser.add_argument('--stats', action=argparse.BooleanOptionalAction,
+            default=True, help='''
+If stats is passed, the big set of stats (average shifts per subunit,
+histograms of various quantities, etc.) will be done. 
+if --no-stats is passed, they will not. This means that no plots will be
+and the zip files will be much smaller, only containing the snapshots
+of the population in dataframes. there for apocrita mostly.
+''')
     args = parser.parse_args()
     path = os.path.join(os.getcwd(), constants.output_dir,
             "_".join(args.rc_types), f"cost_{args.cost}",
@@ -85,4 +93,4 @@ saved to a file so you can pass that and reproduce the runs.
     if not args.setup_only:
         for f in filelist:
             simulation.do_simulation(f, args.cost, args.rc_types,
-                args.anox_diffusion, args.rng_seed)
+                args.anox_diffusion, args.stats, args.rng_seed)

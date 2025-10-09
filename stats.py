@@ -119,7 +119,7 @@ def parse_array(string):
         s = re.sub(r'([0-9])\s+\]', r'\1]', s)
         print(s)
         # remove the newlines and replace whitespace with commas for ast
-        s = re.sub('\s+', ',', re.sub('\n ', ',', s))
+        s = re.sub(r'\s+', ',', re.sub('\n ', ',', s))
         print(s)
         return np.array(ast.literal_eval(s))
 
