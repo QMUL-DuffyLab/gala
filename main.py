@@ -72,7 +72,7 @@ of the population in dataframes. there for apocrita mostly.
 
     spectra_dicts = []
     for Tstar, Lstar, Rstar in light.phz_stars:
-        radii = light.calculate_phz_radii(Tstar, Lstar, n_radii=2)
+        radii = light.calculate_phz_radii(Tstar, Lstar)
         print(f"Tstar = {Tstar}, radii = {radii}")
         for a in radii:
             spectra_dicts.append(

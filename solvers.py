@@ -348,7 +348,7 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False,
     output = {}
     start = time.time()
 
-    gamma, k_b, rc_mat, k_cyc = utils.calc_rates(p, spectrum)
+    gamma, k_b, rc_mat, k_cyc = utils.calc_rates(p, spectrum, **kwargs)
 
     n_rc = rcm.n_rc[p.rc]
     n_rc_states = 4**n_rc
