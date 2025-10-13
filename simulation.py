@@ -29,7 +29,8 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
 
     init_kwargs = {'n_b': 1, 'n_s': 1}
     solver_kwargs = {'diff_ratios': {'ox': 0.0, 'anox': anox_diff_ratio}}
-    rc_nu_e = {rct: solvers.RC_only(rct, spectrum)[0] for rct in rcs}
+    rc_nu_e = {rct: solvers.RC_only(rct, spectrum, **solver_kwargs)[0]
+            for rct in rcs}
     hash_table = utils.get_hash_table(outdir)
     os.makedirs(outdir, exist_ok=True)
     hash_table_finds = 0

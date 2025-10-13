@@ -10,7 +10,7 @@ import numpy as np
 '''
 General stuff
 '''
-output_dir = os.path.join("apocrita_out")
+output_dir = os.path.join("out")
 spectrum_prefix = 'spectra'
 pigment_data_file = os.path.join("pigments", "pigment_data.json")
 T=300.0 # temperature (Kelvin)
