@@ -153,11 +153,16 @@ def RC_only(rc_type, spectrum, solver_method='diag', **kwargs):
         n_p = [pdata[rcp["pigments"][i]]['n_p'] for i in range(n_rc)]
     a_l = np.zeros((n_rc, len(spectrum[:, 0])), dtype=np.float64)
     gamma = np.zeros(n_rc, dtype=np.float64)
+    overlaps = np.zeros_like(gamma)
     for i in range(n_rc):
         a_l[i] = utils.absorption(spectrum[:, 0], rcp["pigments"][i], 0.0)
-        gamma[i] = (n_p[i] * constants.sig_chl *
-            utils.overlap(spectrum[:, 0], fp_y, a_l[i]))
-
+        overlaps[i] = utils.overlap(spectrum[:, 0], fp_y, a_l[i])
+        gamma[i] = n_p[i] * constants.sig_chl * overlaps[i]
+    if "antenna_gamma" in kwargs:
+        # treat the total antenna as just one total input rate.
+        # add it to the RC gamma, weighted by overlap
+        gamma[i] += kwargs["antenna_gamma"] * (overlaps[i] / np.sum(overlaps))
+        
     # detrapping regime
     detrap = 0.0 # none by default
     if 'detrap' in kwargs:

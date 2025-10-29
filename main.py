@@ -12,6 +12,58 @@ import simulation
 import genetic_algorithm as ga
 import rc as rcm
 
+def do_setup(rcs, cost, ad, makedirs, write_files, **kwargs):
+    '''
+    wrapper function to do the setup, with bools to control whether
+    we actually make directories or write any files. this is so i can
+    generate the file paths easily to pull populations and do stats on.
+    '''
+    paths = []
+    total_filelist = []
+    if "path" in kwargs:
+        basepath = kwargs["path"]
+    else:
+        basepath = constants.output_dir
+    path = os.path.join(os.getcwd(), basepath,
+        "_".join(rcs), f"cost_{cost}",
+        f"anox_diffusion_{ad}")
+    paths.append(path)
+    if makedirs:
+        os.makedirs(path, exist_ok=True)
+    if "Tstar" in kwargs:
+        stars = []
+        for Tstar in kwargs["Tstar"]:
+            for Ts, Ls, Rs in light.phz_stars:
+                if Tstar == Ts:
+                    stars.append((Ts, Ls, Rs))
+    else:
+        stars = light.phz_stars
+    spectra_dicts = []
+    for Tstar, Lstar, Rstar in stars:
+        radii = light.calculate_phz_radii(Tstar, Lstar)
+        print(f"Tstar = {Tstar}, radii = {radii}")
+        for a in radii:
+            spectra_dicts.append(
+            {'type': 'stellar', 'kwargs':
+             {'Tstar': Tstar, 'Rstar': Rstar,
+              'a': a, 'attenuation': 0.0,
+              "output_dir": path}},
+          )
+    filelist = []
+    for sp in spectra_dicts:
+        f = light.spectrum_setup(sp['type'],
+            **sp['kwargs'])
+        filelist.append(f)
+        total_filelist.append(f)
+    if write_files:
+        print("Writing files:")
+        with open(os.path.join(path,
+            "list_of_files.txt"), "w") as f:
+            for fi in filelist:
+                print(fi)
+                f.write(f"{fi}\n")
+    return paths, total_filelist
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
             description="set up and run GA simulations",
@@ -65,30 +117,8 @@ and the zip files will be much smaller, only containing the snapshots
 of the population in dataframes. there for apocrita mostly.
 ''')
     args = parser.parse_args()
-    path = os.path.join(os.getcwd(), constants.output_dir,
-            "_".join(args.rc_types), f"cost_{args.cost}",
-            f"anox_diffusion_{args.anox_diffusion}")
-    os.makedirs(path, exist_ok=True)
-
-    spectra_dicts = []
-    for Tstar, Lstar, Rstar in light.phz_stars:
-        radii = light.calculate_phz_radii(Tstar, Lstar)
-        print(f"Tstar = {Tstar}, radii = {radii}")
-        for a in radii:
-            spectra_dicts.append(
-            {'type': 'stellar', 'kwargs':
-             {'Tstar': Tstar, 'Rstar': Rstar,
-              'a': a, 'attenuation': 0.0,
-              "output_dir": path}},
-          )
-    filelist = []
-    for sp in spectra_dicts:
-        filelist.append(light.spectrum_setup(sp['type'], **sp['kwargs']))
-    print("Writing files:")
-    with open(os.path.join(path, "list_of_files.txt"), "w") as f:
-        for fi in filelist:
-            print(fi)
-            f.write(f"{fi}\n")
+    path, filelist = do_setup(args.rc_types, args.cost, args.anox_diffusion,
+            True, True)
 
     if not args.setup_only:
         for f in filelist:

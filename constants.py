@@ -31,7 +31,7 @@ entropy = 0x87351080e25cb0fad77a44a3be03b491 # from numpy
 ''' Genetic algorithm stuff '''
 selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
 reproduction_strategy = 'nads' # options: 'nads', 'steady'
-conv_gen = 50 # number of generations without improvement for convergence
+conv_gen = 2 # number of generations without improvement for convergence
 conv_per = 0.01 # convergence if max(fitness) within conv_per for conv_gen
 fitness_cutoff = 0.2 # fraction of individuals kept if strategy = 'steady'
 d_recomb = 0.4 # random perturbation of values during crossover

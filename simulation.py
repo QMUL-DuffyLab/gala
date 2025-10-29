@@ -19,9 +19,15 @@ import light
 import utils
 import genetic_algorithm as ga
 import rc as rcm
+from mpi4py import MPI
 
 def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
-        do_stats, rng_seed=None):
+        do_stats, rng_seed=None, n_runs=constants.n_runs, run_start=0):
+
+    comm = MPI.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+
     spectrum, out_name = light.load_spectrum(spectrum_file)
     print("Spectrum output name: ", out_name)
     outdir = os.path.dirname(spectrum_file)
@@ -47,10 +53,11 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
 
     do_averages = True
     # list of files to be zipped
-    zf = [ [] for _ in range(constants.n_runs)]
-    for run in range(constants.n_runs):
-        sequence = np.random.SeedSequence((seed, run))
-        print(f"run = {run}, seed sequence = {sequence}")
+    zf = [ [] for _ in range(n_runs)]
+    run_end = run_start + n_runs
+    for run_index, run in enumerate(range(run_start, run_end)):
+        sequence = np.random.SeedSequence((seed, size * run + rank))
+        print(f"run = {run}, rank {rank}, seed sequence = {sequence}")
         rng = np.random.default_rng(sequence)
         end_run = False
         # initialise population
@@ -61,7 +68,7 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
             pass # start a new file
         f.close()
         # files to add to zip
-        zf[run].append(best_file)
+        zf[run_index].append(best_file)
         avgs = []
         rfm = deque(maxlen=constants.conv_gen)
         gen = 0
@@ -130,7 +137,7 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
                         avgs[f"{k}_err"].append(err)
                     else:
                         avgs[f"{k}_err"] = [err]
-            print(f"Run {run}, gen {gen}:")
+            print(f"Run {run}, index {run_index}, gen {gen}:")
             for key in stat_dict:
                 print(f"<{key}> = {stat_dict[key]}")
             print(f"hash table hits: {hash_table_finds}")
@@ -143,12 +150,12 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
                 # so ignore the tuple returned by do_stats
                 pop_file = f"{stat_pref}_population.csv"
                 df.to_csv(pop_file)
-                zf[run].append(pop_file)
+                zf[run_index].append(pop_file)
                 
                 if do_stats:
                     _, stat_files = stats.do_stats(df,
                      spectrum, prefix=stat_pref, **stats.big_stats)
-                    zf[run].extend(stat_files)
+                    zf[run_index].extend(stat_files)
 
             with open(best_file, "a") as f:
                 f.write(str(best).strip('\n'))
@@ -185,12 +192,12 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
             stat_pref = os.path.join(f"{outdir}", f"run_{run}_final")
             output, ofs = stats.do_stats(df,
                 spectrum, prefix=stat_pref, **stats.big_stats)
-            zf[run].extend(ofs)
+            zf[run_index].extend(ofs)
         # arrays might be different lengths; make each into Series
         avg_df = pd.DataFrame({k:pd.Series(v) for k, v in avgs.items()})
         af = os.path.join(f"{outdir}", f"run_{run}_avgs.csv")
         avg_df.to_csv(af, index=False)
-        zf[run].append(af)
+        zf[run_index].append(af)
 
         # do pickle stuff and add pickled filename to zf
         pop_file = os.path.join(f"{outdir}",
@@ -202,20 +209,20 @@ def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
     print(f"Hash table finds: {hash_table_finds}")
     utils.save_hash_table(hash_table, outdir)
 
-    for run in range(constants.n_runs):
+    for run_index, run in enumerate(range(run_start, run_end)):
         zipfilename = os.path.join(f"{outdir}",
                         f"run_{run}.zip")
         with zipfile.ZipFile(zipfilename,
                 mode="w", compression=zipfile.ZIP_BZIP2) as archive:
-            for filename in zf[run]:
+            for filename in zf[run_index]:
                 print(filename)
                 if os.path.isfile(filename):
                     archive.write(filename,
                             arcname=os.path.basename(filename))
 
     # delete the files we've just zipped up to save space/clutter
-    for run in range(constants.n_runs):
-        for filename in zf[run]:
+    for run_index, run in enumerate(range(run_start, run_end)):
+        for filename in zf[run_index]:
             if os.path.isfile(filename):
                 os.remove(filename)
     return zf
@@ -248,6 +255,14 @@ For more information on this and the implementation see solvers.py, but
 basically it affects the oxidation time for anoxygenic photosynthesis
 according to the availability of the substrate.
 ''')
+    parser.add_argument('--stats', action=argparse.BooleanOptionalAction,
+            default=True, help='''
+If stats is passed, the big set of stats (average shifts per subunit,
+histograms of various quantities, etc.) will be done. 
+if --no-stats is passed, they will not. This means that no plots will be
+and the zip files will be much smaller, only containing the snapshots
+of the population in dataframes. there for apocrita mostly.
+''')
     parser.add_argument('-rng', '--rng_seed', type=int, default=None,
             help='''
 RNG seed to use. Default is None; in this case, a seed will be generated
@@ -257,14 +272,16 @@ each run for each set of parameters has a different seed, but that they
 are reproducible. the XOR of constants.entropy with the MD5 hash will be
 saved to a file so you can pass that and reproduce the runs.
 ''')
-    parser.add_argument('--stats', action=argparse.BooleanOptionalAction,
-            default=True, help='''
-If stats is passed, the big set of stats (average shifts per subunit,
-histograms of various quantities, etc.) will be done. 
-if --no-stats is passed, they will not. This means that no plots will be
-and the zip files will be much smaller, only containing the snapshots
-of the population in dataframes. there for apocrita mostly.
+    parser.add_argument('-nr', '--n_runs', type=int, default=constants.n_runs,
+            help='''
+Number of runs to perform. Default is given in constants.py.
+''')
+    parser.add_argument('-rs', '--run_start', type=int, default=0,
+            help='''
+Run number to start with. Again, useful for running array jobs; just start
+multiple simulations at the same time with -nr 1 -rs {TASK_ID} or whatever.
 ''')
     args = parser.parse_args()
     do_simulation(args.spectrum_file, args.cost, args.rc_types,
-            args.anox_diffusion, args.stats, args.rng_seed)
+            args.anox_diffusion, args.stats, args.rng_seed,
+            args.n_runs, args.run_start)
