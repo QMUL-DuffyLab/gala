@@ -38,7 +38,6 @@ import constants
 import utils
 from scipy.constants import h, c, Avogadro, Boltzmann
 
-
 # AU in metres for stellar spectra
 AU = 149597870700
 
@@ -125,6 +124,17 @@ def micromole_in_region(spectrum, lower, upper):
             e_per_photon = h * c / (row[0] * 1e-9)
             muM += row[1] / e_per_photon
     return 1e6 * (muM / Avogadro)
+
+def flux_fraction(spectrum, upper_bound):
+    '''
+    return the fraction of the total flux that is captured
+    by integrating up to upper_bound
+    '''
+    f = 0.0
+    for row in spectrum:
+        if row[0] <= upper:
+            f += row[1]
+    return f / np.sum(spectrum[:, 1])
 
 def phoenix(**kwargs):
     '''

@@ -42,16 +42,7 @@ use these to check that values remain valid after reproduction/mutation
 parameters that have some condition, e.g. an array that should sum to 1.
 '''
 genome_parameters = {
-    'rc': {
-        'type'    : np.str_,
-        'array'   : False,
-        'depends' : None,
-        'default' : '',
-        'bounds'  : ['anox'],
-        'mutable' : False,
-        'norm'    : None
-    },
-    'n_b': {
+    'n_traps': {
         'type'    : np.int64,
         'default' : 0,
         'array'   : False,
@@ -60,63 +51,42 @@ genome_parameters = {
         'mutable' : True,
         'norm'    : None,
     },
-    'n_s': {
-        'type'    : np.int64,
+    'line_reorg': {
+        'type'    : np.float64,
+        'default' : 0.0,
+        'array'   : False,
+        'depends' : None,
+        'bounds'  : [0.0, np.inf],
+        'mutable' : True,
+        'norm'    : None,
+    },
+    'k_cs': {
+        'type'    : np.float64,
         'default' : 0,
         'array'   : False,
         'depends' : None,
-        'bounds'  : [1, 10],
+        'bounds'  : [0.0, np.inf],
         'mutable' : True,
         'norm'    : None,
     },
-    'n_p': {
-        'type'    : np.int64,
+    'E': {
+        'type'    : np.float64,
         'array'   : True,
-        'depends' : 'n_s',
-        'size'    : lambda g: getattr(g, "n_s"),
-        'bounds'  : [1, 100],
+        'depends' : 'n_traps',
+        'size'    : lambda g: getattr(g, "n_traps"),
+        'bounds'  : [-1., 1.],
         'mutable' : True,
         'norm'    : None,
     },
-    'shift': {
-        'type'    : np.int64,
+    'rates': {
+        'type'    : np.float64,
         'array'   : True,
-        'depends' : 'n_s',
-        'size'    : lambda g: getattr(g, "n_s"),
-        'bounds'  : [-20, 60],
+        'depends' : 'n_traps',
+        'size'    : lambda g: getattr(g, "n_traps"),
+        'bounds'  : [-1., 1.],
         'mutable' : True,
         'norm'    : None,
     },
-    'pigment': {
-        'type'    : 'U10',
-        'array'   : True,
-        'depends' : 'n_s',
-        'size'    : lambda g: getattr(g, "n_s"),
-        # 'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
-        'bounds'  : ['averaged'],
-        'mutable' : True,
-        'norm'    : None,
-    },
-    # 'rho': {
-    #     'type'    : np.float64,
-    #     'array'   : True,
-    #     'depends' : 'rc',
-    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
-    #     # note that this is a bit fake - upper bound must just be
-    #     # >= the largest possible sum
-    #     'bounds'  : [0.1, 5.0],
-    #     'mutable' : True,
-    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
-    # },
-    # 'aff': {
-    #     'type'    : np.float64,
-    #     'array'   : True,
-    #     'depends' : 'rc',
-    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')],
-    #     'bounds'  : [0.1, 10.0],
-    #     'mutable' : True,
-    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
-    # },
 }
 
 def check_bounds(arr, parameter):

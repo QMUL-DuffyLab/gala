@@ -16,6 +16,19 @@ import rc as rcm
 
 hcnm = (h * c) / (1.0E-9)
 
+def ev_nm(e):
+    ''' convert eV to nm and vice-versa '''
+    return (e * hcnm) / 1.602e-19
+
+def detailed_balance(e1, e2, k12, k21):
+    '''
+    apply detailed balance for a pair of states 1 and 2,
+    with energies e1 e2 and rate 1 -> 2 denoted k12,
+    rate 2 -> 1 denoted k21
+    '''
+    pass
+
+
 def generate_arrays():
     '''
     generate a dict containing a set of keyed arrays; each
