@@ -21,6 +21,8 @@ import build_matrix
 '''
 here is where the solvers for the RC optimisation will go.
 '''
+
+# spectrometer on mars rovers etc.?? what can they do up there?
 def diag(transfer_matrix, t=constants.tinf):
     '''
     calculate equilibrium occupation probabilites from the transfer
@@ -75,6 +77,8 @@ def rc_matrix(p, gamma):
     # detailed balance on this i guess
     k_dt = 0.0
 
+    # this is for one RC. for multiple,
+    # side = $ \prod_{i}^{n_{\text{RC}} (2 (n_{t_i} + 2)) $
     side = 2 * (p.n_traps + 2)
     t = np.zeros((side, side), dtype=np.float64)
     '''
@@ -84,7 +88,6 @@ def rc_matrix(p, gamma):
     '''
     t[0][1] = gamma
     t[1][0] = constants.k_diss
-    k_cs = 
     t[1][2] = p.k_cs
     t[2][1] = k_dt
     t[2][0] = k_rc
@@ -104,7 +107,7 @@ def rc_matrix(p, gamma):
         if there are multiple traps, the intermediate rates are given
         by the gaps and rates defined in the genome; these are
         reversible e- transfers from one trap to the next
-        which i denote `fw` and `bw`, forward being away from the donor.
+        which i denote `fw` and `bw` (forward being away from the donor).
         '''
         dn = 2*i + 2
         do = 2*i + 3
@@ -126,5 +129,138 @@ def rc_matrix(p, gamma):
     (D+ P T ... T A-), so this is always true
     '''
     t[side - 1][0] = k_out
+    # diagonalisation is the same as for the main GA
+    p_eq, k, lam, C, Cinv = diag(t)
+
+def two_rc_matrix(p, gamma):
+    '''
+    TODO: update this when the function's written
+    '''
+    # NB: units???
+    beta = 1.0 / (kB * 300.0 * (1. / (100.0 * c))) # in wavenumbers
+    de0ph = 0.0
+    dg_cs = de0ph - p.E[0] # this is actually -deltaG_{cs}
+    lam_rc = dg_cs + p.line_reorg - np.sqrt(p.line_reorg * dg_cs)
+    dg_rc = dg_cs - (de0ph + p.line_reorg)
+    k_rc = p.k_cs * (np.sqrt(dg_cs / lam_rc) 
+                     * exp(-beta * (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
+    gamma = 0.0
+    k_ox = 1.0 / (1.0E-3)
+    k_r = 0.0 # unsure what this should be but i guess fast
+    k_out = 1.0 / (10.0E-3)
+    # detailed balance on this i guess
+    k_dt = 0.0
+
+    n_traps = np.array([p.nt1, p.nt2])
+    n_states = np.array(2 * (n_traps + 1) + 1)
+    offsets = np.array([1, *np.cumprod(n_states)][:-1])
+    side = np.prod(n_states)
+    t = np.zeros((side, side), dtype=np.float64)
+    tuples = np.zeros(side, dtype=str)
+    for i in range(side):
+        # get the set of indices for each RC
+        curr = np.array([
+            (i // offsets[j]) % n_states[j]
+            for j in range(n_rc)])
+        final = np.copy(curr)
+        total_str = ""
+        for rci, state in enumerate(curr):
+            base_str = ["P" + *["T" for _ in range(n_traps[i])]]
+            if state == 0: # ground state
+                # state == 2 is photoexcitation 
+                final[rci] = 2
+                # this is the overall index of the final state
+                final_ind = np.dot(final, offsets)
+                t[i][final_ind] = gamma[rci]
+            elif state == 1: # pigment oxidised, traps neutral (post linear flow)
+                # can only go back to ground state 
+                base_str[0] = "P+"
+                final[rci] = 0
+                final_ind = np.dot(final, offsets)
+                if rci == 0:
+                    t[i][final_ind] = k_ox
+                else:
+                    # this is via linear flow from the previous rc
+            elif state == 2: # photoexcited
+                base_str[0] = "P*"
+                # charge separation 
+                final[rci] = 3
+                final_ind = np.dot(final, offsets)
+                t[i][final_ind] = p.k_cs[i]
+                # dissipation
+                final[rci] = 0
+                final_ind = np.dot(final, offsets)
+                t[i][final_ind] = k_diss
+            elif state == 3: # primary CS
+                base_str[0] = "P+"
+                base_str[1] = "T-"
+               # detrapping
+                final[rci] = 2
+                final_ind = np.dot(final, offsets)
+                t[i][final_ind] = k_dt
+               # recombination 
+                final[rci] = 0
+                final_ind = np.dot(final, offsets)
+                t[i][final_ind] = k_rc
+            else:
+                # some logic to do with which trap we're on
+                # detailed balance on the rates and so on
+                trap_index = (state - 3) // 2
+                base_str[trap_index + 1] = "T-"
+                pigment_oxidised = state % 2
+                if pigment_oxidised:
+                    base_str[0] = "P+"
+                    if rci == 0:
+                        # pigment can be reduced by donor
+                        final[rci] = final[rci] + 1
+                        final_ind = np.dot(final, offsets)
+                        t[i][final_ind] = k_ox
+                    else:
+                        final[rci] = final[rci] + 1
+                        # now we need to figure out the
+                        # required state of the previous RC for linear flow
+                        # to this RC. is the electron on the final trap
+                        prev_state = curr[rci - 1]
+                        prev_trap = (prev_state - 3) // 2
+                        # NB: prev pigment is also the final state
+                        # of the previous trap! if the previous pigment
+                        # is still oxidised, then the electron's lost from
+                        # the final trap, and we have the pigment oxidised
+                        # but traps neutral. if the pigment's been reduced,
+                        # the previous RC is going back to its g/s.
+                        prev_pigment = prev_state % 2
+                        if prev_trap == n_traps[rci - 1] - 1:
+                            final[rci - 1] = prev_pigment
+                            final_ind = np.dot(final, offsets)
+                            t[i][final_ind] = k_lin # what should this be???
+
+                if trap_index == n_traps[rci] - 1:
+                    # cyclic
+                    final[rci] = 0
+                    final_ind = np.dot(final, offsets)
+                    t[i][final_ind] = k_cyc
+                    if rci == n_rc - 1:
+                        # final RC - terminal trap reduces acceptor
+                        # how is this distinguishable from cyclic?
+                        # do we need a separate final acceptor state?
+                        final_ind = np.dot(final, offsets)
+                        t[i][final_ind] = k_out
+                if trap_index > 0:
+                    # need to do detailed balance on fw and bw
+                    bw = p.rates[rci][trap_index] # T_i -> T_i - 1
+                    final[rci] = final[rci] - 2
+                    final_ind = np.dot(final, offsets)
+                    t[i][final_ind] = bw
+                if trap_index < n_traps[rci] - 1:
+                    fw = p.rates[rci][trap_index] # T_i -> T_i + 1
+                    final[rci] = final[rci] + 2
+                    final_ind = np.dot(final, offsets)
+                    t[i][final_ind] = fw
+
+            total_str = total_str + base_str.join("")
+            tuples[i] = total_str
+
+    return t, tuples
+
     # diagonalisation is the same as for the main GA
     p_eq, k, lam, C, Cinv = diag(t)
