@@ -2,16 +2,6 @@
 """
 22/11/2023
 @author: callum
-
-GA version 2, 7/5/25 - dataclass itself and various other things are
-just generated as needed from the dict genome_parameters.
-
-NB: this currently depends on the fact that rc and n_s are defined
-in the dict genome_parameters before the things that depend on them;
-it doesn't actually check when generating a new genome (i.e. the
-"affects" parameter in there currently does nothing). 
-There's probably a way to do this more cleverly, 
-but I haven't figured it out yet. Unsure it's necessary.
 """
 import dataclasses
 import hashlib
@@ -19,187 +9,64 @@ import numpy as np
 import scipy.stats as ss
 import constants
 
-'''
-This dict of dicts will be used to generate a Genome dataclass, so
-you can chop and change what's in the genome just by modifying this.
-The keys will be the names of the parameters as you'd expect, so a key
-"rc" here will translate to `g.rc` or `getattr(g, "rc")` where g is an
-instance of the Genome dataclass.
-Note the metadata:
-- "type" is used to tell the genetic algorithm operators
-what kind of random function to use for crossover and mutation
-- "array" tells the algorithm if the parameter should be an array. if it is,
-the parameter "size" should be set via a lambda function; the GA operators
-will use this to generate the arrays and check they're the right length
-- "depends" is currently not used - I am planning to implement it but
-need to figure out exactly how it should work. For now, any parameters
-that have dependencies should be put in first
-- "bounds" is either (for int/float parameters) the minimum and maximum
-allowed values, or (for strings) a list of allowed values. The GA operators
-use these to check that values remain valid after reproduction/mutation
-- "mutable" is whether the parameter should be mutated
-- "norm" should be None or a lambda function which the GA will apply for
-parameters that have some condition, e.g. an array that should sum to 1.
-'''
-genome_parameters = {
-    'dE0_1': {
-        'type'        : np.float64,
-        'default'     : np.nan,
-        'array'       : False,
-        'bounds'      : [0.0, np.inf],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'dE0_2': {
-        'type'        : np.float64,
-        'default'     : np.nan,
-        'array'       : False,
-        'bounds'      : [0.0, np.inf],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'inter': {
-        'type'        : np.float64,
-        'default'     : np.nan,
-        'array'       : False,
-        'bounds'      : [-1., 1.],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'k_cs1': {
-        'type'        : np.float64,
-        'default'     : np.nan,
-        'array'       : False,
-        'bounds'      : [0.0, np.inf],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'k_cs2': {
-        'type'        : np.float64,
-        'default'     : np.nan,
-        'array'       : False,
-        'bounds'      : [0.0, np.inf],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'n_t1': {
-        'type'        : np.int64,
-        'default'     : 0,
-        'array'       : False,
-        'bounds'      : [1, 10],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'n_t2': {
-        'type'        : np.int64,
-        'default'     : 0,
-        'array'       : False,
-        'bounds'      : [1, 10],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'e1': {
-        'type'        : np.float64,
-        'array'       : True,
-        'depends_on'  : ['n_t1'],
-        'size'        : lambda g: getattr(g, "n_t1"),
-        'bounds'      : [-1., 1.],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'e2': {
-        'type'        : np.float64,
-        'array'       : True,
-        'depends_on'  : ['n_t2'],
-        'size'        : lambda g: getattr(g, "n_t2"),
-        'bounds'      : [-1., 1.],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'r1': {
-        'type'        : np.float64,
-        'array'       : True,
-        'depends_on'  : ['n_t1'],
-        'size'        : lambda g: getattr(g, "n_t1"),
-        'bounds'      : [-1., 1.],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-    'r2': {
-        'type'        : np.float64,
-        'array'       : True,
-        'depends_on'  : ['n_t2'],
-        'size'        : lambda g: getattr(g, "n_t2"),
-        'bounds'      : [-1., 1.],
-        'mutable'     : True,
-        'norm'        : None,
-    },
-}
+it = np.int64
+ft = np.float64
+# these are bounds on each element for array variables
+# they have to match the dict in make_arrays
+bounds = {
+        'dE0': np.array([300, 3000], dtype=it),
+        'k_cs': np.array([1.0, 1.0E12], dtype=ft),
+        'n_t': np.array([1, 10], dtype=it),
+        'e': np.array([300, 3000], dtype=it),
+        'k': np.array([1.0, 1.0E12], dtype=ft),
+        }
 
-def check_bounds(arr, parameter):
+def make_arrays(n_rc, n_t_max):
     '''
-    check that every element of an array is acceptable.
-    takes an array rather than genome argument since we
-    don't want the array to be set until it's acceptable
     '''
-    b = genome_parameters[parameter]['bounds']
-    if isinstance(b[0], (str, np.str_)):
-        return(np.array([a in b for a in arr]).all())
-    else:
-        return ((arr >= b[0]).all() and (arr <= b[1]).all())
+    dt = [('dE0', ft, (n_rc)),
+          ('k_cs', ft, (n_rc)),
+          ('n_t', it, (n_rc)),
+          ('k', ft, (n_rc, n_t_max)),
+          ('e', ft, (n_rc, n_t_max)),
+          ]
+    population = np.zeros(constants.population_size, dtype=dt)
+    return population
 
-# construct a new dataclass definition from the dict given above
-# this (hopefully) makes it easier to see what is in the genome
-# as well as to change it where necessary.
-fields = []
-for key in genome_parameters:
-    tt = genome_parameters[key]["type"]
-    if genome_parameters[key]["array"]:
-        fields.append((key, np.ndarray,
-            dataclasses.field(default_factory=lambda:np.empty([], dtype=tt))))
-    else:
-        fields.append((key, tt, dataclasses.field(default=genome_parameters[key]["default"])))
-Genome = dataclasses.make_dataclass('Genome', fields)
+def get_index(population, index):
+    return {k: v[index] for k, v in population.items()}
 
-def get_type(parameter):
-    ''' get parameter type to declare numpy array correctly '''
-    b = genome_parameters[parameter]['bounds']
-    if (isinstance(b[0], (int, np.integer))):
-        dt = np.int32
-    elif (isinstance(b[0], (float, np.float64))):
-        dt = np.float64
-    elif (isinstance(b[0], (str, np.str_))):
-        dt = 'U10'
-    else:
-        raise TypeError("get_type cannot determine parameter type.")
-    return dt
+def set_index(population, index, d):
+    for k, v in d.items():
+        population[k][index] = v
 
-def get_rand(rng, parameter):
+def fix_matrices(population, index):
     '''
-    get a single random value based on the type
-    of the given bounds of the parameter. note that
-    even though we give a variable type in the dict,
-    it's not used here, because the dtype of pigment is
-    actually U10 for numpy reasons and the type check
-    will fail there. so just make sure that the
-    bounds are the correct type; they should be anyway.
-    note - numpy must be doing some internal conversion
-    somewhere but i'm not sure how it works exactly. do
-    not look the gift horse in the mouth.
+    k and e are a matrix (n_rc, n_t_max) for each individual,
+    but actually only the first n_t[i] elements of row i
+    are meaningful. set the rest to np.nan to make sure they
+    don't get used by accident anywhere
     '''
-    b = genome_parameters[parameter]['bounds']
-    if isinstance(b[0], (int, np.integer)):
-        r = rng.integers(*b, endpoint=True)
-    elif isinstance(b[0], (float, np.float64)):
-        r = rng.uniform(*b)
-    elif isinstance(b[0], (str, np.str_)):
-        r = rng.choice(b)
+    nt = population[index]['n_t']
+    for i, nti in enumerate(nt):
+        population[index]['k'][i, nti:] = np.nan
+        population[index]['e'][i, nti:] = np.nan
+
+def get_rand(rng, parameter, size=None):
+    '''
+    get a single random value based on parameter type
+    '''
+    b = bounds[parameter]
+    t = b.dtype
+    if t == it:
+        r = rng.integers(*b, endpoint=True, size=size)
+    elif t == ft:
+        r = rng.uniform(*b, size=size)
     else:
-        t = genome_parameters[parameter]['type']
         raise TypeError(f"get_rand failed on {parameter}, type {t}")
     return r
 
-def new(rng, **kwargs):
+def new(rng, n_rc, n_t_max, **kwargs):
     '''
     create a new instance of the dataclass defined above.
     there are a few ways of doing this: firstly, you can
@@ -215,84 +82,48 @@ def new(rng, **kwargs):
     add `**{"n_b": 1, "n_s": 1}`. the code will set those
     and then loop over the remaining parameters and randomise
     '''
-    g = Genome()
+    population = make_arrays(n_rc, n_t_max)
     if 'template' in kwargs:
         # if you gave the template using lists instead of
         # numpy arrays, for some reason the dataclass will
         # accept that and not bother converting them, which
         # will break the GA down the line. so check the types
         # of the parameters and convert them as necessary
-        for param in genome_parameters:
-            p = getattr(kwargs['template'], param)
-            tt = genome_parameters[param]['type']
-            if tt == 'U10': # pigment list
-                setattr(g, param, np.array(p, dtype='U10'))
-            else:
-                setattr(g, param, tt(p))
-        if 'variability' in kwargs:
-            if rng.random() < kwargs['variability']:
-                g = mutation(rng, g)
-        return g
+        template = kwargs['template']
+        if template.keys()) != population.keys()):
+            print("function new in genetic_algorithm.py: template error")
+            print("keys in template should match those in population:")
+            print(f"template keys: {template.keys()}")
+            print(f"population keys: {population.keys()}")
+            raise KeyError
+        else:
+            for k in population.keys():
+                for i in range(constants.population_size):
+                    population[k][i] = template[k]
+                    if 'variability' in kwargs:
+                        if rng.random() < kwargs['variability']:
+                            mutate(population, i)
+        return population
     
     for k, v in kwargs.items():
-        setattr(g, k, v)
-    # now set the other things randomly. the reason for the dict
-    # comprehension being like this rather than just a set
-    # subtraction is that we want to keep ordering - see the
-    # module docstring comment about parameter dependency
-    other_params = {k: genome_parameters[k] for k in
-                    genome_parameters.keys() if k not in kwargs.keys()}
-    for name, param in other_params.items():
-        if param['array']:
-            p = np.zeros(param['size'](g), dtype=param['type'])
-            all_in_bounds = False
-            while not all_in_bounds:
-                for i in range(param['size'](g)):
-                    p[i] = get_rand(rng, name)
-                if param['norm'] is not None:
-                    p = param['norm'](p)
-                all_in_bounds = check_bounds(p, name)
-            setattr(g, name, p)
+        if k in population.keys():
+            for i in range(constants.population_size):
+                population[k][i] = v
         else:
-            setattr(g, name, get_rand(rng, name))
-    return g
-
-def copy(g):
-    '''
-    return a copy of g. note that we have to explicitly
-    check for the array parameters here and create new
-    numpy arrays for them, or else the new genome will
-    just have references to the arrays of the old genome,
-    which will lead to some really fucking annoying bugs,
-    trust me
-    '''
-    h = Genome()
-    for k, v in genome_parameters.items():
-        p = getattr(g, k)
-        if v['array']:
-            setattr(h, k, np.array(p, dtype=v['type']))
-        else:
-            setattr(h, k, p)
-    return h
-
-def genome_hash(g):
-    '''
-    return the text representation of this
-    Genome, for use in building a lookup table.
-    taking the string representation might seem pretty gross, but
-    because of how the genome is defined above, the keys are always in the
-    same order, and they're always put in the dict in the same order. also,
-    a change to the dataclass definition will obviously change the string
-    representation, so the chance of a hash collision is (presumably?? :)) 
-    astronomically small, but use with caution, i guess?
-    ```
-    res = dict.get(genome_hash(g))
-    if res is None:
-        res = solvers.solver_function(spectrum, g)
-        dict[genome_hash(g)] = res
-    ```
-    '''
-    return str(dataclasses.asdict(g))
+            print("function new in genetic_algorithm.py: kwarg warning")
+            print(f"kwargs passed: {kwargs}")
+            print(f"population keys: {population.keys()}")
+    other_params = population.keys() - kwargs.keys()
+    for k in other_params:
+        for i in range(constants.population_size):
+            shape = population[k][i].shape
+            if len(shape) > 0:
+                size = shape
+            else:
+                size = None
+            population[k][i] = get_rand(rng, k, size=size)
+        fix_matrices(population, i)
+    return population
 
 def fitness(g, nu_e, cost, rc_nu_e):
     '''
@@ -301,44 +132,6 @@ def fitness(g, nu_e, cost, rc_nu_e):
     # return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
     f = ((nu_e - rc_nu_e) - (cost * (g.n_b * np.sum(g.n_p))))
     return f if f >= 0.0 else 0.0
-
-def fill_arrays(rng, parent_values, res_length, parameter):
-    '''
-    the length of a subunit/RC dependent array a child has might be
-    smaller or larger than one or both of its parents. we make sure
-    we have two arrays of the relevant parameter that are
-    the right length for the child and then perform recombination
-    elementwise on those. fill_arrays takes the values from
-    the parents where they exist, else it generates parameter
-    values randomly. NB: if we relax the assumption that every
-    branch is identical this will stop working. but then so
-    will literally everything else in the code, come to think of it
-    '''
-    dt = get_type(parameter)
-    result = np.zeros((2, res_length), dtype=dt)
-    for i in range(res_length):
-        for j in range(2):
-            if i < len(parent_values[j]):
-                result[j][i] = parent_values[j][i]
-            else:
-                # new subunits are just copies of tail subunits
-                result[j][i] = parent_values[j][len(parent_values[j]) - 1]
-    return result
-
-def tournament(rng, population, fitnesses, k, cost):
-    '''
-    tournament selection with tournament size k.
-    return the most fit individual after k random samples
-    '''
-    fit_max = 0.0
-    for i in range(k):
-        ind = rng.integers(constants.population_size)
-        winner = ind # if they all have 0 fitness, just take the first
-        p = population[ind]
-        if (fitnesses[ind] > fit_max):
-            fit_max = fitnesses[ind]
-            winner = ind
-    return population[winner]
 
 def selection(rng, population, fitnesses, cost):
     '''
@@ -359,9 +152,8 @@ def selection(rng, population, fitnesses, cost):
     strategy = constants.selection_strategy
     fidx = np.argsort(fitnesses)
     fsort = fitnesses[fidx]
-    psort = [population[i] for i in fidx]
     if constants.selection_strategy == 'fittest':
-        survivors = [psort[i] for i in range(n_survivors)]
+        survivors = [fidx[i] for i in range(n_survivors)]
     elif constants.selection_strategy == 'ranked':
         survivors = []
         ps = np.array([1.0 - np.exp(-f / np.max(fitnesses)) for f in fsort])
@@ -372,15 +164,10 @@ def selection(rng, population, fitnesses, cost):
         r = rng.uniform(low=0.0, high=(1.0 / n_survivors))
         while c < n_survivors and i < constants.population_size:
             while r <= pc[i]:
-                survivors.append(psort[i])
+                survivors.append(fidx[i])
                 r += 1.0 / n_survivors
                 c += 1
             i += 1
-    elif constants.selection_strategy == 'tournament':
-        survivors = []
-        for i in range(n_survivors):
-            survivors.append(tournament(rng, population, fitnesses,
-                                        constants.tourney_k, cost))
     else:
         raise ValueError("Invalid selection strategy")
     return survivors
@@ -392,7 +179,7 @@ def recombine(rng, vals, parameter):
     pigment type, for a single array element
     '''
     d = constants.d_recomb
-    bounds = genome_parameters[parameter]['bounds']
+    bounds = bounds[parameter]
     if parameter == 'pigment' or parameter == 'rc': # binary choice
         new = rng.choice(vals)
     else:
@@ -409,19 +196,18 @@ def recombine(rng, vals, parameter):
         defined, and instead we do a check in crossover to make sure
         that the elements of the array are all in bounds.
         '''
-        if genome_parameters[parameter]['norm'] is None:
-            while new < bounds[0] or new > bounds[1]:
-                b = rng.uniform(-d, 1 + d)
-                new = vals[0] * b + vals[1] * (1 - b)
-        if isinstance(bounds[0], (int, np.integer)):
+        while new < bounds[0] or new > bounds[1]:
+            b = rng.uniform(-d, 1 + d)
+            new = vals[0] * b + vals[1] * (1 - b)
+        if bounds.dtype == it:
             new = np.round(new).astype(int)
     return new
 
 def crossover(rng, child, parents, parameter):
     '''
     '''
-    parent_vals = [getattr(p, parameter) for p in parents]
-    dt = get_type(parameter)
+    parent_vals = [p[parameter] for p in parents]
+    dt = bounds[parameter].dtype
     if genome_parameters[parameter]['array']:
         '''
         if this is an array parameter, the size of the array on
@@ -486,15 +272,16 @@ def reproduction(rng, survivors, population):
 
     n_children = constants.population_size - n_carried
     for i in range(n_carried):
-        population[i] = survivors[i]
+        set_index(population, i, get_index(population, survivors[i]))
 
     for i in range(n_children):
-        child = population[i + n_carried]
+        child = get_index(population, i + n_carried)
         # pick two different parents from the survivors
+        # these are indices from the population
         p_i = rng.choice(len(survivors), 2, replace=False)
-        parents = [survivors[p_i[i]] for i in range(2)]
-        for parameter in genome_parameters:
-            crossover(rng, child, parents, parameter)
+        parents = [get_index(population, survivors[p_i[i]] for i in range(2))]
+        for k in child.keys():
+            crossover(rng, child, parents, k)
     return population
 
 def mutate(rng, genome, parameter, index=None):
