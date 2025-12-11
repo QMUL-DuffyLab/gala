@@ -11,50 +11,38 @@ import constants
 
 it = np.int64
 ft = np.float64
+gt = np.dtype([
+        ('dE0',  it, (constants.n_rc)),
+        ('k_cs', ft, (constants.n_rc)),
+        ('n_t',  it, (constants.n_rc)),
+        ('k',    ft, (constants.n_rc, constants.n_t_max)),
+        ('e',    ft, (constants.n_rc, constants.n_t_max)),
+        ])
 # these are bounds on each element for array variables
 # they have to match the dict in make_arrays
 bounds = {
         'dE0': np.array([300, 3000], dtype=it),
         'k_cs': np.array([1.0, 1.0E12], dtype=ft),
         'n_t': np.array([1, 10], dtype=it),
-        'e': np.array([300, 3000], dtype=it),
+        'e': np.array([300, 3000], dtype=ft),
         'k': np.array([1.0, 1.0E12], dtype=ft),
         }
 
-def make_arrays(n_rc, n_t_max):
-    '''
-    '''
-    dt = [('dE0', ft, (n_rc)),
-          ('k_cs', ft, (n_rc)),
-          ('n_t', it, (n_rc)),
-          ('k', ft, (n_rc, n_t_max)),
-          ('e', ft, (n_rc, n_t_max)),
-          ]
-    population = np.zeros(constants.population_size, dtype=dt)
-    return population
-
-def get_index(population, index):
-    return {k: v[index] for k, v in population.items()}
-
-def set_index(population, index, d):
-    for k, v in d.items():
-        population[k][index] = v
-
-def fix_matrices(population, index):
+def fix_matrices(p):
     '''
     k and e are a matrix (n_rc, n_t_max) for each individual,
     but actually only the first n_t[i] elements of row i
     are meaningful. set the rest to np.nan to make sure they
     don't get used by accident anywhere
     '''
-    nt = population[index]['n_t']
+    nt = p['n_t']
     for i, nti in enumerate(nt):
-        population[index]['k'][i, nti:] = np.nan
-        population[index]['e'][i, nti:] = np.nan
+        p['k'][i, nti:] = np.nan
+        p['e'][i, nti:] = np.nan
 
 def get_rand(rng, parameter, size=None):
     '''
-    get a single random value based on parameter type
+    get random value(s) based on parameter type
     '''
     b = bounds[parameter]
     t = b.dtype
@@ -66,7 +54,7 @@ def get_rand(rng, parameter, size=None):
         raise TypeError(f"get_rand failed on {parameter}, type {t}")
     return r
 
-def new(rng, n_rc, n_t_max, **kwargs):
+def new(rng, **kwargs):
     '''
     create a new instance of the dataclass defined above.
     there are a few ways of doing this: firstly, you can
@@ -79,10 +67,10 @@ def new(rng, n_rc, n_t_max, **kwargs):
     otherwise, you can pass kwargs with values to "clamp"
     those parameters. for example, to force every instance
     to have one branch and one subunit in the antenna,
-    add `**{"n_b": 1, "n_s": 1}`. the code will set those
+    add `**{"n_t": [3,4], ...}`. the code will set those
     and then loop over the remaining parameters and randomise
     '''
-    population = make_arrays(n_rc, n_t_max)
+    population = np.zeros(constants.population_size, dtype=gt)
     if 'template' in kwargs:
         # if you gave the template using lists instead of
         # numpy arrays, for some reason the dataclass will
@@ -90,46 +78,45 @@ def new(rng, n_rc, n_t_max, **kwargs):
         # will break the GA down the line. so check the types
         # of the parameters and convert them as necessary
         template = kwargs['template']
-        if template.keys()) != population.keys()):
+        if template.keys() != set(gt.names):
             print("function new in genetic_algorithm.py: template error")
             print("keys in template should match those in population:")
             print(f"template keys: {template.keys()}")
-            print(f"population keys: {population.keys()}")
+            print(f"population names: {gt.names}")
             raise KeyError
         else:
             for k in population.keys():
                 for i in range(constants.population_size):
-                    population[k][i] = template[k]
+                    population[k][i] = np.array(template[k], dtype=gt[k])
                     if 'variability' in kwargs:
                         if rng.random() < kwargs['variability']:
                             mutate(population, i)
         return population
     
     for k, v in kwargs.items():
-        if k in population.keys():
+        if k in gt.names:
             for i in range(constants.population_size):
-                population[k][i] = v
+                population[i][k] = v
         else:
             print("function new in genetic_algorithm.py: kwarg warning")
             print(f"kwargs passed: {kwargs}")
-            print(f"population keys: {population.keys()}")
-    other_params = population.keys() - kwargs.keys()
-    for k in other_params:
-        for i in range(constants.population_size):
-            shape = population[k][i].shape
+            print(f"population names: {gt.names}")
+    other_params = set(gt.names) - kwargs.keys()
+    for i in range(constants.population_size):
+        for k in other_params:
+            shape = population[i][k].shape
             if len(shape) > 0:
                 size = shape
             else:
                 size = None
-            population[k][i] = get_rand(rng, k, size=size)
-        fix_matrices(population, i)
+            population[i][k] = get_rand(rng, k, size=size)
+        fix_matrices(population[i])
     return population
 
 def fitness(g, nu_e, cost, rc_nu_e):
     '''
     hmm.
     '''
-    # return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
     f = ((nu_e - rc_nu_e) - (cost * (g.n_b * np.sum(g.n_p))))
     return f if f >= 0.0 else 0.0
 
@@ -151,6 +138,7 @@ def selection(rng, population, fitnesses, cost):
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
     strategy = constants.selection_strategy
     fidx = np.argsort(fitnesses)
+    print(type(fitnesses), fidx.dtype)
     fsort = fitnesses[fidx]
     if constants.selection_strategy == 'fittest':
         survivors = [fidx[i] for i in range(n_survivors)]
@@ -172,86 +160,37 @@ def selection(rng, population, fitnesses, cost):
         raise ValueError("Invalid selection strategy")
     return survivors
 
-def recombine(rng, vals, parameter):
+def recombine(rng, vals, bb):
     '''
-    perform intermediate recombination of parameters
-    where possible, and a straight choice in the case of
-    pigment type, for a single array element
+    perform intermediate recombination for a single array element,
+    where the vals are those for the two parents and bb are the
+    bounds [lb, ub] of the parameter we're recombining. return
+    an appropriate recombined value for the child within [lb, ub]
     '''
     d = constants.d_recomb
-    bounds = bounds[parameter]
-    if parameter == 'pigment' or parameter == 'rc': # binary choice
-        new = rng.choice(vals)
-    else:
+    b = rng.uniform(-d, 1 + d)
+    new = vals[0] * b + vals[1] * (1 - b)
+    while new < bb[0] or new > bb[1]:
         b = rng.uniform(-d, 1 + d)
         new = vals[0] * b + vals[1] * (1 - b)
-        '''
-        the next line requires some explanation. basically, if
-        a custom normalisation function is defined for some
-        parameter, then that function can (not always, but in
-        general) move elements out of the bounds given, even
-        if they were within the bounds when they were chosen here.
-        if that happens, the while check below will always fail.
-        therefore, we only do this check if there's no norm function
-        defined, and instead we do a check in crossover to make sure
-        that the elements of the array are all in bounds.
-        '''
-        while new < bounds[0] or new > bounds[1]:
-            b = rng.uniform(-d, 1 + d)
-            new = vals[0] * b + vals[1] * (1 - b)
-        if bounds.dtype == it:
-            new = np.round(new).astype(int)
+    if bb.dtype == it:
+        new = np.round(new).astype(int)
     return new
 
-def crossover(rng, child, parents, parameter):
+def crossover(rng, parameter, parents, child):
     '''
+    perform crossover for a given parameter element-by-element
     '''
-    parent_vals = [p[parameter] for p in parents]
-    dt = bounds[parameter].dtype
-    if genome_parameters[parameter]['array']:
-        '''
-        if this is an array parameter, the size of the array on
-        the child might be larger or smaller than one or both parents,
-        so we generate two arrays of the correct size to recombine from.
-        see fill_arrays for more explanation.
-        note that the current size of the array might be wrong if
-        RC type or n_s has changed, so check what size it *should* be
-        '''
-        s = genome_parameters[parameter]['size'](child)
-        vals = fill_arrays(rng, parent_vals, s, parameter)
-        new = np.zeros(s, dtype=dt)
-        all_in_bounds = False
-        tries = 1
-        while not all_in_bounds:
-            b = genome_parameters[parameter]['bounds']
-            for i in range(s):
-                '''
-                we need to loop here since each value of b in the recombine
-                function should be different; otherwise we have to find
-                a value of b where every element of new is within bounds,
-                which significantly reduces the possible variation
-                '''
-                v = [vals[j][i] for j in range(2)]
-                new[i] = recombine(rng, v, parameter)
-            if genome_parameters[parameter]['norm'] is not None:
-                # normalise based on the given function
-                new = genome_parameters[parameter]['norm'](new)
-            '''
-            now we check that all elements of the array are in bounds,
-            as described above. this maybe isn't the most efficient
-            way of doing this, but i can't think of a better one
-            NB: this is not working properly, particularly for the
-            affinities - the division tends to throw the array elements
-            out of bounds. maybe just snap them back to [lb, ub]?
-            '''
-            all_in_bounds = check_bounds(new, parameter)
-            tries += 1
-            if tries > 50:
-                raise RuntimeError(f"Recombination is broken for {parameter}: bounds {b}, vals {vals}, new {new}")
-    else:
-        vals = parent_vals
-        new = recombine(rng, vals, parameter)
-    setattr(child, parameter, new)
+    p_iters = [parents[i][parameter].flat for i in range(2)]
+    c_iter = child[parameter].flat
+    b = bounds[parameter]
+    # all arrays are the same size in every row, so this is fine
+    # need a more sophisticated nan checking function
+    for i, parent_vals in enumerate(zip(*p_iters)):
+        for pv in parent_vals:
+            if np.isnan(pv):
+                pv = get_rand(rng, parameter)
+        c_iter[i] = recombine(rng, parent_vals, b)
 
 def reproduction(rng, survivors, population):
     '''
@@ -272,49 +211,35 @@ def reproduction(rng, survivors, population):
 
     n_children = constants.population_size - n_carried
     for i in range(n_carried):
-        set_index(population, i, get_index(population, survivors[i]))
+        population[i] = population[survivors[i]]
 
     for i in range(n_children):
-        child = get_index(population, i + n_carried)
         # pick two different parents from the survivors
         # these are indices from the population
         p_i = rng.choice(len(survivors), 2, replace=False)
-        parents = [get_index(population, survivors[p_i[i]] for i in range(2))]
-        for k in child.keys():
-            crossover(rng, child, parents, k)
-    return population
+        # the population index of the child
+        child = population[i + n_carried]
+        parents = [population[p_i[i]] for i in range(2)]
+        indices = (*p_i, child)
+        for k in gt.names:
+            crossover(rng, k, parents, child)
+        fix_matrices(child)
 
-def mutate(rng, genome, parameter, index=None):
+def mutate(rng, current, bb):
     '''
-    mutate a parameter with a given name.
-    getattr/setattr can be used to get the right dataclass fields.
-    if the parameter we're mutating is an array, index into
-    getattr to get the right element. we also need to check type,
-    since if we're mutating n_s we need to have integer extents and
-    indices into the resulting arrays.
+    mutate a value with current value current and bounds bb [lb, ub].
     '''
-    if index is not None:
-        current = getattr(genome, parameter)[index]
-    else:
-        current = getattr(genome, parameter)
-    bounds = genome_parameters[parameter]['bounds']
-    if parameter == 'pigment' or parameter == 'rc':
-        new = rng.choice(bounds)
-    else:
-        width = np.round(constants.mu_width *
-                (bounds[1] - bounds[0])).astype(int)
-        increment = ss.norm.rvs(loc=0, scale=width, random_state=rng)
-        if isinstance(current, (int, np.integer)):
-            increment = increment.round().astype(int)
-        new = current + increment
-        if new < bounds[0]:
-            new = bounds[0]
-        if new > bounds[1]:
-            new = bounds[1]
-    if index is not None:
-        getattr(genome, parameter)[index] = new
-    else:
-        setattr(genome, parameter, new)
+    width = np.round(constants.mu_width *
+            (bb[1] - bb[0])).astype(int)
+    increment = ss.norm.rvs(loc=0, scale=width, random_state=rng)
+    if bb[0].dtype == it:
+        increment = increment.round().astype(int)
+    new = current + increment
+    if new < bb[0]:
+        new = bb[0]
+    if new > bb[1]:
+        new = bb[1]
+    return new
 
 def mutation(rng, individual):
     '''
@@ -328,121 +253,81 @@ def mutation(rng, individual):
     I think it's acceptable to just loop over all parameters since they
     are all independent quantities?
     '''
-    for name, param in genome_parameters.items():
-        if param['mutable']:
-            if param['array']:
-                # check the size first - has it changed?
-                current = getattr(individual, name)
-                current_size = len(current)
-                new_size = param['size'](individual)
-                if current_size != new_size:
-                    current.resize(new_size, refcheck=False)
-                    if new_size > current_size:
-                        # resize pads with zeros - fill with copies
-                        # of the last element instead
-                        for i in range(new_size - current_size):
-                            current[-(i + 1)] = current[current_size - 1]
-                # the way i've had it set up is to only mutate
-                # one element of each array; this is just one
-                # choice. maybe chat to chris about it, but for now
-                # copy the previous behaviour
-                setattr(individual, name, current)
-                index = rng.integers(0, new_size)
-                mutate(rng, individual, name, index)
-            else:
-                mutate(rng, individual, name, None)
-            if param['norm'] is not None:
-                setattr(individual, name,
-                        param['norm'](getattr(individual, name)))
-    return individual
+    for name in gt.names:
+        bb = bounds[name]
+        arr = individual[name]
+        it = np.nditer(arr, flags=['multi_index'])
+        with np.nditer(arr, op_flags=['readwrite']) as it:
+            for elem in it:
+                new = mutate(rng, elem, bb)
+                elem[...] = new
+    fix_matrices(individual)
 
 def evolve(rng, population, fitnesses, cost):
     '''
     apply the whole GA and return the next generation
     '''
     survivors = selection(rng, population, fitnesses, cost)
-    population = reproduction(rng, survivors, population)
+    reproduction(rng, survivors, population)
     n_mutations = 0
     for j in range(constants.population_size):
         p = rng.random()
         if p < constants.mu_rate:
-            population[j] = mutation(rng, population[j])
+            mutation(rng, population[j])
             n_mutations += 1
-    return population
 
-def test_parameters(individual):
+def assertions(population):
     '''
     check that everything is as it should be
     add any other assertions we can make here
     '''
-    for name, param in genome_parameters.items():
-        val = getattr(individual, name)
-        b = param['bounds']
-        if param['array']:
-            assert param['size'](individual) == len(val),\
-            f"{name}, {len(val)}, {param['size'](individual)}"
-            if param['norm'] is not None:
-                assert np.all(param['norm'](val) - val < 1e-6),\
-                    f"norm failed for {name}: {val}, {param['norm'](val)}"
-            else:
-                for i, vi in enumerate(val):
-                    if isinstance(vi, (str, np.str_)):
-                        assert vi in b, f"{vi} not in {b}"
-                    else:
-                        assert vi >= b[0] and vi <= b[1],\
-                        f"bounds:{name}, {val}, {i}, {vi}, {b}" 
-        else:
-            if isinstance(val, (str, np.str_)):
-                assert val in b, f"{val} not in {b}"
-            else:
-                assert val >= b[0] and val <= b[1],\
-                f"bounds: {name}, {val}, {b}" 
+    for i in range(constants.population_size):
+        individual = population[i]
+        for name in gt.names:
+            arr = individual[name]
+            b = bounds[name]
+            if len(arr.shape) > 1:
+                # this is e or k
+                for j, ntj in enumerate(individual['n_t']):
+                    assert np.all(np.isnan(arr[j, ntj:])),\
+f'''Matrix assertion failed (not enough nans):
+{i}, {name}, {individual['n_t']}, {arr}
+{j}, {ntj}, {arr[j]}, {arr[j, ntj:]}
+'''
+                    assert not np.any(np.isnan(arr[j, :ntj])),\
+f'''Matrix assertion failed (too many nans):
+{i}, {name}, {individual['n_t']}, {arr}
+{j}, {ntj}, {arr[j]}, {arr[j, :ntj]}
+'''
+            for j, elem in enumerate(arr.flat):
+                if not np.isnan(elem):
+                    assert elem >= b[0] and elem <= b[1],\
+            f"Bounds assertion failed: {name}, bounds = {b}, {elem}, {j}"
+
+def test_ga(n_gens):
+    cost = 0.01
+    rng = np.random.default_rng()
+    print("Initialising population")
+    population = new(rng)
+    print("Running assertions")
+    assertions(population)
+    print("Assertions passed!")
+    print("Averaging")
+    for i in range(n_gens):
+        for name in gt.names:
+            arr = population[name]
+            mean = np.nanmean(arr, axis=0)
+            std = np.nanstd(arr, axis=0)
+            print(f"Parameter: {name}. Mean: {mean}. sigma: {std}")
+        fitnesses = np.array([100.0 * rng.uniform()
+                     for _ in range(constants.population_size)])
+        print(population[40])
+        print("Evolving")
+        evolve(rng, population, fitnesses, cost)
+        print("Running assertions")
+        assertions(population)
+        print("Assertions passed!")
+
 
 if __name__ == "__main__":
-    '''
-    need to do this testing stuff properly. calculate the fitnesses
-    properly, do the algorithm properly, run it for 20 generations, do
-    the stats
-    '''
-    n = constants.population_size
-    test_gens = 2
-    cost = 0.02
-    rng = np.random.default_rng()
-    fitnesses  = np.array([100 * rng.random()
-        for _ in range(n)])
-
-    template = Genome("ox", 4, 3, [50, 60, 40],
-            [0, 0, 0],
-            ['chl_a', 'chl_b', 'pc'],
-            [1.2, 0.8, 1.0],
-            [0.5, 1.0])
-
-    conditions = [{},
-            {'n_b': 1, 'n_s': 1},
-            {'template': template, 'variability': 0.5},
-    ]
-    names = ["random", "proto", "template"]
-    for c, name in zip(conditions, names):
-        pop = [new(rng, **c) for _ in range(n)]
-
-        for i, genome in enumerate(pop):
-            try:
-                test_parameters(genome)
-            except AssertionError:
-                print("Assertion failed in check_parameters.")
-                print(f"Genome {i}: {genome}")
-                raise
-        print(f"initial {name} population passed assertions.")
-        for i in range(test_gens):
-            old_pop = [copy(g) for g in pop]
-            pop = evolve(rng, pop, fitnesses, cost)
-            for j, genome in enumerate(pop):
-                try:
-                    test_parameters(genome)
-                except AssertionError:
-                    print("Assertion failed in check_parameters.")
-                    print(f"Genome {j}: {genome}")
-                    print(f"Genome {j} before mutation: {old_pop[j]}")
-                    raise
-            print(f"{name} population passed assertions at gen {i}.")
-
+    test_ga(10)
