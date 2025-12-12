@@ -28,17 +28,26 @@ bounds = {
         'k': np.array([1.0, 1.0E12], dtype=ft),
         }
 
-def fix_matrices(p):
+def fix_matrices(rng, p):
     '''
     k and e are a matrix (n_rc, n_t_max) for each individual,
-    but actually only the first n_t[i] elements of row i
-    are meaningful. set the rest to np.nan to make sure they
+    but the actual number of energies and rates for each row
+    should be n_t[i]. when reproducing or mutating, the elements
+    of n_t can change - set the rest to np.nan to make sure they
     don't get used by accident anywhere
     '''
     nt = p['n_t']
     for i, nti in enumerate(nt):
-        p['k'][i, nti:] = np.nan
-        p['e'][i, nti:] = np.nan
+        krow = p['k'][i]
+        erow = p['e'][i]
+        for j in range(nti):
+            # if n_t has mutated, it might've increased, in which
+            # case there will be too many nans in k and e. fix this
+            if np.isnan(krow[j]):
+                krow[j] = get_rand(rng, 'k')
+                erow[j] = get_rand(rng, 'e')
+        krow[nti:] = np.nan
+        erow[nti:] = np.nan
 
 def get_rand(rng, parameter, size=None):
     '''
@@ -110,7 +119,7 @@ def new(rng, **kwargs):
             else:
                 size = None
             population[i][k] = get_rand(rng, k, size=size)
-        fix_matrices(population[i])
+        fix_matrices(rng, population[i])
     return population
 
 def fitness(g, nu_e, cost, rc_nu_e):
@@ -223,7 +232,7 @@ def reproduction(rng, survivors, population):
         indices = (*p_i, child)
         for k in gt.names:
             crossover(rng, k, parents, child)
-        fix_matrices(child)
+        fix_matrices(rng, child)
 
 def mutate(rng, current, bb):
     '''
@@ -261,7 +270,7 @@ def mutation(rng, individual):
             for elem in it:
                 new = mutate(rng, elem, bb)
                 elem[...] = new
-    fix_matrices(individual)
+    fix_matrices(rng, individual)
 
 def evolve(rng, population, fitnesses, cost):
     '''
@@ -291,13 +300,13 @@ def assertions(population):
                 for j, ntj in enumerate(individual['n_t']):
                     assert np.all(np.isnan(arr[j, ntj:])),\
 f'''Matrix assertion failed (not enough nans):
-{i}, {name}, {individual['n_t']}, {arr}
-{j}, {ntj}, {arr[j]}, {arr[j, ntj:]}
+{i}, {individual['n_t']}, {arr}
+{j}, {ntj}, {arr[j]}
 '''
                     assert not np.any(np.isnan(arr[j, :ntj])),\
 f'''Matrix assertion failed (too many nans):
-{i}, {name}, {individual['n_t']}, {arr}
-{j}, {ntj}, {arr[j]}, {arr[j, :ntj]}
+{i}, {individual['n_t']}, {arr}
+{j}, {ntj}, {arr[j]}
 '''
             for j, elem in enumerate(arr.flat):
                 if not np.isnan(elem):
