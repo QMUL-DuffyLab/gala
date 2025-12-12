@@ -285,7 +285,7 @@ def evolve(rng, population, fitnesses, cost):
             mutation(rng, population[j])
             n_mutations += 1
 
-def assertions(population):
+def assertions_bounds_and_nans(population):
     '''
     check that everything is as it should be
     add any other assertions we can make here
@@ -313,13 +313,48 @@ f'''Matrix assertion failed (too many nans):
                     assert elem >= b[0] and elem <= b[1],\
             f"Bounds assertion failed: {name}, bounds = {b}, {elem}, {j}"
 
-def test_ga(n_gens):
+def assertions_kwarg(population, name, arr):
+    for p in population:
+        if len(arr.shape) > 1:
+            # this is e or k
+            for j, ntj in enumerate(p['n_t']):
+                assert np.all(p[name][j, :ntj] == arr[j, :ntj]),\
+f'''
+kwarg matrix assertion failed.
+{p}
+{name}
+{arr}
+'''
+        else:
+            assert np.all(p[name] == arr),\
+f'''
+kwarg assertion failed.
+{p}
+{name}
+{arr}
+'''
+
+def test_new_kwargs(n_tests):
+    cost = 0.01
+    rng = np.random.default_rng()
+    for i in range(n_tests):
+        print(f"kwarg assertions, test {i}:")
+        guh = np.zeros(1, dtype=gt)
+        for k in gt.names:
+            arr = get_rand(rng, k, size=gt[k].shape)
+            kwargs = {k: arr}
+            print(f"parameter {k}, arr {arr}")
+            population = new(rng, **kwargs)
+            assertions_kwarg(population, k, arr)
+            print("assertions passed")
+
+def test_bounds_and_nans(n_gens):
     cost = 0.01
     rng = np.random.default_rng()
     print("Initialising population")
     population = new(rng)
     print("Running assertions")
-    assertions(population)
+    assertions_bounds_and_nans(population)
     print("Assertions passed!")
     print("Averaging")
     for i in range(n_gens):
@@ -330,13 +365,22 @@ def test_ga(n_gens):
             print(f"Parameter: {name}. Mean: {mean}. sigma: {std}")
         fitnesses = np.array([100.0 * rng.uniform()
                      for _ in range(constants.population_size)])
-        print(population[40])
         print("Evolving")
         evolve(rng, population, fitnesses, cost)
         print("Running assertions")
-        assertions(population)
+        assertions_bounds_and_nans(population)
         print("Assertions passed!")
 
-
 if __name__ == "__main__":
-    test_ga(10)
+    n = 10
+    try:
+        test_bounds_and_nans(n)
+    except AssertionError:
+        print("BOUNDS AND NANS ASSERTION FAILED")
+        raise
+    try:
+        test_new_kwargs(n)
+    except AssertionError:
+        print("NEW KWARGS ASSERTIONS FAILED")
+        raise
+
