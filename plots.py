@@ -24,7 +24,7 @@ def plot_lines(p, output_file):
     ax.plot([curr_x, curr_x + column_width],
             [constants.e_donor, constants.e_donor],
             c='k', lw=lw)
-    dlabel = r'$ \epsilon_{\text{donor}} $'
+    dlabel = r'$ \varepsilon_{\text{donor}} $'
     ax.annotate(dlabel, xy=(curr_x + 0.5*column_width,
                             constants.e_donor - 0.1),
                 xycoords='data', color='k', va='top', ha='center')
@@ -69,7 +69,7 @@ def plot_lines(p, output_file):
     ax.plot([curr_x, curr_x + column_width],
             [constants.e_acceptor, constants.e_acceptor],
             c='k', lw=lw)
-    alabel = r'$ \epsilon_{\text{acceptor}} $'
+    alabel = r'$ \varepsilon_{\text{acceptor}} $'
     ax.annotate(alabel, xy=(curr_x + 0.5*column_width,
                             constants.e_acceptor - 0.1),
                 xycoords='data', color='k', va='top', ha='center')
@@ -78,6 +78,7 @@ def plot_lines(p, output_file):
     # extend ylims down a bit to accomodate labels
     ymin, ymax = ax.get_ylim()
     ymin -= 0.5
+    ymax += 0.5
     ax.set_ylim(ymin, ymax)
     ax.set_ylabel('E (eV)')
     plt.grid(visible=False)

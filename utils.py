@@ -15,7 +15,7 @@ import genetic_algorithm as ga
 
 hcnm = (h * c) / (1.0E-9)
 beta_cm = 1.0 / (kB * constants.T * (1. / (100.0 * c))) # in wavenumbers
-beta_ev = 1.0 / ((kB / e) * constants.T) # in eV
+beta_ev = 1.0 / (kB * constants.T / e) # in eV
 
 @np.vectorize
 def ev_nm(x):
