@@ -125,16 +125,20 @@ def micromole_in_region(spectrum, lower, upper):
             muM += row[1] / e_per_photon
     return 1e6 * (muM / Avogadro)
 
-def flux_fraction(spectrum, upper_bound):
+def fractional_integrated_flux(spectrum):
     '''
-    return the fraction of the total flux that is captured
-    by integrating up to upper_bound
+    return the fractional integrated flux up to each wavelength
+    (i.e. f(x_i) = \integral_{xmin}^{x_i} y(x) dx 
+                    / \integral_{xmin}^{xmax} y(x) dx)
     '''
-    f = 0.0
-    for row in spectrum:
-        if row[0] <= upper:
-            f += row[1]
-    return f / np.sum(spectrum[:, 1])
+    x = spectrum[:, 0]
+    ynew = np.zeros_like(x)
+    xmin = np.min(x)
+    xmax = np.max(x)
+    total = micromole_in_region(spectrum, xmin, xmax)
+    for i in range(len(x)):
+        ynew[i] = micromole_in_region(spectrum, xmin, x[i]) / total
+    return np.column_stack((x, ynew))
 
 def phoenix(**kwargs):
     '''

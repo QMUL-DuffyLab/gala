@@ -18,7 +18,6 @@ import stats
 import light
 import utils
 import genetic_algorithm as ga
-import rc as rcm
 
 def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
         do_stats, rng_seed=None):
@@ -231,15 +230,6 @@ if __name__ == "__main__":
     # (spectrum_file, cost, rcs, anox_diff_ratio, rng_seed=None):
     parser.add_argument('-c', '--cost', type=float, default=0.01,
             help="Cost parameter. Default is 0.01")
-    parser.add_argument('-rc', '--rc_types', type=str, nargs='+',
-            default=ga.genome_parameters['rc']['bounds'],
-            choices=rcm.params.keys(),
-            help='''
-Reaction centre types to use in the simulation. Possible options are listed
-in rc.py; default is to take whatever's currently in ga.genome_parameters
-for the "rc" parameter. For investigating the effect of substrate availability
-you'll want to set this to "anox", either in genetic_algorithm.py or here.
-''')
     parser.add_argument('-ad', '--anox_diffusion', type=float,
             default=0.0,
             help='''
@@ -266,5 +256,5 @@ and the zip files will be much smaller, only containing the snapshots
 of the population in dataframes. there for apocrita mostly.
 ''')
     args = parser.parse_args()
-    do_simulation(args.spectrum_file, args.cost, args.rc_types,
+    do_simulation(args.spectrum_file, args.cost,
             args.anox_diffusion, args.stats, args.rng_seed)

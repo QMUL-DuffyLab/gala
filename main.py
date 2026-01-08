@@ -10,7 +10,6 @@ import light
 import simulation
 # these two are only needed for the rc_types arg below. get rid somehow?
 import genetic_algorithm as ga
-import rc as rcm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

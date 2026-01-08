@@ -39,12 +39,20 @@ mu_width = 0.10 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05 # proportion of genomes to mutate after each generation
 shift_inc = 1.0 # increment (nm) to shift lineshapes by
 
-''' some rates that I think are going to be fixed (all in s^{-1}) '''
-# RC specific rates are now in rc.py
-tau_prime = 150.0E-12 # transfer from PBS to RCs
-tau_hop   = 10.0E-12 # transfer from PBS to RCs
-k_hop     = 1.0 / tau_hop # change to tau_prime for PBS simulations
-k_diss    = 1.0 / 1.0E-9 # Chl excited state decay rate
+# various base rates for different processes
+rates = {
+"hop"  : 1.0 / 10.0E-12,
+"trap" : 1.0 / 10.0E-12,
+"ox"   : 1.0 / 1.0E-3,
+"lin"  : 1.0 / 10.0E-3,
+"cyc"  : 1.0 / 10.0E-3,
+"red"  : 1.0 / 10.0E-3,
+"diss" : 1.0 / 1.0E-9,
+"rec"  : 0.0,
+}
+
+e_donor = -5.10 # eV
+e_acceptor = -3.85 # CO2 reduction
 
 # cross section per pigment - kinda just have to fix this
 sig_chl = 9E-20

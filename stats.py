@@ -25,7 +25,6 @@ import constants
 import plots
 import utils
 import genetic_algorithm as ga
-import rc as rcm
 
 def combined_populations(output_dir):
     '''
@@ -253,45 +252,6 @@ def absorption(df, spectrum, prefix, **kwargs):
         output[rct], ofs = plots.plot_average(subpop, spectrum, abs_file)
         outfiles.extend(ofs)
     return output, outfiles
-
-def ss_efficiency(df, spectrum, prefix, **kwargs):
-    '''
-    calculate the steady-state efficiency for a given population,
-    split up if necessary as elsewhere. we define the steady-state
-    efficiency as $ \nu_e / \sum \gamma $ where $ \gamma $ is the vector
-    of photon inputs for a given antenna-RC supercomplex, i.e. it is the
-    proportion of absorbed light that is successfully converted to electrons
-    '''
-    output = {}
-    outfiles = []
-    l = spectrum[:, 0]
-    fp_y = (spectrum[:, 1] * l) / utils.hcnm
-    split = kwargs['split'] if 'split' in kwargs else None
-    df_dict, subpops = generate_genomes(df, **kwargs)
-    for (rct, subdf), subpop in zip(df_dict.items(), subpops):
-        ss_eff = np.zeros(len(subpop))
-        rcp = rcm.params[rct]
-        n_rc = len(rcp["pigments"])
-        rc_n_p = [constants.pigment_data[rc]["n_p"] for rc in rcp["pigments"]]
-        for j, p in enumerate(subpop):
-            nu_e = subdf.iloc[j]['nu_e']
-            n_p = np.array([*rc_n_p, *p.n_p], dtype=np.int32)
-            shift = np.array([*[0.0 for _ in range(n_rc)], *p.shift],
-                             dtype=np.float64)
-            shift *= constants.shift_inc
-            pigment = np.array([*rcp["pigments"], *p.pigment], dtype='U10')
-            a_l = np.zeros((p.n_s + n_rc, len(spectrum[:, 0])))
-            gamma = np.zeros(p.n_s + n_rc, dtype=np.float64)
-            for i in range(p.n_s + n_rc):
-                a_l[i] = utils.absorption(l, pigment[i], shift[i])
-                gamma[i] = (n_p[i] * constants.sig_chl *
-                        utils.overlap(l, fp_y, a_l[i]))
-            sumg = np.sum(gamma[0:n_rc]) + (p.n_b * np.sum(gamma[n_rc:]))
-            ss_eff[j] = nu_e / sumg
-        ss_eff_mean = np.mean(ss_eff)
-        ss_eff_err = np.std(ss_eff) / np.sqrt(len(subpop))
-        output[rct] = (ss_eff_mean, ss_eff_err)
-    return output, []
 
 def do_stats(df, spectrum, prefix, **kwargs):
     '''

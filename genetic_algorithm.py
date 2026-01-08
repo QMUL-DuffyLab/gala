@@ -12,7 +12,8 @@ import constants
 it = np.int64
 ft = np.float64
 gt = np.dtype([
-        ('dE0',  it, (constants.n_rc)),
+        ('dE0',  ft, (constants.n_rc)),
+        ('i',    ft, (constants.n_rc)),
         ('k_cs', ft, (constants.n_rc)),
         ('n_t',  it, (constants.n_rc)),
         ('k',    ft, (constants.n_rc, constants.n_t_max)),
@@ -20,12 +21,14 @@ gt = np.dtype([
         ])
 # these are bounds on each element for array variables
 # they have to match the dict in make_arrays
+# NB: [0.4, 4.0]eV ~= [3000.0, 300.0]nm wavelength light
 bounds = {
-        'dE0': np.array([300, 3000], dtype=it),
+        'dE0':  np.array([0.4, 4.0], dtype=ft),
+        'i':    np.array([0.0, 10.0], dtype=ft),
         'k_cs': np.array([1.0, 1.0E12], dtype=ft),
-        'n_t': np.array([1, 10], dtype=it),
-        'e': np.array([300, 3000], dtype=ft),
-        'k': np.array([1.0, 1.0E12], dtype=ft),
+        'n_t':  np.array([1, 10], dtype=it),
+        'e':    np.array([-4.0, -0.4], dtype=ft),
+        'k':    np.array([1.0, 1.0E12], dtype=ft),
         }
 
 def fix_matrices(rng, p):
@@ -383,4 +386,3 @@ if __name__ == "__main__":
     except AssertionError:
         print("NEW KWARGS ASSERTIONS FAILED")
         raise
-

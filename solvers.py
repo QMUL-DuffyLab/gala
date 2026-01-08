@@ -15,14 +15,8 @@ import constants
 import light
 import utils
 import genetic_algorithm as ga
-import rc as rcm
 import build_matrix
 
-'''
-here is where the solvers for the RC optimisation will go.
-'''
-
-# spectrometer on mars rovers etc.?? what can they do up there?
 def diag(transfer_matrix, t=constants.tinf):
     '''
     calculate equilibrium occupation probabilites from the transfer
@@ -48,33 +42,29 @@ def diag(transfer_matrix, t=constants.tinf):
     p_eq /= np.sum(p_eq)
     return np.real(p_eq), k, lam, C, Cinv
 
-def build_matrix(population, index):
+def build_matrix(p, fif):
     '''
     TODO: update this when the function's written
     '''
-    p = population[index]
     # NB: units???
-    beta = 1.0 / (Boltzmann * 300.0 * (1. / (100.0 * c))) # in wavenumbers
-    de0ph = 0.0
-    '''
-    dg_cs = de0ph - p.E[0] # this is actually -deltaG_{cs}
-    lam_rc = dg_cs + p.line_reorg - np.sqrt(p.line_reorg * dg_cs)
-    dg_rc = dg_cs - (de0ph + p.line_reorg)
-    k_rc = p.k_cs * (np.sqrt(dg_cs / lam_rc) 
+    lam_cs = np.zeros_like(p['k_cs'])
+    k_rc = np.zeros_like(lam_cs)
+    dg_rc = np.zeros_like(lam_cs)
+    lam_rc = np.zeros_like(lam_cs)
+    lam_cs = p['dE0'] - p['e'][:, 0] # \lambda_{cs} ~ -dG_{cs}
+    lam_rc = lam_cs + constants.l_tilde - np.sqrt(constants.l_tilde * dg_cs)
+    dg_rc = lam_cs - (p['dE0'] + constants.l_tilde)
+    k_rc = p['k_cs'] * (np.sqrt(lam_cs / lam_rc) 
                      * exp(-beta * (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
-    '''
-    k_rc = "recombination"
-    gamma = "gamma"
-    k_ox = "oxidation"
-    k_r = 0.0 # unsure what this should be but i guess fast
-    k_out = "output"
-    # detailed balance on this i guess
-    k_dt ="detrapping"
-    k_lin = "linear"
-    k_cyc = "cyc"
+    # take closest entry in the spectrum to get a fractional flux value
+    # note that i'm storing all the energies in eV so convert them here
+    inds = [np.argmin(fif[:, 0] - e0) for e0 in utils.ev_nm(p['dE0'])]
+    gamma = fif[np.array(inds), 1] # unsure if this will work
+    # also NB: need pairs of fw and bw trap transfer rates
+    rates = constants.rc_rates
 
-    n_rc = len(n_traps)
-    n_states = np.array(2 * (n_traps + 1) + 1)
+    n_rc = len(lam_cs)
+    n_states = (2 * (p['n_t'] + 1)) + 1
     offsets = np.array([1, *np.cumprod(n_states)][:-1])
     side = np.prod(n_states)
     t = np.zeros((side, side), dtype=StringDType)
@@ -91,7 +81,7 @@ def build_matrix(population, index):
         tuples[i] = curr
         total_str = ""
         for rci, state in enumerate(curr):
-            base_str = ["P", *["T" for _ in range(n_traps[rci])]]
+            base_str = ["P", *["T" for _ in range(p['n_t'][rci])]]
             pigment_oxidised = state % 2
             if pigment_oxidised:
                 '''
@@ -107,7 +97,11 @@ def build_matrix(population, index):
                 if rci == 0:
                     # pigment can be reduced by donor
                     final_ind = np.dot(final, offsets)
-                    t[i][final_ind] += k_ox
+                    # this is the constraint on the ionisation potential,
+                    # essentially. won't work yet
+                    rr = utils.db_pair(constants.e_donor,
+                                       p['i'][0], rates['ox'], 0.0)
+                    t[i][final_ind] += rr[0]
                 else:
                     # now we need to figure out the
                     # required state of the previous RC for linear flow
@@ -121,10 +115,17 @@ def build_matrix(population, index):
                     # but traps neutral. if the pigment's been reduced,
                     # the previous RC is going back to its g/s.
                     prev_pigment = prev_state % 2
-                    if prev_trap == n_traps[rci - 1] - 1:
+                    if prev_trap == p['n_t'][rci - 1] - 1:
                         final[rci - 1] = prev_pigment
                         final_ind = np.dot(final, offsets)
-                        t[i][final_ind] += k_lin # what should this be???
+                        # again, this is probably not right yet
+                        # and actually might not be correct to do this
+                        rr = utils.db_pair(
+                            p['e'][rci - 1][prev_trap],
+                            p['i'][rci],
+                            rates['lin'], 0.0)
+                        t[i][final_ind] += rr[0]
+                # reset final to be equal to current
                 for j in range(n_rc):
                     final[j] = curr[j]
             if state == 0: # ground state
@@ -132,47 +133,75 @@ def build_matrix(population, index):
                 final[rci] = 2
                 # this is the overall index of the final state
                 final_ind = np.dot(final, offsets)
-                t[i][final_ind] += f"gamma[{rci}]"
+                t[i][final_ind] += gamma[rci]
                 for j in range(n_rc):
                     final[j] = curr[j]
-            # state == 1 is dealt with above - oxidation is the only possible process
+            # state == 1 dealt with above - oxidation is only possible process
             if state == 2: # photoexcited
                 base_str[0] = "P*"
                 # charge separation 
                 final[rci] = 3
                 final_ind = np.dot(final, offsets)
-                t[i][final_ind] += f"cs[{rci}]"
+                tdt = utils.db_pair(
+                        -p['i'][rci] + p['dE0'][rci], # check signs and units
+                        p['e'][rci][0],
+                        p['k_cs'][rci],
+                        p['k_cs'][rci])
+                t[i][final_ind] += tdt[0]
+                # detrapping is just the other way round
+                t[final_ind][i] += tdt[1]
                 for j in range(n_rc):
                     final[j] = curr[j]
                 # dissipation
                 final[rci] = 0
                 final_ind = np.dot(final, offsets)
-                t[i][final_ind] += "dissipation"
+                t[i][final_ind] += rates['diss']
                 for j in range(n_rc):
                     final[j] = curr[j]
             if state == 3: # primary CS
                 base_str[0] = "P+"
                 base_str[1] = "T-"
-               # detrapping
-                final[rci] = 2
-                final_ind = np.dot(final, offsets)
-                t[i][final_ind] += k_dt
-                for j in range(n_rc):
-                    final[j] = curr[j]
+               # detrapping dealt with above
                # recombination
                 final[rci] = 0
                 final_ind = np.dot(final, offsets)
-                t[i][final_ind] += k_rc
+                t[i][final_ind] += k_rc[rci]
                 for j in range(n_rc):
                     final[j] = curr[j]
             if state >= 3:
-                # some logic to do with which trap we're on
-                # detailed balance on the rates and so on
+                # this is just my convention of how the indexing works
                 trap_index = (state - 3) // 2
                 base_str[trap_index + 1] = "T-"
-                if trap_index == n_traps[rci] - 1:
+                if trap_index < p['n_t'][rci] - 1:
+                    # convention here is that p['k'][rci][i] is
+                    # the rate of transfer between traps i <--> i + 1
+                    # and then we apply detailed balance based on those
+                    # respective trap energies. so for trap index = 0,
+                    # we do the 0 <--> 1 rates and so on. hence we stop
+                    # the loop before we get to the final trap
+                    fwbw = utils.db_pair(
+                            p['e'][rci][trap_index],
+                            p['e'][rci][trap_index + 1],
+                            p['k'][rci][trap_index],
+                            p['k'][rci][trap_index]
+                            )
+                    # forward rate: T_{i} -> T_{i + 1}
+                    final[rci] = final[rci] + 2
+                    final_ind = np.dot(final, offsets)
+                    t[i][final_ind] += fwbw[0]
+                    # backward rate: T_{i + 1} -> T_{i}
+                    t[final_ind][i] += fwbw[1]
+                    for j in range(n_rc):
+                        final[j] = curr[j]
+                if trap_index == p['n_t'][rci] - 1:
+                    # if we're on the final trap all the transfer rates
+                    # between traps have been set; all that's left is
+                    # cyclic and/or reduction at the acceptor, because
+                    # linear flow has also been dealt with above
                     if pigment_oxidised:
-                        # cyclic - NB can do (if pigment_oxidised and rci > 0 to mimic real system)
+                        # cyclic - NB can do (if pigment_oxidised and rci > 0)
+                        # to mimic real system where PSII can't do cyclic,
+                        # or have a vector k_cyc(n_rc) and set k_cyc[0] = 0.0
                         final[rci] = 0
                         final_ind = np.dot(final, offsets)
                         t[i][final_ind] += k_cyc
@@ -183,26 +212,11 @@ def build_matrix(population, index):
                         # how is this distinguishable from cyclic?
                         # do we need a separate final acceptor state?
                         final_ind = np.dot(final, offsets)
-                        t[i][final_ind] += k_out
+                        rr = utils.db_pair(p['e'][trap_index],
+                                    constants.e_acceptor, k_out, 0.0)
+                        t[i][final_ind] += rr[0]
                         for j in range(n_rc):
                             final[j] = curr[j]
-                if trap_index > 0:
-                    # need to do detailed balance on fw and bw
-                    #bw = p.rates[rci][trap_index] # T_i -> T_i - 1
-                    bw = f"bw from {trap_index}"
-                    final[rci] = final[rci] - 2
-                    final_ind = np.dot(final, offsets)
-                    t[i][final_ind] += bw
-                    for j in range(n_rc):
-                        final[j] = curr[j]
-                if trap_index < n_traps[rci] - 1:
-                    #fw = p.rates[rci][trap_index] # T_i -> T_i + 1
-                    fw = f"fw from {trap_index}"
-                    final[rci] = final[rci] + 2
-                    final_ind = np.dot(final, offsets)
-                    t[i][final_ind] += fw
-                    for j in range(n_rc):
-                        final[j] = curr[j]
             strs[rci] = " ".join(base_str)
         string_reps[i] = " ".join(strs)
     return t, tuples, string_reps
