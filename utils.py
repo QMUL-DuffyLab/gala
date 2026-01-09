@@ -24,8 +24,8 @@ def ev_nm(x):
 
 @np.vectorize
 def nm_wvn(l):
-    ''' convert nm to wavenumber '''
-    return (1e-7 * l)
+    ''' convert nm to wavenumber in cm^{-1} '''
+    return 1.0 / (1e-7 * l)
 
 def db(e1, e2, k12):
     '''

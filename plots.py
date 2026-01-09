@@ -15,8 +15,19 @@ column_width = 2.0
 pad = 0.25 * column_width
 lw = 2.0
 
-# plots v2 for RC stuff :)
 def plot_lines(p, output_file):
+    '''
+    plot an energy level diagram for a given instance of our RC genome.
+    actually all this requires is an object with named members 'n_t',
+    'dE0', 'i' and 'e'. n_t, dE0 and i should be vectors of length n_rc,
+    and e should be a matrix of size (n_rc, n_t_max). the genetic algorithm
+    automatically generates and works with numpy structured arrays that
+    obey these rules, so you can pop one into this function to see
+    it as an energy level diagram, or you can just make yourself a dict
+    with those members and it should work fine. note that it does not
+    (currently) include rate information because that's a lot more work.
+    outputs a PDF to output_file.
+    '''
     n_lines = np.sum(p['n_t']) + constants.n_rc + 2
     width = (column_width + pad) * n_lines
     fig, ax = plt.subplots(figsize=(width, 10))
@@ -82,6 +93,6 @@ def plot_lines(p, output_file):
     ax.set_ylim(ymin, ymax)
     ax.set_ylabel('E (eV)')
     plt.grid(visible=False)
-    # fig.savefig(output_file)
+    fig.savefig(output_file)
     plt.show()
     plt.close()

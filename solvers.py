@@ -8,14 +8,11 @@ import os
 import time
 import ctypes
 import numpy as np
-from scipy.optimize import nnls as scipy_nnls
-from scipy.constants import h, c
-from scipy.constants import Boltzmann as kB
+from numpy.dtypes import StringDType
 import constants
 import light
 import utils
 import genetic_algorithm as ga
-import build_matrix
 
 def diag(transfer_matrix, t=constants.tinf):
     '''
@@ -42,7 +39,7 @@ def diag(transfer_matrix, t=constants.tinf):
     p_eq /= np.sum(p_eq)
     return np.real(p_eq), k, lam, C, Cinv
 
-def build_matrix(p, fif):
+def build_matrix(p, fif, debug=True):
     '''
     TODO: update this when the function's written
     '''
@@ -52,22 +49,30 @@ def build_matrix(p, fif):
     dg_rc = np.zeros_like(lam_cs)
     lam_rc = np.zeros_like(lam_cs)
     lam_cs = p['dE0'] - p['e'][:, 0] # \lambda_{cs} ~ -dG_{cs}
-    lam_rc = lam_cs + constants.l_tilde - np.sqrt(constants.l_tilde * dg_cs)
+    # reorganisation energy is given in wavenumbers in constants.py
+    ltilde_ev = utils.ev_nm(utils.nm_wvn(constants.l_tilde))
+    lam_rc = lam_cs + ltilde_ev - np.sqrt(ltilde_ev * -lam_cs)
     dg_rc = lam_cs - (p['dE0'] + constants.l_tilde)
     k_rc = p['k_cs'] * (np.sqrt(lam_cs / lam_rc) 
-                     * exp(-beta * (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
+                     * np.exp(-utils.beta_ev * 
+                              (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
     # take closest entry in the spectrum to get a fractional flux value
     # note that i'm storing all the energies in eV so convert them here
     inds = [np.argmin(fif[:, 0] - e0) for e0 in utils.ev_nm(p['dE0'])]
     gamma = fif[np.array(inds), 1] # unsure if this will work
-    # also NB: need pairs of fw and bw trap transfer rates
-    rates = constants.rc_rates
+    rates = constants.rates
+    if debug:
+        fw_rates = np.zeros_like(p['e'])
+        bw_rates = np.zeros_like(p['e'])
+        trap_rates = np.zeros_like(lam_cs)
+        detrap_rates = np.zeros_like(lam_cs)
+        oxlin_rates = np.zeros(constants.n_rc + 1)
 
     n_rc = len(lam_cs)
     n_states = (2 * (p['n_t'] + 1)) + 1
     offsets = np.array([1, *np.cumprod(n_states)][:-1])
     side = np.prod(n_states)
-    t = np.zeros((side, side), dtype=StringDType)
+    t = np.zeros((side, side), dtype=ga.ft)
     tuples = np.zeros((side, n_rc), dtype=int)
     string_reps = np.zeros(side, dtype=StringDType)
     curr = np.zeros(n_rc, dtype=int)
@@ -125,6 +130,8 @@ def build_matrix(p, fif):
                             p['i'][rci],
                             rates['lin'], 0.0)
                         t[i][final_ind] += rr[0]
+                if debug:
+                    oxlin_rates[rci] = rr[0]
                 # reset final to be equal to current
                 for j in range(n_rc):
                     final[j] = curr[j]
@@ -148,6 +155,9 @@ def build_matrix(p, fif):
                         p['k_cs'][rci],
                         p['k_cs'][rci])
                 t[i][final_ind] += tdt[0]
+                if debug:
+                    trap_rates[rci] = tdt[0]
+                    detrap_rates[rci] = tdt[1]
                 # detrapping is just the other way round
                 t[final_ind][i] += tdt[1]
                 for j in range(n_rc):
@@ -193,6 +203,9 @@ def build_matrix(p, fif):
                     t[final_ind][i] += fwbw[1]
                     for j in range(n_rc):
                         final[j] = curr[j]
+                    if debug:
+                        fw_rates[rci][trap_index] = fwbw[0]
+                        bw_rates[rci][trap_index] = fwbw[1]
                 if trap_index == p['n_t'][rci] - 1:
                     # if we're on the final trap all the transfer rates
                     # between traps have been set; all that's left is
@@ -204,7 +217,7 @@ def build_matrix(p, fif):
                         # or have a vector k_cyc(n_rc) and set k_cyc[0] = 0.0
                         final[rci] = 0
                         final_ind = np.dot(final, offsets)
-                        t[i][final_ind] += k_cyc
+                        t[i][final_ind] += rates['cyc']
                         for j in range(n_rc):
                             final[j] = curr[j]
                     if rci == n_rc - 1:
@@ -212,11 +225,29 @@ def build_matrix(p, fif):
                         # how is this distinguishable from cyclic?
                         # do we need a separate final acceptor state?
                         final_ind = np.dot(final, offsets)
-                        rr = utils.db_pair(p['e'][trap_index],
-                                    constants.e_acceptor, k_out, 0.0)
+                        rr = utils.db_pair(p['e'][rci][trap_index],
+                                    constants.e_acceptor, rates['red'], 0.0)
+                        if debug:
+                            oxlin_rates[-1] = rr[0]
                         t[i][final_ind] += rr[0]
                         for j in range(n_rc):
                             final[j] = curr[j]
             strs[rci] = " ".join(base_str)
         string_reps[i] = " ".join(strs)
-    return t, tuples, string_reps
+    if debug:
+        return {
+                't': t,
+                'tuples': tuples,
+                'string_reps': string_reps,
+                'lam_cs': lam_cs,
+                'k_rc': k_rc,
+                'dg_rc': dg_rc,
+                'lam_rc': lam_rc,
+                'fw_rates': fw_rates,
+                'bw_rates': bw_rates,
+                'trap_rates': trap_rates,
+                'detrap_rates': detrap_rates,
+                'oxlin_rates': oxlin_rates,
+                }
+    else:
+        return t, tuples, string_reps

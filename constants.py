@@ -53,6 +53,7 @@ rates = {
 
 e_donor = -5.10 # eV
 e_acceptor = -3.85 # CO2 reduction
+l_tilde = 100 # wavenumbers!
 
 # cross section per pigment - kinda just have to fix this
 sig_chl = 9E-20
