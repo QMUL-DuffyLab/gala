@@ -48,12 +48,12 @@ rates = {
 "cyc"  : 1.0 / 10.0E-3,
 "red"  : 1.0 / 10.0E-3,
 "diss" : 1.0 / 1.0E-9,
-"rec"  : 0.0,
+"rec"  : 1.0,
 }
 
 e_donor = -5.10 # eV
 e_acceptor = -3.85 # CO2 reduction
-l_tilde = 100 # wavenumbers!
+l_tilde = 100 # wavenumbers! conversion functions in utils.py
 
 # cross section per pigment - kinda just have to fix this
 sig_chl = 9E-20

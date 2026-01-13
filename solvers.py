@@ -48,11 +48,12 @@ def build_matrix(p, fif, debug=True):
     k_rc = np.zeros_like(lam_cs)
     dg_rc = np.zeros_like(lam_cs)
     lam_rc = np.zeros_like(lam_cs)
+    # NB: figure out signs here lol. trap energies negative?
     lam_cs = p['dE0'] - p['e'][:, 0] # \lambda_{cs} ~ -dG_{cs}
     # reorganisation energy is given in wavenumbers in constants.py
     ltilde_ev = utils.ev_nm(utils.nm_wvn(constants.l_tilde))
-    lam_rc = lam_cs + ltilde_ev - np.sqrt(ltilde_ev * -lam_cs)
-    dg_rc = lam_cs - (p['dE0'] + constants.l_tilde)
+    lam_rc = lam_cs + ltilde_ev - np.sqrt(ltilde_ev * np.abs(lam_cs))
+    dg_rc = lam_cs - (p['dE0'] + ltilde_ev)
     k_rc = p['k_cs'] * (np.sqrt(lam_cs / lam_rc) 
                      * np.exp(-utils.beta_ev * 
                               (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
@@ -104,8 +105,8 @@ def build_matrix(p, fif, debug=True):
                     final_ind = np.dot(final, offsets)
                     # this is the constraint on the ionisation potential,
                     # essentially. won't work yet
-                    rr = utils.db_pair(constants.e_donor,
-                                       p['i'][0], rates['ox'], 0.0)
+                    rr = utils.db_pair(-constants.e_donor,
+                                       -p['i'][0], rates['ox'], 0.0)
                     t[i][final_ind] += rr[0]
                 else:
                     # now we need to figure out the
@@ -126,8 +127,8 @@ def build_matrix(p, fif, debug=True):
                         # again, this is probably not right yet
                         # and actually might not be correct to do this
                         rr = utils.db_pair(
-                            p['e'][rci - 1][prev_trap],
-                            p['i'][rci],
+                            -p['e'][rci - 1][prev_trap],
+                            -p['i'][rci],
                             rates['lin'], 0.0)
                         t[i][final_ind] += rr[0]
                 if debug:
@@ -151,7 +152,7 @@ def build_matrix(p, fif, debug=True):
                 final_ind = np.dot(final, offsets)
                 tdt = utils.db_pair(
                         -p['i'][rci] + p['dE0'][rci], # check signs and units
-                        p['e'][rci][0],
+                        -p['e'][rci][0],
                         p['k_cs'][rci],
                         p['k_cs'][rci])
                 t[i][final_ind] += tdt[0]
@@ -190,8 +191,8 @@ def build_matrix(p, fif, debug=True):
                     # we do the 0 <--> 1 rates and so on. hence we stop
                     # the loop before we get to the final trap
                     fwbw = utils.db_pair(
-                            p['e'][rci][trap_index],
-                            p['e'][rci][trap_index + 1],
+                            -p['e'][rci][trap_index],
+                            -p['e'][rci][trap_index + 1],
                             p['k'][rci][trap_index],
                             p['k'][rci][trap_index]
                             )
@@ -225,8 +226,8 @@ def build_matrix(p, fif, debug=True):
                         # how is this distinguishable from cyclic?
                         # do we need a separate final acceptor state?
                         final_ind = np.dot(final, offsets)
-                        rr = utils.db_pair(p['e'][rci][trap_index],
-                                    constants.e_acceptor, rates['red'], 0.0)
+                        rr = utils.db_pair(-p['e'][rci][trap_index],
+                                    -constants.e_acceptor, rates['red'], 0.0)
                         if debug:
                             oxlin_rates[-1] = rr[0]
                         t[i][final_ind] += rr[0]
