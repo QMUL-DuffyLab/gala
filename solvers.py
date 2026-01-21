@@ -8,13 +8,14 @@ import os
 import time
 import ctypes
 import numpy as np
+from scipy.optimize import nnls as scipy_nnls
 from numpy.dtypes import StringDType
 import constants
 import light
 import utils
 import genetic_algorithm as ga
 
-def diag(transfer_matrix, t=constants.tinf):
+def diag(transfer_matrix, t=constants.tinf, cutoff=1e-3):
     '''
     calculate equilibrium occupation probabilites from the transfer
     matrix `transfer_matrix` at time t via diagonalisation
@@ -36,8 +37,31 @@ def diag(transfer_matrix, t=constants.tinf):
     for i in range(k.shape[0]):
         elt[i, i] = np.exp(lam[i] * t)
     p_eq = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
-    p_eq /= np.sum(p_eq)
-    return np.real(p_eq), k, lam, C, Cinv
+    # p_eq /= np.sum(p_eq)
+    return p_eq, k, lam, C, Cinv
+
+def nnls(transfer_matrix):
+    '''
+    calculate equilibrium occupation probabilites from the transfer
+    matrix `transfer_matrix` at time t via diagonalisation
+    '''
+    side = transfer_matrix.shape[0]
+    k = np.zeros((side + 1, side), dtype=np.float64, order='F')
+    for i in range(side):
+        for j in range(side):
+            if i != j:
+                k[i][j]      = transfer_matrix[j][i]
+                k[i][i]     -= transfer_matrix[i][j]
+        k[side][i] = 1.0
+    b = np.zeros(side + 1, dtype=np.float64)
+    b[-1] = 1.0 
+    try:
+        p_eq, p_eq_res = scipy_nnls(k, b, maxiter=1000)
+    except RuntimeError:
+        p_eq = None
+        p_eq_res = None
+        print("NNLS RuntimeError - reached iteration limit")
+    return p_eq, p_eq_res
 
 def build_matrix(p, fif, debug=True):
     '''
@@ -59,7 +83,8 @@ def build_matrix(p, fif, debug=True):
                               (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
     # take closest entry in the spectrum to get a fractional flux value
     # note that i'm storing all the energies in eV so convert them here
-    inds = [np.argmin(fif[:, 0] - e0) for e0 in utils.ev_nm(p['dE0'])]
+    inds = [np.argmin(np.abs(fif[:, 0] - e0)) 
+            for e0 in utils.ev_nm(p['dE0'])]
     gamma = fif[np.array(inds), 1] # unsure if this will work
     rates = constants.rates
     if debug:
@@ -105,7 +130,7 @@ def build_matrix(p, fif, debug=True):
                     final_ind = np.dot(final, offsets)
                     # this is the constraint on the ionisation potential,
                     # essentially. won't work yet
-                    rr = utils.db_pair(-constants.e_donor,
+                    rr = utils.db(-constants.e_donor,
                                        -p['i'][0], rates['ox'], 0.0)
                     t[i][final_ind] += rr[0]
                 else:
@@ -126,8 +151,8 @@ def build_matrix(p, fif, debug=True):
                         final_ind = np.dot(final, offsets)
                         # again, this is probably not right yet
                         # and actually might not be correct to do this
-                        rr = utils.db_pair(
-                            -p['e'][rci - 1][prev_trap],
+                        rr = utils.db(
+                            p['e'][rci - 1][prev_trap],
                             -p['i'][rci],
                             rates['lin'], 0.0)
                         t[i][final_ind] += rr[0]
@@ -150,9 +175,9 @@ def build_matrix(p, fif, debug=True):
                 # charge separation 
                 final[rci] = 3
                 final_ind = np.dot(final, offsets)
-                tdt = utils.db_pair(
+                tdt = utils.db(
                         -p['i'][rci] + p['dE0'][rci], # check signs and units
-                        -p['e'][rci][0],
+                        p['e'][rci][0],
                         p['k_cs'][rci],
                         p['k_cs'][rci])
                 t[i][final_ind] += tdt[0]
@@ -190,9 +215,9 @@ def build_matrix(p, fif, debug=True):
                     # respective trap energies. so for trap index = 0,
                     # we do the 0 <--> 1 rates and so on. hence we stop
                     # the loop before we get to the final trap
-                    fwbw = utils.db_pair(
-                            -p['e'][rci][trap_index],
-                            -p['e'][rci][trap_index + 1],
+                    fwbw = utils.db(
+                            p['e'][rci][trap_index],
+                            p['e'][rci][trap_index + 1],
                             p['k'][rci][trap_index],
                             p['k'][rci][trap_index]
                             )
@@ -212,7 +237,7 @@ def build_matrix(p, fif, debug=True):
                     # between traps have been set; all that's left is
                     # cyclic and/or reduction at the acceptor, because
                     # linear flow has also been dealt with above
-                    if pigment_oxidised:
+                    if pigment_oxidised and rci > 0:
                         # cyclic - NB can do (if pigment_oxidised and rci > 0)
                         # to mimic real system where PSII can't do cyclic,
                         # or have a vector k_cyc(n_rc) and set k_cyc[0] = 0.0
@@ -223,11 +248,13 @@ def build_matrix(p, fif, debug=True):
                             final[j] = curr[j]
                     if rci == n_rc - 1:
                         # final RC - terminal trap reduces acceptor
-                        # how is this distinguishable from cyclic?
-                        # do we need a separate final acceptor state?
+                        # this neutralises the trap but does nothing to
+                        # the pigment, so if the pigment's oxidised it
+                        # stays oxidised, and if it's not we go back to g/s
+                        final[rci] = pigment_oxidised
                         final_ind = np.dot(final, offsets)
-                        rr = utils.db_pair(-p['e'][rci][trap_index],
-                                    -constants.e_acceptor, rates['red'], 0.0)
+                        rr = utils.db(p['e'][rci][trap_index],
+                                    constants.e_acceptor, rates['red'], 0.0)
                         if debug:
                             oxlin_rates[-1] = rr[0]
                         t[i][final_ind] += rr[0]
@@ -240,6 +267,7 @@ def build_matrix(p, fif, debug=True):
                 't': t,
                 'tuples': tuples,
                 'string_reps': string_reps,
+                'gamma': gamma,
                 'lam_cs': lam_cs,
                 'k_rc': k_rc,
                 'dg_rc': dg_rc,
@@ -252,3 +280,19 @@ def build_matrix(p, fif, debug=True):
                 }
     else:
         return t, tuples, string_reps
+
+'''
+NB:
+for calculation of the redox states of each RC and also the output,
+there's some clever shit we can do with the offsets and stuff. e.g.
+for a given rc we can use the offsets to determine which indices of
+the total matrix correspond to it being P+; the sum of p_eq(those indices)
+will be the amount of time it's oxidised, the sum of all the others will be
+the amount of time it's reduced, and so on. for the output it's just any
+index where the final trap is reduced. just need to figure out some
+clever arithmetic for it and then it should be fine to get rid of the
+string representations and tuples in the final code - then we can keep this
+version with the dict output and all that as a separate function that isn't
+called and point to it in the documentation, and also use it in a test to
+confirm that the two functions give identical output
+'''

@@ -27,24 +27,7 @@ def nm_wvn(l):
     ''' convert nm to wavenumber in cm^{-1} '''
     return 1.0 / (1e-7 * l)
 
-def db(e1, e2, k12):
-    '''
-    apply detailed balance to a single rate k12, where the initial/final
-    states 1 and 2 (process is 1 -> 2) have energies e1, e2 (in eV).
-    obviously this should always be applied to pairs of rates as below
-    '''
-    fac = np.exp(-(e1 - e2) * beta_ev)
-    return k12 * fac
-
-def db_pair(e1, e2, k12, k21):
-    '''
-    apply detailed balance for a pair of states 1 and 2,
-    with energies e1 e2 (in eV) and rates k12 for 1 -> 2,
-    k21 for 2 -> 1. these are bare rates which are then modified by the gap
-    (we assume that dS = 0 and only the energy gap is important).
-    return the rates [fw, bw] where fw is 1 -> 2, bw is 2 -> 1
-    '''
-    return [db(e1, e2, k12), db(e2, e1, k21)]
+def db(e1, e2, k12, k21):
     '''
     explaining the following commented line:
     it's for the case where we only want to penalise the uphill process.
@@ -60,8 +43,10 @@ def db_pair(e1, e2, k12, k21):
     which should be penalised in each case (in the third case actually
     the exponential is identically 1 anyway, so there's no penalty)
     '''
-    # rates[(np.sign(gap) + 1) // 2] *= np.exp(-gap * beta)
-    # return rates
+    rates = np.array([k12, k21])
+    gap = e1 - e2
+    rates[(int(np.sign(gap)) + 1) // 2] *= np.exp(-gap * beta_ev)
+    return rates
 
 def get_hash_table(prefix):
     f = os.path.join(prefix, "hash_table.zip")

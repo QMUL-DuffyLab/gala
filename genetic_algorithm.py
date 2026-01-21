@@ -66,9 +66,31 @@ def get_rand(rng, parameter, size=None):
         raise TypeError(f"get_rand failed on {parameter}, type {t}")
     return r
 
+def create_from_dict(params):
+    '''
+    create one instance of the numpy dtype defined above for the genome,
+    from a dict of parameters. just makes it easier to test
+    '''
+    nn = np.zeros(1, dtype=gt)
+    for key, val in params.items():
+        if key not in set(gt.names):
+            raise KeyError(
+            f'''
+            invalid key provided to ga.create_from_dict().
+            valid keys are: {gt.names}, provided keys are {params.keys}
+            ''')
+        else:
+            if key in ['k', 'e']:
+                nn[0][key].fill(np.nan)
+                for ii, nti in enumerate(params['n_t']):
+                    nn[0][key][ii, :nti] = params[key][ii]
+            else:
+                nn[0][key] = np.array(params[key])
+    return nn
+
 def new(rng, **kwargs):
     '''
-    create a new instance of the dataclass defined above.
+    create a new population of the dataclass defined above.
     there are a few ways of doing this: firstly, you can
     supply a kwarg "template", which should be an instance
     of the *same* dataclass defined above, and it'll just
