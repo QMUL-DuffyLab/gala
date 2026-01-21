@@ -15,7 +15,7 @@ import light
 import utils
 import genetic_algorithm as ga
 
-def diag(transfer_matrix, t=constants.tinf, cutoff=1e-3):
+def diag(transfer_matrix, t=constants.tinf, cutoff=1e-3, debug=False):
     '''
     calculate equilibrium occupation probabilites from the transfer
     matrix `transfer_matrix` at time t via diagonalisation
@@ -38,9 +38,12 @@ def diag(transfer_matrix, t=constants.tinf, cutoff=1e-3):
         elt[i, i] = np.exp(lam[i] * t)
     p_eq = np.matmul(np.matmul(np.matmul(C, elt), Cinv), p0)
     # p_eq /= np.sum(p_eq)
-    return p_eq, k, lam, C, Cinv
+    if debug:
+        return p_eq, k, lam, C, Cinv
+    else:
+        return p_eq
 
-def nnls(transfer_matrix):
+def nnls(transfer_matrix, debug=False):
     '''
     calculate equilibrium occupation probabilites from the transfer
     matrix `transfer_matrix` at time t via diagonalisation
@@ -61,7 +64,10 @@ def nnls(transfer_matrix):
         p_eq = None
         p_eq_res = None
         print("NNLS RuntimeError - reached iteration limit")
-    return p_eq, p_eq_res
+    if debug:
+        return p_eq, p_eq_res
+    else:
+        return p_eq
 
 def build_matrix(p, fif, debug=True):
     '''
@@ -280,6 +286,31 @@ def build_matrix(p, fif, debug=True):
                 }
     else:
         return t, tuples, string_reps
+
+def solve(p, fif, debug=False, **solver_kwargs):
+    tt, tuples, string_reps = build_matrix(p, fif, debug)
+    # do NNLS in first instance
+    p_eq = nnls(tt, debug)
+    if p_eq is None:
+        # fallback to diag
+        print("NNLS failed, falling back to diagonalisation")
+        p_eq = diag(tt, debug, **solver_kwargs)
+    output = 0.0
+    redox = np.zeros((constants.n_rc, 2), dtype=ga.ft)
+    for ii, p_eq_i in enumerate(p_eq):
+        curr = tuples[ii]
+        for kk in range(constants.n_rc):
+            if curr[kk] == 1:
+                # this is the state P+ T T ... T (photosystem oxidised)
+                redox[kk][0] += p_eq_i
+            if curr[kk] > 3 and curr[kk] % 2 == 0:
+                # these correspond to P T- T ... T, P T T- ... T, P T T ... T-
+                redox[kk][1] += p_eq_i
+            if (kk == constants.n_rc - 1 and
+                (curr[kk] - 3) // 2 == p['n_t'][kk] - 1):
+                # electron on final trap of final rc
+                output += p_eq_i * constants.rates['red']
+    return output, redox
 
 '''
 NB:
