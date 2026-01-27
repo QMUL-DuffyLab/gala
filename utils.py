@@ -45,7 +45,11 @@ def db(e1, e2, k12, k21):
     '''
     rates = np.array([k12, k21])
     gap = e1 - e2
-    rates[(int(np.sign(gap)) + 1) // 2] *= np.exp(-gap * beta_ev)
+    rates[(int(np.sign(gap)) + 1) // 2] *= np.exp(-1. * np.abs(gap) * beta_ev)
+    # if gap < 0.0:
+    #     rates[0] *= np.exp(gap * beta_ev)
+    # elif gap > 0.0:
+    #     rates[1] *= np.exp(-gap * beta_ev)
     return rates
 
 def get_hash_table(prefix):

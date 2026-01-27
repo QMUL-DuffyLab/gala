@@ -93,6 +93,7 @@ def plot_lines(p, output_file):
     ax.set_ylim(ymin, ymax)
     ax.set_ylabel('E (eV)')
     plt.grid(visible=False)
-    fig.savefig(output_file)
+    if output_file is not None:
+        fig.savefig(output_file)
     plt.show()
     plt.close()

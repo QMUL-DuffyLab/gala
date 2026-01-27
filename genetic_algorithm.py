@@ -25,9 +25,9 @@ gt = np.dtype([
 bounds = {
         'dE0':  np.array([0.4, 4.0], dtype=ft),
         'i':    np.array([0.0, 10.0], dtype=ft),
-        'k_cs': np.array([1.0, 1.0E12], dtype=ft),
+        'k_cs': np.array([1.0E3, 1.0E12], dtype=ft),
         'n_t':  np.array([1, 10], dtype=it),
-        'k':    np.array([1.0, 1.0E12], dtype=ft),
+        'k':    np.array([1.0E3, 1.0E12], dtype=ft),
         'e':    np.array([-4.0, -0.4], dtype=ft),
         }
 
