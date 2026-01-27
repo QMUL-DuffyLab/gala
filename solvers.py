@@ -69,11 +69,10 @@ def nnls(transfer_matrix, debug=False):
     b[-1] = 1.0 
     try:
         p_eq, p_eq_res = scipy_nnls(k, b)
-    except RuntimeError:
+    except RuntimeError: # iteration limit was reached
         p_eq = np.zeros(side)
         p_eq[0] = 1.0
         p_eq_res = None
-        print("NNLS RuntimeError - reached iteration limit")
     if debug:
         return p_eq, p_eq_res
     else:

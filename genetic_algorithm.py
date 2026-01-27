@@ -147,13 +147,6 @@ def new(rng, **kwargs):
         fix_matrices(rng, population[i])
     return population
 
-def fitness(g, nu_e, cost, rc_nu_e):
-    '''
-    hmm.
-    '''
-    f = ((nu_e - rc_nu_e) - (cost * (g.n_b * np.sum(g.n_p))))
-    return f if f >= 0.0 else 0.0
-
 def selection(rng, population, fitnesses, cost):
     '''
     build up a 'mating pool' for recombination. i've implemented
@@ -170,9 +163,7 @@ def selection(rng, population, fitnesses, cost):
         raise ValueError("No antennae with positive fitness values.")
 
     n_survivors = int(constants.fitness_cutoff * constants.population_size)
-    strategy = constants.selection_strategy
     fidx = np.argsort(fitnesses)
-    print(type(fitnesses), fidx.dtype)
     fsort = fitnesses[fidx]
     if constants.selection_strategy == 'fittest':
         survivors = [fidx[i] for i in range(n_survivors)]
@@ -194,6 +185,18 @@ def selection(rng, population, fitnesses, cost):
         raise ValueError("Invalid selection strategy")
     return survivors
 
+def new_val(rng, vals, bb):
+    ''' return one new value based on parameter type '''
+    if bb.dtype == ft:
+        d = constants.d_recomb
+        b = rng.uniform(-d, 1 + d)
+        new = vals[0] * b + vals[1] * (1 - b)
+    elif bb.dtype == it:
+        lb = np.min(vals) if np.min(vals) == bb[0] else np.min(vals) - 1
+        ub = np.max(vals) if np.max(vals) == bb[1] else np.max(vals) + 1
+        new = rng.integers(lb, ub, endpoint=True)
+    return new
+
 def recombine(rng, vals, bb):
     '''
     perform intermediate recombination for a single array element,
@@ -201,14 +204,9 @@ def recombine(rng, vals, bb):
     bounds [lb, ub] of the parameter we're recombining. return
     an appropriate recombined value for the child within [lb, ub]
     '''
-    d = constants.d_recomb
-    b = rng.uniform(-d, 1 + d)
-    new = vals[0] * b + vals[1] * (1 - b)
+    new = new_val(rng, vals, bb)
     while new < bb[0] or new > bb[1]:
-        b = rng.uniform(-d, 1 + d)
-        new = vals[0] * b + vals[1] * (1 - b)
-    if bb.dtype == it:
-        new = np.round(new).astype(int)
+        new = new_val(rng, vals, bb)
     return new
 
 def crossover(rng, parameter, parents, child):
