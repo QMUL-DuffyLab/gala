@@ -70,6 +70,8 @@ def nnls(transfer_matrix, debug=False):
     try:
         p_eq, p_eq_res = scipy_nnls(k, b)
     except RuntimeError: # iteration limit was reached
+        if debug:
+            print("NNLS runtime error")
         p_eq = np.zeros(side)
         p_eq[0] = 1.0
         p_eq_res = None
@@ -291,6 +293,7 @@ def build_matrix(p, fif, debug=True):
                         final_ind = np.dot(final, offsets)
                         rr = utils.db(p['e'][rci][trap_index],
                                     constants.e_acceptor, rates['red'], 0.0)
+                        output_rate = rr[0]
                         if debug:
                             oxlin_rates[-1] = rr[0]
                         t[i][final_ind] += rr[0]
@@ -315,13 +318,13 @@ def build_matrix(p, fif, debug=True):
                 'oxlin_rates': oxlin_rates,
                 }
     else:
-        return t, tuples, string_reps
+        return t, tuples, output_rate
 
 def solve(p, fif, debug=False, atol=1e-5, **solver_kwargs):
     output_deranged = False
     output = 0.0
     redox = np.zeros((constants.n_rc, 2), dtype=ga.ft)
-    tt, tuples, string_reps = build_matrix(p, fif, debug)
+    tt, tuples, out_rate = build_matrix(p, fif, debug)
     # do NNLS in first instance
     p_eq = nnls(tt, debug)
     if np.abs(np.sum(p_eq) - 1.0) > atol:
@@ -339,7 +342,7 @@ def solve(p, fif, debug=False, atol=1e-5, **solver_kwargs):
                 if (kk == constants.n_rc - 1 and
                     (curr[kk] - 3) // 2 == p['n_t'][kk] - 1):
                     # electron on final trap of final rc
-                    output += p_eq_i * constants.rates['red']
+                    output += p_eq_i * out_rate
 
     return output, redox, output_deranged
 

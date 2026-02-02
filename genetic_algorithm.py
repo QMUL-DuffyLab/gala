@@ -28,7 +28,7 @@ bounds = {
         'k_cs': np.array([1.0E3, 1.0E12], dtype=ft),
         'n_t':  np.array([1, 10], dtype=it),
         'k':    np.array([1.0E3, 1.0E12], dtype=ft),
-        'e':    np.array([-4.0, -0.4], dtype=ft),
+        'e':    np.array([-10.0, 0.0], dtype=ft),
         }
 
 def fix_matrices(rng, p):
@@ -104,7 +104,11 @@ def new(rng, **kwargs):
     add `**{"n_t": [3,4], ...}`. the code will set those
     and then loop over the remaining parameters and randomise
     '''
-    population = np.zeros(constants.population_size, dtype=gt)
+    if 'size' in kwargs:
+        size = kwargs['size']
+    else:
+        size = constants.population_size
+    population = np.zeros(size, dtype=gt)
     if 'template' in kwargs:
         # if you gave the template using lists instead of
         # numpy arrays, for some reason the dataclass will
@@ -119,9 +123,10 @@ def new(rng, **kwargs):
             print(f"population names: {gt.names}")
             raise KeyError
         else:
-            for k in population.keys():
-                for i in range(constants.population_size):
-                    population[k][i] = np.array(template[k], dtype=gt[k])
+            tt = create_from_dict(template)
+            for ii in range(size):
+                for name in gt.names:
+                    population[ii][name] = tt[name]
                     if 'variability' in kwargs:
                         if rng.random() < kwargs['variability']:
                             mutate(population, i)
@@ -129,14 +134,14 @@ def new(rng, **kwargs):
     
     for k, v in kwargs.items():
         if k in gt.names:
-            for i in range(constants.population_size):
+            for i in range(size):
                 population[i][k] = v
         else:
             print("function new in genetic_algorithm.py: kwarg warning")
             print(f"kwargs passed: {kwargs}")
             print(f"population names: {gt.names}")
     other_params = set(gt.names) - kwargs.keys()
-    for i in range(constants.population_size):
+    for i in range(size):
         for k in other_params:
             shape = population[i][k].shape
             if len(shape) > 0:
@@ -205,8 +210,12 @@ def recombine(rng, vals, bb):
     an appropriate recombined value for the child within [lb, ub]
     '''
     new = new_val(rng, vals, bb)
+    tries = 1
     while new < bb[0] or new > bb[1]:
         new = new_val(rng, vals, bb)
+        tries += 1
+        if tries > 10:
+            print(f"recombine try {tries}, vals {vals}, new {new}, bounds {bb}")
     return new
 
 def crossover(rng, parameter, parents, child):
