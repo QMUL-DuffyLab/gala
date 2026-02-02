@@ -33,11 +33,17 @@ selection_strategy = 'ranked'  # options: 'ranked', 'fittest', 'tournament'
 reproduction_strategy = 'nads' # options: 'nads', 'steady'
 conv_gen = 50 # number of generations without improvement for convergence
 conv_per = 0.01 # convergence if max(fitness) within conv_per for conv_gen
-fitness_cutoff = 0.1 # fraction of individuals kept if strategy = 'steady'
+fitness_cutoff = 0.2 # fraction of individuals kept if strategy = 'steady'
 d_recomb = 0.05 # random perturbation of values during crossover
 mu_width = 0.05 # width of Gaussian/Poisson we draw from for mutation
 mu_rate = 0.05 # proportion of genomes to mutate after each generation
 shift_inc = 1.0 # increment (nm) to shift lineshapes by
+crossover_rate = 0.75 # probability that crossover is performed
+arith_cross_p = 0.5 # relative weighting of per-RC or per-parameter crossover
+# weighting of arithmetic crossover to intermediate crossover
+arith_inter_crossover_p = 0.75
+mu_type_p = 0.5 # relative weight of gaussian vs. incremental mutations
+mu_all_p = 0.5 # percentage of total mutations vs. single parameter mutations
 
 # various base rates for different processes
 rates = {

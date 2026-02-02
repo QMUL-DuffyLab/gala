@@ -31,7 +31,16 @@ bounds = {
         'e':    np.array([-10.0, 0.0], dtype=ft),
         }
 
-def fix_matrices(rng, p):
+increments = {
+        'dE0':  0.1,
+        'i':    0.1,
+        'k_cs': 1.0E6,
+        'n_t':  1,
+        'k':    1.0E6,
+        'e':    -0.1,
+        }
+
+def fix_matrices(genome, rng):
     '''
     k and e are a matrix (n_rc, n_t_max) for each individual,
     but the actual number of energies and rates for each row
@@ -39,18 +48,32 @@ def fix_matrices(rng, p):
     of n_t can change - set the rest to np.nan to make sure they
     don't get used by accident anywhere
     '''
-    nt = p['n_t']
-    for i, nti in enumerate(nt):
-        krow = p['k'][i]
-        erow = p['e'][i]
-        for j in range(nti):
+    for kk, ntk in enumerate(genome['n_t']):
+        krow = genome['k'][kk]
+        erow = genome['e'][kk]
+        for jj in range(ntk):
             # if n_t has mutated, it might've increased, in which
             # case there will be too many nans in k and e. fix this
-            if np.isnan(krow[j]):
-                krow[j] = get_rand(rng, 'k')
-                erow[j] = get_rand(rng, 'e')
-        krow[nti:] = np.nan
-        erow[nti:] = np.nan
+            if np.isnan(krow[jj]):
+                krow[jj] = get_rand(rng, 'k')
+                erow[jj] = get_rand(rng, 'e')
+        krow[ntk:] = np.nan
+        erow[ntk:] = np.nan
+
+def fix_bounds(genome):
+    '''
+    fix any values that have gone out-of-bounds back in bounds
+    '''
+    for name in gt.names:
+        with np.nditer(genome[name], op_flags=['readwrite']) as it:
+            for elem in it:
+                if elem < bounds[name][0]:
+                    new = bounds[name][0]
+                elif elem > bounds[name][1]:
+                    new = bounds[name][1]
+                else:
+                    new = elem
+                elem[...] = new
 
 def get_rand(rng, parameter, size=None):
     '''
@@ -149,7 +172,7 @@ def new(rng, **kwargs):
             else:
                 size = None
             population[i][k] = get_rand(rng, k, size=size)
-        fix_matrices(rng, population[i])
+        fix_matrices(population[i], rng)
     return population
 
 def selection(rng, population, fitnesses, cost):
@@ -167,7 +190,7 @@ def selection(rng, population, fitnesses, cost):
         # any workable antennae, return an error to catch in main.py
         raise ValueError("No antennae with positive fitness values.")
 
-    n_survivors = int(constants.fitness_cutoff * constants.population_size)
+    n_survivors = int(constants.fitness_cutoff * len(population))
     fidx = np.argsort(fitnesses)
     fsort = fitnesses[fidx]
     if constants.selection_strategy == 'fittest':
@@ -180,7 +203,7 @@ def selection(rng, population, fitnesses, cost):
         i = 0
         c = 0
         r = rng.uniform(low=0.0, high=(1.0 / n_survivors))
-        while c < n_survivors and i < constants.population_size:
+        while c < n_survivors and i < len(population):
             while r <= pc[i]:
                 survivors.append(fidx[i])
                 r += 1.0 / n_survivors
@@ -190,48 +213,61 @@ def selection(rng, population, fitnesses, cost):
         raise ValueError("Invalid selection strategy")
     return survivors
 
-def new_val(rng, vals, bb):
-    ''' return one new value based on parameter type '''
-    if bb.dtype == ft:
-        d = constants.d_recomb
-        b = rng.uniform(-d, 1 + d)
-        new = vals[0] * b + vals[1] * (1 - b)
-    elif bb.dtype == it:
-        lb = np.min(vals) if np.min(vals) == bb[0] else np.min(vals) - 1
-        ub = np.max(vals) if np.max(vals) == bb[1] else np.max(vals) + 1
-        new = rng.integers(lb, ub, endpoint=True)
+def per_rc_cross(rng, parents, children):
+    '''
+    different kind of crossover procedure: for each RC pick a
+    parent at random and copy the parent's RC in this position
+    to one child, the other's RC in this position to the other.
+    This allows us to mix one photosystem at a time, which (hopefully)
+    will allow well-optimised photosystems to stick around more?
+    '''
+    children = np.zeros(2, dtype=gt)
+    for ii in range(constants.n_rc):
+        pp = np.round(rng.uniform()).astype(int)
+        for name in gt.names:
+            children[0][name] = parents[pp][name]
+            children[1][name] = parents[1 - pp][name]
+
+def per_param_cross(rng, parents, children):
+    '''
+    different kind of crossover procedure: for each parameter, pick one
+    parent: one child gets this parent's values for that parameter, the
+    other child gets the other parent's parameters.
+    This allows us to mix one photosystem at a time, which (hopefully)
+    will allow well-optimised photosystems to stick around more?
+    '''
+    for name in gt.names:
+        for ii in range(constants.n_rc):
+            pp = np.round(rng.uniform()).astype(int)
+            children[0][name] = parents[pp][name]
+            children[1][name] = parents[1 - pp][name]
+
+def intrec(rng, vals):
+    ''' return a pair of new values based on parameter type '''
+    new = np.zeros_like(vals)
+    d = constants.d_recomb
+    b = rng.uniform(-d, 1 + d)
+    new = np.matmul(vals, [[b, 1 - b], [1 - b, b]])
+    if vals[0].dtype == it:
+        new = np.round(new).astype(int)
     return new
 
-def recombine(rng, vals, bb):
+def intermediate_cross(rng, parents, children):
     '''
-    perform intermediate recombination for a single array element,
-    where the vals are those for the two parents and bb are the
-    bounds [lb, ub] of the parameter we're recombining. return
-    an appropriate recombined value for the child within [lb, ub]
+    perform crossover using intermediate recombination for all parameters
     '''
-    new = new_val(rng, vals, bb)
-    tries = 1
-    while new < bb[0] or new > bb[1]:
-        new = new_val(rng, vals, bb)
-        tries += 1
-        if tries > 10:
-            print(f"recombine try {tries}, vals {vals}, new {new}, bounds {bb}")
-    return new
-
-def crossover(rng, parameter, parents, child):
-    '''
-    perform crossover for a given parameter element-by-element
-    '''
-    p_iters = [parents[i][parameter].flat for i in range(2)]
-    c_iter = child[parameter].flat
-    b = bounds[parameter]
-    # all arrays are the same size in every row, so this is fine
-    # need a more sophisticated nan checking function
-    for i, parent_vals in enumerate(zip(*p_iters)):
-        for pv in parent_vals:
-            if np.isnan(pv):
-                pv = get_rand(rng, parameter)
-        c_iter[i] = recombine(rng, parent_vals, b)
+    for name in gt.names:
+        p_iters = [parents[i][name].flat for i in range(2)]
+        c_iters = [children[i][name].flat for i in range(2)]
+        # all arrays are the same size in every row, so this is fine
+        # need a more sophisticated nan checking function
+        vv = zip(zip(*p_iters), zip(*c_iters))
+        for parent_vals, child_vals in vv:
+            # print(name, parent_vals, child_vals)
+            for pv in parent_vals:
+                if np.isnan(pv):
+                    pv = get_rand(rng, name)
+            child_vals = intrec(rng, parent_vals)
 
 def reproduction(rng, survivors, population):
     '''
@@ -250,37 +286,48 @@ def reproduction(rng, survivors, population):
     else:
         raise ValueError("Invalid reproduction strategy")
 
-    n_children = constants.population_size - n_carried
+    n_children = len(population) - n_carried
     for i in range(n_carried):
         population[i] = population[survivors[i]]
 
-    for i in range(n_children):
+    for ii in range(0, n_children, 2):
+        children = population[ii + n_carried:ii + n_carried + 2]
         # pick two different parents from the survivors
         # these are indices from the population
-        p_i = rng.choice(len(survivors), 2, replace=False)
+        # p_i = rng.choice(len(survivors), 2, replace=False)
+        p_i = rng.choice(survivors, 2)
         # the population index of the child
-        child = population[i + n_carried]
         parents = [population[p_i[i]] for i in range(2)]
-        indices = (*p_i, child)
-        for k in gt.names:
-            crossover(rng, k, parents, child)
-        fix_matrices(rng, child)
+        if rng.random() > constants.arith_inter_crossover_p:
+            intermediate_cross(rng, parents, children)
+        else:
+            if rng.random() > constants.arith_cross_p:
+                per_rc_cross(rng, parents, children)
+            else:
+                per_param_cross(rng, parents, children)
+        for child in children:
+            fix_bounds(child)
+            fix_matrices(child, rng)
 
-def mutate(rng, current, bb):
+def gauss_mutate(rng, name, current):
     '''
-    mutate a value with current value current and bounds bb [lb, ub].
+    mutate a value of parameter `name` and current value `current`.
+    uses a truncated Gaussian centred on the current value of the parameter
     '''
+    bb = bounds[name]
     width = np.round(constants.mu_width *
             (bb[1] - bb[0])).astype(int)
     increment = ss.norm.rvs(loc=0, scale=width, random_state=rng)
     if bb[0].dtype == it:
         increment = increment.round().astype(int)
-    new = current + increment
-    if new < bb[0]:
-        new = bb[0]
-    if new > bb[1]:
-        new = bb[1]
-    return new
+    return current + increment
+
+def inc_mutate(rng, name, current):
+    '''
+    mutate one increment at a time, as defined by increments above
+    '''
+    sign = 1 if rng.uniform() > 0.5 else -1
+    return current + sign * increments[name]
 
 def mutation(rng, individual):
     '''
@@ -294,15 +341,21 @@ def mutation(rng, individual):
     I think it's acceptable to just loop over all parameters since they
     are all independent quantities?
     '''
-    for name in gt.names:
-        bb = bounds[name]
+    if rng.uniform() > constants.mu_all_p:
+        to_mutate = list(gt.names)
+    else:
+        to_mutate = [rng.choice(gt.names)]
+    for name in to_mutate:
         arr = individual[name]
-        it = np.nditer(arr, flags=['multi_index'])
         with np.nditer(arr, op_flags=['readwrite']) as it:
             for elem in it:
-                new = mutate(rng, elem, bb)
+                if rng.uniform() > constants.mu_type_p:
+                    new = gauss_mutate(rng, name, elem)
+                else:
+                    new = inc_mutate(rng, name, elem)
                 elem[...] = new
-    fix_matrices(rng, individual)
+    fix_bounds(individual)
+    fix_matrices(individual, rng)
 
 def evolve(rng, population, fitnesses, cost):
     '''
@@ -311,10 +364,11 @@ def evolve(rng, population, fitnesses, cost):
     survivors = selection(rng, population, fitnesses, cost)
     reproduction(rng, survivors, population)
     n_mutations = 0
-    for j in range(constants.population_size):
-        p = rng.random()
-        if p < constants.mu_rate:
-            mutation(rng, population[j])
+    for gg in population:
+        if rng.random() < constants.mu_rate:
+            print("before mutation:", gg)
+            mutation(rng, gg)
+            print("after mutation:", gg)
             n_mutations += 1
 
 def assertions_bounds_and_nans(population):
@@ -322,46 +376,45 @@ def assertions_bounds_and_nans(population):
     check that everything is as it should be
     add any other assertions we can make here
     '''
-    for i in range(constants.population_size):
-        individual = population[i]
+    for gg in population:
         for name in gt.names:
-            arr = individual[name]
+            arr = gg[name]
             b = bounds[name]
             if len(arr.shape) > 1:
                 # this is e or k
-                for j, ntj in enumerate(individual['n_t']):
-                    assert np.all(np.isnan(arr[j, ntj:])),\
+                for ii, nti in enumerate(gg['n_t']):
+                    assert np.all(np.isnan(arr[ii, nti:])),\
 f'''Matrix assertion failed (not enough nans):
-{i}, {individual['n_t']}, {arr}
-{j}, {ntj}, {arr[j]}
+{gg}, {gg['n_t']}, {arr}
+{ii}, {nti}, {arr[ii]}
 '''
-                    assert not np.any(np.isnan(arr[j, :ntj])),\
+                    assert not np.any(np.isnan(arr[ii, :nti])),\
 f'''Matrix assertion failed (too many nans):
-{i}, {individual['n_t']}, {arr}
-{j}, {ntj}, {arr[j]}
+{gg['n_t']}, {arr}
+{ii}, {nti}, {arr[ii]}
 '''
-            for j, elem in enumerate(arr.flat):
+            for kk, elem in enumerate(arr.flat):
                 if not np.isnan(elem):
                     assert elem >= b[0] and elem <= b[1],\
-            f"Bounds assertion failed: {name}, bounds = {b}, {elem}, {j}"
+            f"Bounds assertion failed: {name}, bounds = {b}, {elem}, {kk}"
 
 def assertions_kwarg(population, name, arr):
-    for p in population:
+    for gg in population:
         if len(arr.shape) > 1:
             # this is e or k
-            for j, ntj in enumerate(p['n_t']):
-                assert np.all(p[name][j, :ntj] == arr[j, :ntj]),\
+            for ii, nti in enumerate(gg['n_t']):
+                assert np.all(gg[name][ii, :nti] == arr[ii, :nti]),\
 f'''
 kwarg matrix assertion failed.
-{p}
+{gg}
 {name}
 {arr}
 '''
         else:
-            assert np.all(p[name] == arr),\
+            assert np.all(gg[name] == arr),\
 f'''
 kwarg assertion failed.
-{p}
+{gg}
 {name}
 {arr}
 '''
