@@ -366,9 +366,7 @@ def evolve(rng, population, fitnesses, cost):
     n_mutations = 0
     for gg in population:
         if rng.random() < constants.mu_rate:
-            print("before mutation:", gg)
             mutation(rng, gg)
-            print("after mutation:", gg)
             n_mutations += 1
 
 def assertions_bounds_and_nans(population):

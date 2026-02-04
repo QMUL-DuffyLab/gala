@@ -147,7 +147,7 @@ def build_matrix(p, fif, debug=True):
                     final_ind = np.dot(final, offsets)
                     # this is the constraint on the ionisation potential,
                     # essentially. won't work yet
-                    rr = utils.db(-constants.e_donor,
+                    rr = utils.db(constants.e_donor,
                                        -p['i'][0], rates['ox'], 0.0)
                     t[i][final_ind] += rr[0]
                 else:
