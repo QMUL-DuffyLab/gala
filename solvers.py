@@ -90,7 +90,7 @@ def build_matrix(p, fif, debug=True):
     dg_rc = np.zeros_like(lam_cs)
     lam_rc = np.zeros_like(lam_cs)
     # NB: figure out signs here lol. trap energies negative?
-    lam_cs = p['dE0'] - p['e'][:, 0] # \lambda_{cs} ~ -dG_{cs}
+    lam_cs = p['dE0'] - p['e_t'][:, 0] # \lambda_{cs} ~ -dG_{cs}
     # reorganisation energy is given in wavenumbers in constants.py
     ltilde_ev = utils.ev_nm(utils.nm_wvn(constants.l_tilde))
     lam_rc = lam_cs + ltilde_ev - np.sqrt(ltilde_ev * np.abs(lam_cs))
@@ -105,8 +105,8 @@ def build_matrix(p, fif, debug=True):
     gamma = fif[np.array(inds), 1] # unsure if this will work
     rates = constants.rates
     if debug:
-        fw_rates = np.zeros_like(p['e'])
-        bw_rates = np.zeros_like(p['e'])
+        fw_rates = np.zeros_like(p['e_t'])
+        bw_rates = np.zeros_like(p['e_t'])
         trap_rates = np.zeros_like(lam_cs)
         detrap_rates = np.zeros_like(lam_cs)
         oxlin_rates = np.zeros(constants.n_rc + 1)
@@ -148,7 +148,7 @@ def build_matrix(p, fif, debug=True):
                     # this is the constraint on the ionisation potential,
                     # essentially. won't work yet
                     rr = utils.db(constants.e_donor,
-                                       -p['i'][0], rates['ox'], 0.0)
+                                       -p['i_p'][0], rates['ox'], 0.0)
                     t[i][final_ind] += rr[0]
                 else:
                     # now we need to figure out the
@@ -169,8 +169,8 @@ def build_matrix(p, fif, debug=True):
                         # again, this is probably not right yet
                         # and actually might not be correct to do this
                         rr = utils.db(
-                            p['e'][rci - 1][prev_trap],
-                            -p['i'][rci],
+                            p['e_t'][rci - 1][prev_trap],
+                            -p['i_p'][rci],
                             rates['lin'], 0.0)
                         t[i][final_ind] += rr[0]
                 if debug:
@@ -193,22 +193,22 @@ def build_matrix(p, fif, debug=True):
                 final[rci] = 3
                 final_ind = np.dot(final, offsets)
                 tdt = utils.db(
-                        -p['i'][rci] + p['dE0'][rci], # check signs and units
-                        p['e'][rci][0],
+                        -p['i_p'][rci] + p['dE0'][rci], # check signs and units
+                        p['e_t'][rci][0],
                         p['k_cs'][rci],
                         p['k_cs'][rci])
                 if np.any(tdt > 1E12):
                     print("trap rates all out of whack here")
-                    print(f"i_p = {p['i'][rci]}")
+                    print(f"i_p = {p['i_p'][rci]}")
                     print(f"dE0ph = {p['dE0'][rci]}")
-                    print(f"e[trap 1] = {p['e'][rci][0]}")
+                    print(f"e[trap 1] = {p['e_t'][rci][0]}")
                     print(f"k_cs = {p['k_cs'][rci]:8.4e}")
                     print(f"trap = {tdt[0]:8.4e}")
                     print(f"detrap = {tdt[1]:8.4e}")
                     print(f"details of db call:")
                     rates = np.array([p['k_cs'][rci], p['k_cs'][rci]])
-                    e1 = -p['i'][rci] + p['dE0'][rci]
-                    e2 = p['e'][rci][0]
+                    e1 = -p['i_p'][rci] + p['dE0'][rci]
+                    e2 = p['e_t'][rci][0]
                     gap = e1 - e2
                     fac = np.exp(-gap * utils.beta_ev)
                     index = (int(np.sign(gap)) + 1) // 2
@@ -247,17 +247,17 @@ def build_matrix(p, fif, debug=True):
                 trap_index = (state - 3) // 2
                 base_str[trap_index + 1] = "T-"
                 if trap_index < p['n_t'][rci] - 1:
-                    # convention here is that p['k'][rci][i] is
+                    # convention here is that p['k_t'][rci][i] is
                     # the rate of transfer between traps i <--> i + 1
                     # and then we apply detailed balance based on those
                     # respective trap energies. so for trap index = 0,
                     # we do the 0 <--> 1 rates and so on. hence we stop
                     # the loop before we get to the final trap
                     fwbw = utils.db(
-                            p['e'][rci][trap_index],
-                            p['e'][rci][trap_index + 1],
-                            p['k'][rci][trap_index],
-                            p['k'][rci][trap_index]
+                            p['e_t'][rci][trap_index],
+                            p['e_t'][rci][trap_index + 1],
+                            p['k_t'][rci][trap_index],
+                            p['k_t'][rci][trap_index]
                             )
                     # forward rate: T_{i} -> T_{i + 1}
                     final[rci] = final[rci] + 2
@@ -291,7 +291,7 @@ def build_matrix(p, fif, debug=True):
                         # stays oxidised, and if it's not we go back to g/s
                         final[rci] = pigment_oxidised
                         final_ind = np.dot(final, offsets)
-                        rr = utils.db(p['e'][rci][trap_index],
+                        rr = utils.db(p['e_t'][rci][trap_index],
                                     constants.e_acceptor, rates['red'], 0.0)
                         output_rate = rr[0]
                         if debug:

@@ -13,31 +13,33 @@ it = np.int64
 ft = np.float64
 gt = np.dtype([
         ('dE0',  ft, (constants.n_rc)),
-        ('i',    ft, (constants.n_rc)),
+        ('i_p',    ft, (constants.n_rc)),
         ('k_cs', ft, (constants.n_rc)),
         ('n_t',  it, (constants.n_rc)),
-        ('k',    ft, (constants.n_rc, constants.n_t_max)),
-        ('e',    ft, (constants.n_rc, constants.n_t_max)),
+        ('k_t',    ft, (constants.n_rc, constants.n_t_max)),
+        ('e_t',    ft, (constants.n_rc, constants.n_t_max)),
+        ('output',    ft),
+        ('redox',    ft, (constants.n_rc, 2)),
         ])
 # these are bounds on each element for array variables
 # they have to match the dict in make_arrays
 # NB: [0.4, 4.0]eV ~= [3000.0, 300.0]nm wavelength light
 bounds = {
         'dE0':  np.array([0.4, 4.0], dtype=ft),
-        'i':    np.array([0.0, 10.0], dtype=ft),
+        'i_p':  np.array([3.0, 8.0], dtype=ft),
         'k_cs': np.array([1.0E3, 1.0E12], dtype=ft),
-        'n_t':  np.array([1, 10], dtype=it),
-        'k':    np.array([1.0E3, 1.0E12], dtype=ft),
-        'e':    np.array([-10.0, 0.0], dtype=ft),
+        'n_t':  np.array([1, constants.n_t_max], dtype=it),
+        'k_t':  np.array([1.0E3, 1.0E12], dtype=ft),
+        'e_t':  np.array([-7.0, -1.0], dtype=ft),
         }
 
 increments = {
         'dE0':  0.1,
-        'i':    0.1,
+        'i_p':  0.1,
         'k_cs': 1.0E6,
         'n_t':  1,
-        'k':    1.0E6,
-        'e':    -0.1,
+        'k_t':  1.0E6,
+        'e_t':  0.1,
         }
 
 def fix_matrices(genome, rng):
@@ -49,14 +51,14 @@ def fix_matrices(genome, rng):
     don't get used by accident anywhere
     '''
     for kk, ntk in enumerate(genome['n_t']):
-        krow = genome['k'][kk]
-        erow = genome['e'][kk]
+        krow = genome['k_t'][kk]
+        erow = genome['e_t'][kk]
         for jj in range(ntk):
             # if n_t has mutated, it might've increased, in which
             # case there will be too many nans in k and e. fix this
             if np.isnan(krow[jj]):
-                krow[jj] = get_rand(rng, 'k')
-                erow[jj] = get_rand(rng, 'e')
+                krow[jj] = get_rand(rng, 'k_t')
+                erow[jj] = get_rand(rng, 'e_t')
         krow[ntk:] = np.nan
         erow[ntk:] = np.nan
 
@@ -103,7 +105,7 @@ def create_from_dict(params):
             valid keys are: {gt.names}, provided keys are {params.keys}
             ''')
         else:
-            if key in ['k', 'e']:
+            if key in ['k_t', 'e_t']:
                 nn[0][key].fill(np.nan)
                 for ii, nti in enumerate(params['n_t']):
                     nn[0][key][ii, :nti] = params[key][ii]

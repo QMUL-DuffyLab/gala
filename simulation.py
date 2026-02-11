@@ -22,6 +22,7 @@ import genetic_algorithm as ga
 def do_simulation(spectrum_file, cost, rcs, anox_diff_ratio,
         do_stats, rng_seed=None):
     spectrum, out_name = light.load_spectrum(spectrum_file)
+    fif = light.fractional_integrated_flux(spectrum)
     print("Spectrum output name: ", out_name)
     outdir = os.path.dirname(spectrum_file)
     print(f"Output dir: {outdir}")

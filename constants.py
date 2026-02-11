@@ -18,7 +18,7 @@ population_size = 500
 max_gen = 500
 n_runs = 3
 n_rc = 2
-n_t_max = 10
+n_t_max = 5
 # multiplier for cyclic electron flow
 alpha = 0.0
 # long time to use for diagonalisation
