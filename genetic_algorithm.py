@@ -34,12 +34,12 @@ bounds = {
         }
 
 increments = {
-        'dE0':  0.1,
-        'i_p':  0.1,
+        'dE0':  0.2,
+        'i_p':  0.2,
         'k_cs': 1.0E6,
         'n_t':  1,
         'k_t':  1.0E6,
-        'e_t':  0.1,
+        'e_t':  0.2,
         }
 
 def fix_matrices(genome, rng):

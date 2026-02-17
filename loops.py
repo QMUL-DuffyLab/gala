@@ -31,44 +31,67 @@ and i didn't want to brick my hard drive trying to write a 4TB pandas
 dataframe full of mostly shite
 '''
 
+def is_descending(x):
+    return all(x[i] >= x[i + 1] for i in range(len(x) - 1))
+
+def generate_iterators(n_t_tuple):
+    meshes = {}
+    nums = {}
+    eiters = []
+    for name in ['dE0', 'i_p', 'e_t']:
+        nums[name] = np.round((ga.bounds[name][1] - ga.bounds[name][0])
+                       / ga.increments[name]).astype(int)
+        meshes[name] = np.linspace(*ga.bounds[name], num=nums[name])
+    e0s = [meshes['dE0'] for _ in range(constants.n_rc)]
+    ips = [meshes['i_p'] for _ in range(constants.n_rc)]
+    e0ip = e0s + ips
+    dd = itertools.product(*e0ip)
+    for nti in n_t_tuple:
+        eiters.append(itertools.product(meshes['e_t'], repeat=nti))
+    return itertools.product(dd, *eiters)
+
+def check_viability(iteration):
+    # not the cleanest possible way of doing this probably. but it works
+    for ei in range(constants.n_rc):
+        if (iteration[ei + 1][0] > 
+           -iteration[0][constants.n_rc + ei] + iteration[0][ei]):
+            return False
+        # iteration[0] is ([dE0], [i_p]), i.e. 2 vectors of length n_rc
+        # iteration[1:] is ([traps on RC 0], [traps on RC 1], ...)
+        # and these can be of different lengths depending on n_t.
+        if not is_descending(iteration[ei + 1]):
+            return False
+    return True
+        
+
 spectrum, output_prefix = light.stellar(Tstar=5697, Rstar=0.994,
                                         a=1.0, attenuation=0.0)
 fif = light.fractional_integrated_flux(spectrum)
 good_configs = []
 good_cutoff = 0.001
 
-parr = np.zeros(1, ga.gt)
-pp = parr[0]
-meshes = {}
-nums = {}
-for name in ['dE0', 'i_p', 'e_t']:
-    nums[name] = np.round((ga.bounds[name][1] - ga.bounds[name][0])
-                   / ga.increments[name]).astype(int)
-    meshes[name] = np.linspace(*ga.bounds[name], num=nums[name])
-
-e0s = [meshes['dE0'] for _ in range(constants.n_rc)]
-ips = [meshes['i_p'] for _ in range(constants.n_rc)]
-
 e0arr = np.zeros(constants.n_rc, dtype=ga.ft)
 iparr = np.zeros_like(e0arr)
 kcsarr = np.zeros_like(e0arr)
 kcsarr.fill(1e12)
-pp['k_cs'] = kcsarr
-
 etarr = np.zeros((constants.n_rc, constants.n_t_max), dtype=ga.ft)
 ktarr = np.zeros_like(etarr)
 
-e0ip = e0s + ips
-dd = itertools.product(*e0ip)
+parr = np.zeros(1, ga.gt)
+pp = parr[0]
+pp['k_cs'] = kcsarr
+
 n_processed = 0
+n_rejected = 0
 n_good = 0
 n_gf = 0
 for nts in itertools.product(range(1, constants.n_t_max),
                              repeat=constants.n_rc):
-    eiters = []
-    for nti in nts:
-        eiters.append(itertools.product(meshes['e_t'], repeat=nti))
-    for comb in itertools.product(dd, *eiters):
+    iterator = generate_iterators(nts)
+    for comb in iterator:
+        if not check_viability(comb):
+            n_rejected += 1
+            continue
         etarr.fill(np.nan)
         ktarr.fill(np.nan)
         e0arr = comb[0][:constants.n_rc]
@@ -77,22 +100,25 @@ for nts in itertools.product(range(1, constants.n_t_max),
         pp['i_p'] = iparr
         pp['n_t'] = np.array(nts, dtype=ga.it)
         for ei in range(constants.n_rc):
-                etarr[ei][:nts[ei]] = comb[ei + 1][:nts[ei]]
-                ktarr[ei][:nts[ei]] = 1e12
+            etarr[ei][:nts[ei]] = comb[ei + 1][:nts[ei]]
+            ktarr[ei][:nts[ei]] = 1e12
         pp['k_t'] = ktarr
         pp['e_t'] = etarr
         oo, rr, der = solvers.solve(pp, fif, debug=False)
         pp['output'] = oo
         pp['redox'] = rr
         n_processed += 1
-        if n_processed % 100 == 0:
+        if n_processed % 1000 == 0:
             print(f"Number of inputs processed: {n_processed}")
+            print(f"Number of inputs rejected: {n_rejected}")
+            print(f"Number of good inputs: {n_good}")
+            print()
         if pp['output'] > good_cutoff:
             print(pp)
             good_configs.append(pp)
             n_good += 1
             if n_good % 1000 == 0:
-                fn = os.path.join("out", "good_configs_{n_gf}.pkl")
-                with open(fn, "w") as f:
+                fn = os.path.join("out", f"good_configs_{n_gf}.pkl")
+                with open(fn, "wb") as f:
                     pickle.dump(good_configs, f)
                 n_gf += 1
