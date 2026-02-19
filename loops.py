@@ -62,13 +62,27 @@ def check_viability(iteration):
         if not is_descending(iteration[ei + 1]):
             return False
     return True
-        
+
+def check_restart(iteration, restart_point):
+    '''
+    compare a loop iteration to ga.gt instance restart_point
+    and return True if all_close
+    '''
+    tests = np.zeros(constants.n_rc + 2, dtype=bool)
+    tests[0] = np.allclose(iteration[0][:constants.n_rc], restart_point[0])
+    tests[1] = np.allclose(iteration[0][constants.n_rc:], restart_point[1])
+    # restart_point[2] is k_cs and restart_point[4] is k_t
+    # we are currently not iterating over rates so ignore these
+    for rci, nti in enumerate(restart_point[3]):
+        tests[nti + 2] = np.allclose(iteration[rci + 1][:nti],
+                                     restart_point[5][:nti])
+    return np.all(tests)
 
 spectrum, output_prefix = light.stellar(Tstar=5697, Rstar=0.994,
                                         a=1.0, attenuation=0.0)
 fif = light.fractional_integrated_flux(spectrum)
 good_configs = []
-good_cutoff = 0.001
+good_cutoff = 0.1
 
 e0arr = np.zeros(constants.n_rc, dtype=ga.ft)
 iparr = np.zeros_like(e0arr)
@@ -84,11 +98,42 @@ pp['k_cs'] = kcsarr
 n_processed = 0
 n_rejected = 0
 n_good = 0
-n_gf = 0
+
+restart_found = False
+n_skipped = 0
+restart_point = (
+            [4.0, 4.0], 
+            [7.791666666666667, 6.75], 
+            [1000000000000.0, 1000000000000.0], 
+            [1, 1], 
+            [[1000000000000.0, np.nan, np.nan, np.nan, np.nan], 
+             [1000000000000.0, np.nan, np.nan, np.nan, np.nan]], 
+            [[-5.9655172413793105, np.nan, np.nan, np.nan, np.nan], 
+             [-3.896551724137931, np.nan, np.nan, np.nan, np.nan]], 
+            0.0010558417248717061, 
+            [[1.191796876414199e-08, 0.6194169799973075], 
+             [0.04724911415249722, 4.804769303423381e-05]])
+
+n_gf = 2361 # starting file number, update as necessary
+
 for nts in itertools.product(range(1, constants.n_t_max),
                              repeat=constants.n_rc):
     iterator = generate_iterators(nts)
     for comb in iterator:
+        while not restart_found:
+            at_restart = check_restart(comb, restart_point)
+            if at_restart:
+                print("found the restart point!")
+                print(f"iteration details: {comb}")
+                print(f"number of iterations skipped: {n_skipped}")
+                restart_found = True
+            else:
+                n_skipped += 1
+                if n_skipped % 1000000 == 0:
+                    print(f"n_skipped = {n_skipped}")
+                    print(comb, restart_point)
+                continue
+
         if not check_viability(comb):
             n_rejected += 1
             continue
