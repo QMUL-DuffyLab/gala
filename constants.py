@@ -17,7 +17,7 @@ T=300.0 # temperature (Kelvin)
 population_size = 500
 max_gen = 500
 n_runs = 3
-n_rc = 2
+n_rc = 1
 n_t_max = 5
 # multiplier for cyclic electron flow
 alpha = 0.0
@@ -58,7 +58,7 @@ rates = {
 
 e_donor = -5.10 # eV
 e_acceptor = -3.85 # CO2 reduction
-l_tilde = 100 # wavenumbers! conversion functions in utils.py
+l_tilde = 200 # wavenumbers! conversion functions in utils.py
 
 # cross section per pigment - kinda just have to fix this
 sig_chl = 9E-20

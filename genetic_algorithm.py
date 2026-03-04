@@ -25,21 +25,21 @@ gt = np.dtype([
 # they have to match the dict in make_arrays
 # NB: [0.4, 4.0]eV ~= [3000.0, 300.0]nm wavelength light
 bounds = {
-        'dE0':  np.array([0.4, 4.0], dtype=ft),
-        'i_p':  np.array([3.0, 8.0], dtype=ft),
+        'dE0':  np.array([1.2, 2.6], dtype=ft),
+        'i_p':  np.array([4.5, 6.5], dtype=ft),
         'k_cs': np.array([1.0E3, 1.0E12], dtype=ft),
         'n_t':  np.array([1, constants.n_t_max], dtype=it),
         'k_t':  np.array([1.0E3, 1.0E12], dtype=ft),
-        'e_t':  np.array([-7.0, -1.0], dtype=ft),
+        'e_t':  np.array([-5.0, -2.0], dtype=ft),
         }
 
 increments = {
-        'dE0':  0.2,
-        'i_p':  0.2,
+        'dE0':  0.1,
+        'i_p':  0.1,
         'k_cs': 1.0E6,
         'n_t':  1,
         'k_t':  1.0E6,
-        'e_t':  0.2,
+        'e_t':  0.1,
         }
 
 def fix_matrices(genome, rng):

@@ -21,18 +21,10 @@ we want to first loop over the absorption peak dE0,
 ionisation potentials i_p, number of traps n_t and trap energies e_t
 to find good solutions; then once we've found the best-optimised
 configurations we optimise the trap rates separately, i think
-
-this whole method of looping, only using one instance of ga.gt,
-only keeping ones that have above a certain cutoff output and then
-pickling them in batches is horrible and i don't like it. don't judge me pls.
-it's just that the number of configurations in this product gets
-absolutely enormous very quickly and the vast majority of them are useless,
-and i didn't want to brick my hard drive trying to write a 4TB pandas
-dataframe full of mostly shite
 '''
 
 def is_descending(x):
-    return all(x[i] >= x[i + 1] for i in range(len(x) - 1))
+    return all(x[i] > x[i + 1] for i in range(len(x) - 1))
 
 def generate_iterators(n_t_tuple):
     meshes = {}
@@ -78,11 +70,12 @@ def check_restart(iteration, restart_point):
                                      restart_point[5][:nti])
     return np.all(tests)
 
+good_cutoff = 0.1
+output_size = 1000
+
 spectrum, output_prefix = light.stellar(Tstar=5697, Rstar=0.994,
                                         a=1.0, attenuation=0.0)
 fif = light.fractional_integrated_flux(spectrum)
-good_configs = []
-good_cutoff = 0.1
 
 e0arr = np.zeros(constants.n_rc, dtype=ga.ft)
 iparr = np.zeros_like(e0arr)
@@ -95,45 +88,20 @@ parr = np.zeros(1, ga.gt)
 pp = parr[0]
 pp['k_cs'] = kcsarr
 
+output_arr = np.zeros(output_size, dtype=ga.gt)
+
 n_processed = 0
 n_rejected = 0
 n_good = 0
-
-restart_found = False
-n_skipped = 0
-restart_point = (
-            [4.0, 4.0], 
-            [7.791666666666667, 6.75], 
-            [1000000000000.0, 1000000000000.0], 
-            [1, 1], 
-            [[1000000000000.0, np.nan, np.nan, np.nan, np.nan], 
-             [1000000000000.0, np.nan, np.nan, np.nan, np.nan]], 
-            [[-5.9655172413793105, np.nan, np.nan, np.nan, np.nan], 
-             [-3.896551724137931, np.nan, np.nan, np.nan, np.nan]], 
-            0.0010558417248717061, 
-            [[1.191796876414199e-08, 0.6194169799973075], 
-             [0.04724911415249722, 4.804769303423381e-05]])
-
-n_gf = 2361 # starting file number, update as necessary
+arr_index = 0
+n_gf = 0 # starting file number, update as necessary
+output_dir = os.path.join("out", "ox_rc_1_ltilde_200")
+os.makedirs(output_dir, exist_ok=True)
 
 for nts in itertools.product(range(1, constants.n_t_max),
                              repeat=constants.n_rc):
     iterator = generate_iterators(nts)
     for comb in iterator:
-        while not restart_found:
-            at_restart = check_restart(comb, restart_point)
-            if at_restart:
-                print("found the restart point!")
-                print(f"iteration details: {comb}")
-                print(f"number of iterations skipped: {n_skipped}")
-                restart_found = True
-            else:
-                n_skipped += 1
-                if n_skipped % 1000000 == 0:
-                    print(f"n_skipped = {n_skipped}")
-                    print(comb, restart_point)
-                continue
-
         if not check_viability(comb):
             n_rejected += 1
             continue
@@ -153,17 +121,25 @@ for nts in itertools.product(range(1, constants.n_t_max),
         pp['output'] = oo
         pp['redox'] = rr
         n_processed += 1
-        if n_processed % 1000 == 0:
+        if n_processed % 10000 == 0:
             print(f"Number of inputs processed: {n_processed}")
             print(f"Number of inputs rejected: {n_rejected}")
             print(f"Number of good inputs: {n_good}")
             print()
         if pp['output'] > good_cutoff:
             print(pp)
-            good_configs.append(pp)
+            for name in ga.gt.names:
+                output_arr[arr_index][name] = pp[name]
+            arr_index += 1
             n_good += 1
-            if n_good % 1000 == 0:
-                fn = os.path.join("out", f"good_configs_{n_gf}.pkl")
+            if arr_index == output_size:
+                fn = os.path.join(output_dir, f"configs_{n_gf}.pkl")
                 with open(fn, "wb") as f:
-                    pickle.dump(good_configs, f)
+                    pickle.dump(output_arr, f)
                 n_gf += 1
+                arr_index = 0
+
+# finished
+fn = os.path.join(output_dir, f"configs_{n_gf}.pkl")
+with open(fn, "wb") as f:
+    pickle.dump(output_arr[:arr_index], f)
