@@ -15,6 +15,7 @@ gt = np.dtype([
         ('dE0',  ft, (constants.n_rc)),
         ('i_p',    ft, (constants.n_rc)),
         ('k_cs', ft, (constants.n_rc)),
+        ('l_cs', ft, (constants.n_rc)),
         ('n_t',  it, (constants.n_rc)),
         ('k_t',    ft, (constants.n_rc, constants.n_t_max)),
         ('e_t',    ft, (constants.n_rc, constants.n_t_max)),
@@ -27,6 +28,7 @@ gt = np.dtype([
 bounds = {
         'dE0':  np.array([1.2, 2.6], dtype=ft),
         'i_p':  np.array([4.5, 6.5], dtype=ft),
+        'l_cs': np.array([100, 1000], dtype=it),
         'k_cs': np.array([1.0E3, 1.0E12], dtype=ft),
         'n_t':  np.array([1, constants.n_t_max], dtype=it),
         'k_t':  np.array([1.0E3, 1.0E12], dtype=ft),
@@ -37,6 +39,7 @@ increments = {
         'dE0':  0.1,
         'i_p':  0.1,
         'k_cs': 1.0E6,
+        'l_cs': 100,
         'n_t':  1,
         'k_t':  1.0E6,
         'e_t':  0.1,

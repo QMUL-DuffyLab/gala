@@ -85,19 +85,20 @@ def build_matrix(p, fif, debug=True):
     TODO: update this when the function's written
     '''
     # NB: units???
-    lam_cs = np.zeros_like(p['k_cs'])
+    # reorganisation energies are given in wavenumbers - convert
+    lam_cs = utils.ev_nm(utils.nm_wvn(p['l_cs']))
+    ltilde_ev = utils.ev_nm(utils.nm_wvn(constants.l_tilde))
     k_rc = np.zeros_like(lam_cs)
     dg_rc = np.zeros_like(lam_cs)
     lam_rc = np.zeros_like(lam_cs)
     # NB: figure out signs here lol. trap energies negative?
-    lam_cs = p['dE0'] - p['e_t'][:, 0] # \lambda_{cs} ~ -dG_{cs}
-    # reorganisation energy is given in wavenumbers in constants.py
-    ltilde_ev = utils.ev_nm(utils.nm_wvn(constants.l_tilde))
+    dg_cs = -(p['dE0'] - ltilde_ev - p['e_t'][:, 0])
     lam_rc = lam_cs + ltilde_ev - np.sqrt(ltilde_ev * np.abs(lam_cs))
-    dg_rc = lam_cs - (p['dE0'] + ltilde_ev)
+    dg_rc = -dg_cs - (p['dE0'] + ltilde_ev) # \equiv p['e_t'][:, 0]
+    cs_exp = utils.beta_ev * (lam_cs + dg_cs)**2/(4.0 * lam_cs)
+    rc_exp = utils.beta_ev * (lam_rc + dg_rc)**2/(4.0 * lam_rc)
     k_rc = p['k_cs'] * (np.sqrt(lam_cs / lam_rc) 
-                     * np.exp(-utils.beta_ev * 
-                              (lam_rc + dg_rc)**2/(4.0 * lam_rc)))
+                     * np.exp(cs_exp - rc_exp)
     # take closest entry in the spectrum to get a fractional flux value
     # note that i'm storing all the energies in eV so convert them here
     inds = [np.argmin(np.abs(fif[:, 0] - e0)) 
