@@ -6,15 +6,14 @@
 """
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
 import constants
 import light
 import rc
-import supersystem
-import antenna as la
+import solvers
+import genetic_algorithm as ga
 
 
 if __name__ == "__main__":
@@ -46,14 +45,14 @@ if __name__ == "__main__":
     shift = [0 for _ in range(n_s)]
     # stoichiometries - [PSII, PSI, PBS]
     # second line normalises the sum to 3 - don't ask
-    rho = [1.0, 1.0, 1.0]
+    rho = np.array([1.0, 1.0, 1.0])
     rho *= (3.0 / np.sum(rho))
     # affinities - [PSII, PSI]. currently not used
     # aff = [2.0, 1.0]
 
     # the solve functions use a Genome instance internally so
     # create one here. none of this should need changing
-    p = constants.Genome("ox", n_b, n_s, n_p, shift,
+    p = ga.Genome("ox", n_b, n_s, n_p, shift,
             pigment, rho) # affinity would go at the end
     # call light.py to pull the right spectrum and fix intensity
     spectrum_file = light.spectrum_setup("colour",
@@ -63,7 +62,7 @@ if __name__ == "__main__":
     od = solvers.antenna_RC(p, spectrum, debug=True, do_redox=True)
 
     side = len(od["p_eq"])
-    print(f"alpha (cyc ratio) = {constants.alpha}, rho = {rho}, aff = {aff}")
+    print(f"alpha (cyc ratio) = {constants.alpha}, rho = {rho}")
     print(f"p(0) = {od['p_eq'][0]}")
     print(f"nu_ch2o = {od['nu_ch2o']}")
     print(f"nu_cyc = {od['nu_cyc']}")

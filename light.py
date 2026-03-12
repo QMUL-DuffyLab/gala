@@ -338,9 +338,9 @@ def spectrum_setup(spectrum_type, **kwargs):
             spectrum[:, 1] *= kwargs["intensity"] / muM_init
             output_prefix += f"_{kwargs['intensity']}muE"
         else:
-            # assume PAR over [400, 700] nm
-            print("spectrum_setup: intensity but no region given. Assuming [400, 700]nm")
-            lower, upper = [400.0, 700.0]
+            lower, upper = [np.min(spectrum[:, 0]), np.max(spectrum[:, 0])]
+            print("spectrum_setup: intensity but no region given.")
+            print(f"Region for intensity normalisation: [{lower}, {upper}]nm")
             muM_init = micromole_in_region(spectrum, lower, upper)
             spectrum[:, 1] *= kwargs["intensity"] / muM_init
             output_prefix += f"_{kwargs['intensity']}muE"
