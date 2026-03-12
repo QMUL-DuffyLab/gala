@@ -47,7 +47,7 @@ genome_parameters = {
         'array'   : False,
         'depends' : None,
         'default' : '',
-        'bounds'  : ['anox'],
+        'bounds'  : ['ox'],
         'mutable' : False,
         'norm'    : None
     },
@@ -92,22 +92,23 @@ genome_parameters = {
         'array'   : True,
         'depends' : 'n_s',
         'size'    : lambda g: getattr(g, "n_s"),
-        # 'bounds'  : ['pe', 'pc', 'apc', 'chl_b', 'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
-        'bounds'  : ['averaged'],
+        'bounds'  : ['pe', 'pc', 'apc', 'chl_b',
+                     'chl_a', 'chl_d', 'chl_f', 'bchl_a', 'bchl_b'],
+        # 'bounds'  : ['averaged'],
         'mutable' : True,
         'norm'    : None,
     },
-    # 'rho': {
-    #     'type'    : np.float64,
-    #     'array'   : True,
-    #     'depends' : 'rc',
-    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
-    #     # note that this is a bit fake - upper bound must just be
-    #     # >= the largest possible sum
-    #     'bounds'  : [0.1, 5.0],
-    #     'mutable' : True,
-    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
-    # },
+    'rho': {
+        'type'    : np.float64,
+        'array'   : True,
+        'depends' : 'rc',
+        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
+        # note that this is a bit fake - upper bound must just be
+        # >= the largest possible sum
+        'bounds'  : [0.1, 5.0],
+        'mutable' : True,
+        'norm'    : lambda p: p * (len(p) / np.sum(p)),
+    },
     # 'aff': {
     #     'type'    : np.float64,
     #     'array'   : True,

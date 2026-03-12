@@ -31,10 +31,13 @@ if __name__ == "__main__":
     sets of parameters we want to check and adding results to dataframes
     or something like that, but for now you can at least do some testing
     '''
+    output_dir = os.path.join("out", "pbs_testing")
+    os.makedirs(output_dir, exist_ok=True)
+
     colour = "orange"
-    intensity = 150.0 # mu_E
+    intensity = 25.0 # mu_E
     n_b = 5 # number of branches of the antenna
-    pigment = ['apc', 'pc', 'pe'] # change this as you like
+    pigment = ['apc', 'apc', 'pc'] # change this as you like
     n_s = len(pigment)
     # can change this to change relative abundance of pigments
     # obviously it must have the same length as pigment above
@@ -42,22 +45,23 @@ if __name__ == "__main__":
     # don't change this - red/blueshifts the pigment absorptions
     shift = [0 for _ in range(n_s)]
     # stoichiometries - [PSII, PSI, PBS]
-    # they must sum to 3!
+    # second line normalises the sum to 3 - don't ask
     rho = [1.0, 1.0, 1.0]
-    # affinities - [PSII, PSI]
-    aff = [2.0, 1.0]
+    rho *= (3.0 / np.sum(rho))
+    # affinities - [PSII, PSI]. currently not used
+    # aff = [2.0, 1.0]
 
     # the solve functions use a Genome instance internally so
     # create one here. none of this should need changing
-    p = constants.Genome(n_b, n_s, n_p, shift,
-            pigment, "ox", rho, aff)
+    p = constants.Genome("ox", n_b, n_s, n_p, shift,
+            pigment, rho) # affinity would go at the end
     # call light.py to pull the right spectrum and fix intensity
-    spectrum, output_prefix = light.spectrum_setup("colour",
-            colour=colour, intensity=intensity)
+    spectrum_file = light.spectrum_setup("colour",
+            colour=colour, intensity=intensity, output_dir=output_dir)
+    spectrum, output_prefix = light.load_spectrum(spectrum_file)
     # solve the whole big matrix
-    od = supersystem.solve(spectrum[:, 0], spectrum[:, 1], p, True)
+    od = solvers.antenna_RC(p, spectrum, debug=True, do_redox=True)
 
-    # 
     side = len(od["p_eq"])
     print(f"alpha (cyc ratio) = {constants.alpha}, rho = {rho}, aff = {aff}")
     print(f"p(0) = {od['p_eq'][0]}")
@@ -69,8 +73,11 @@ if __name__ == "__main__":
     sg = np.sum(od['gamma'][:n_rc]) + n_b * np.sum(od['gamma'][n_rc:])
     print(f"total excitation rate = {sg} s^-1")
     print(f"'efficiency' = {(od['nu_ch2o'] + od['nu_cyc']) / sg}")
+
     # output some details of the solution
-    with open(f"out/pbs_{colour}_{intensity}_results.dat", "w") as f:
+    output_file = os.path.join(output_dir,
+            f"pbs_{colour}_{intensity}_results.dat")
+    with open(output_file, "w") as f:
         f.write(f"pigments = {pigment}\n")
         f.write(f"n_p = {n_p}\n")
         f.write(f"alpha = {constants.alpha}, rho = {rho}, affinity = {aff}\n")
@@ -97,5 +104,6 @@ if __name__ == "__main__":
     fig.supylabel("intensity (arb)", x=0.001)
     ax[0].set_xlim(constants.x_lim)
     ax[-1].set_xlabel("wavelength (nm)")
-    fig.savefig(f"out/pbs_lineshapes.pdf")
+    plot_file = os.path.join(output_dir, "pbs_lineshapes.pdf")
+    fig.savefig(plot_file)
     plt.close(fig)
