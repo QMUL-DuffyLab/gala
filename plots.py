@@ -81,13 +81,17 @@ def antenna_lines(p, l):
                         (shift[i])))**2
                     / (2.0 * (current_pigment['sigma'][j]**2)))
         lines[i] /= np.sum(lines[i])
-        if 'rho' in ga.genome_parameters:
-            for ii in range(n_rc):
-                total += p.rho[ii] * lines[ii]
-            for ii in range(p.n_s):
-                total += p.rho[-1] * lines[ii + n_rc]
-        else:
-            total += lines[i] * n_p[i]
+    if 'rho' in ga.genome_parameters:
+        for ii in range(n_rc):
+            total += p.rho[ii] * n_p[ii] * lines[ii]
+        for ii in range(p.n_s):
+            total += p.n_b * p.rho[-1] * n_p[ii] * lines[ii + n_rc]
+    else:
+        for ii in range(n_rc):
+            total += n_p[ii] * lines[ii]
+        for ii in range(p.n_s):
+            total += p.n_b * n_p[ii] * lines[ii + n_rc]
+    total /= np.sum(total)
     return lines, total
 
 def antenna_spectra(p, l, ip_y,
