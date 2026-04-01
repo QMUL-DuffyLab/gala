@@ -18,9 +18,13 @@ population_size = 500
 max_gen = 500
 n_runs = 3
 # multiplier for cyclic electron flow
-alpha = 0.0
-# no longer used - low light factor for quantum efficiency calculation
-gamma_fac = 1e-4
+alpha = 0.015
+fitness_params = {
+'xi'  : 1.0, # weighting of electron output for fitness
+'chi' : 1.0, # weighting of PSII redox state
+'psi' : 1.0, # weighting of PSI redox state
+}
+
 # long time to use for diagonalisation
 # note that choosing too long a time here (~10^6 s) will blow up
 # the diagonalisation because of compounding float rounding errors

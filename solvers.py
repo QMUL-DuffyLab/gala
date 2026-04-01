@@ -128,7 +128,7 @@ def nnls(transfer_matrix, method='fortran', debug=False):
             print("NNLS RuntimeError - reached iteration limit")
     return p_eq, k, p_eq_res
 
-def RC_only(rc_type, spectrum, solver_method='diag', **kwargs):
+def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
     '''
     parameters
     ----------
@@ -147,6 +147,10 @@ def RC_only(rc_type, spectrum, solver_method='diag', **kwargs):
     n_rc = len(rcp["pigments"])
     n_rc_states = len(rcp["states"])
     fp_y = (spectrum[:, 0] * spectrum[:, 1]) / utils.hcnm
+    if 'rho' in kwargs:
+        rho = kwargs['rho']
+    else:
+        rho = np.full(n_rc, 1.0, dtype=np.float64)
     if 'n_p' in kwargs:
         n_p = [kwargs['n_p'] for i in range(n_rc)]
     else:
@@ -158,6 +162,10 @@ def RC_only(rc_type, spectrum, solver_method='diag', **kwargs):
         a_l[i] = utils.absorption(spectrum[:, 0], rcp["pigments"][i], 0.0)
         overlaps[i] = utils.overlap(spectrum[:, 0], fp_y, a_l[i])
         gamma[i] = n_p[i] * constants.sig_chl * overlaps[i]
+    if "gamma" in kwargs:
+        # assume we're passing custom gamma values
+        # kwargs['gamma'] must be an appropriate array
+        gamma = kwargs["gamma"]
     if "antenna_gamma" in kwargs:
         # treat the total antenna as just one total input rate.
         # add it to the RC gamma, weighted by overlap
@@ -454,12 +462,9 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False,
                 output['ox_states'] = ox_states
                 output['red_states'] = red_states
 
-    # |= is the new way to merge dicts but I have some stupid python
-    # thing going on with jupyter where it's using 3.8 even
-    # though i should have 3.11 on, so |= doesn't work
     od = {'nu_e': nu_e, 'nu_cyc': nu_cyc}
     if do_redox:
-        od = {**od, **{"redox": redox, "recomb": redox}}
+        od |= {"redox": redox, "recomb": redox}
     if debug:
-        od = {**od, **output}
+        od |= output
     return od

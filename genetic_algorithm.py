@@ -278,12 +278,43 @@ def genome_hash(g):
     '''
     return str(dataclasses.asdict(g))
 
-def fitness(g, nu_e, cost, rc_nu_e):
+def fitness(g, nu_e, nu_cyc, redox, **kwargs):
     '''
-    hmm.
+    define a fitness for a given genome. there are any number of ways to
+    do this and it is fundamental to the GA, so think carefully about it.
+    currently:
+        1.) represents the electron output, multiplied by a weighting xi;
+        2.) represents maintenance cost, which is nu_cyc * antenna size.
+            note that this is implicitly weighted in the solver, since
+            constants.alpha modulates k_cyc; this might need more thought
+        3.) is the overall redox state of RC 1, i.e. PS_{ox} or PSII,
+            represented by redox[0, 0] (proportion of its time spent
+            oxidised) / redox[0, 1] (proportion of its time spent reduced),
+            weighted by hyperparameter constants.chi
+        4.) is the same for PS_{red} or PSI, weighted by constants.psi.
+    NB for the last two: redox[i, 0] / redox[i, 1] becomes large
+    when the photosystem is over-oxidised, and very small when it's
+    over-reduced, and around 1 when it's even; so adjustments need
+    to be made based on what the desired redox state of each PS is.
+    P.S. I think the selection process can cope with negative fitnesses
+    in principle, but we currently make the choice that a negative fitness
+    implies an unfit genome, and so we discard it. a fitness of 0 means
+    that the associated genome should never be chosen to reproduce.
+    P.P.S. if doing lots of GA runs, fix the params 'xi', 'chi', 'psi'
+    and remove the for p: if: else: checks, they'll be slow
     '''
-    # return (nu_e - (cost * (g.n_b * np.sum(g.n_p))))
-    f = ((nu_e - rc_nu_e) - (cost * (g.n_b * np.sum(g.n_p))))
+    params = {}
+    for p in ['xi', 'chi', 'psi']:
+        if p in kwargs:
+            params[p] = kwargs[p]
+        else:
+            params[p] = constants.fitness_params[p]
+    f = (
+           (params['xi'] * nu_e) # 1.
+         - (nu_cyc * (g.n_b * np.sum(g.n_p))) # 2.
+         - (params['chi'] * (redox[0, 0] / redox[0, 1])) # 3.
+         - (params['psi'] * (redox[1, 1] / redox[1, 0])) # 4.
+         )
     return f if f >= 0.0 else 0.0
 
 def fill_arrays(rng, parent_values, res_length, parameter):
