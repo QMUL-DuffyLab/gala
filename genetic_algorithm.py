@@ -278,7 +278,7 @@ def genome_hash(g):
     '''
     return str(dataclasses.asdict(g))
 
-def fitness(g, nu_e, nu_cyc, redox, **kwargs):
+def fitness(nu_e, nu_cyc, redox, **kwargs):
     '''
     define a fitness for a given genome. there are any number of ways to
     do this and it is fundamental to the GA, so think carefully about it.

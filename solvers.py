@@ -147,12 +147,8 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
     n_rc = len(rcp["pigments"])
     n_rc_states = len(rcp["states"])
     fp_y = (spectrum[:, 0] * spectrum[:, 1]) / utils.hcnm
-    if 'rho' in kwargs:
-        rho = kwargs['rho']
-    else:
-        rho = np.full(n_rc, 1.0, dtype=np.float64)
     if 'n_p' in kwargs:
-        n_p = [kwargs['n_p'] for i in range(n_rc)]
+        n_p = np.array(kwargs['n_p'])
     else:
         n_p = [pdata[rcp["pigments"][i]]['n_p'] for i in range(n_rc)]
     a_l = np.zeros((n_rc, len(spectrum[:, 0])), dtype=np.float64)
@@ -170,7 +166,17 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
         # treat the total antenna as just one total input rate.
         # add it to the RC gamma, weighted by overlap
         gamma[i] += kwargs["antenna_gamma"] * (overlaps[i] / np.sum(overlaps))
-        
+
+    # set the internal RC rates: they're set in rc.py in a dict called
+    # `rates`. any kwarg that matches a key in that dict will overwrite
+    # the default rate with the value given.
+    rates = {}
+    for key, default_val in rcm.rates.items():
+        if key in kwargs:
+           rates[key] = kwargs[key]
+        else:
+            rates[key] = default_val
+
     # detrapping regime
     detrap = 0.0 # none by default
     if 'detrap' in kwargs:
@@ -228,7 +234,7 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
                     tf = toti[indf] # total state tuple
                     # set element with the corresponding rate
                     if rt in ["lin", "red"]:
-                        twa[ind][indf] = rcm.rates[rt]
+                        twa[ind][indf] = rates[rt]
                     if rt == "ox":
                         # if given, diff_ratios should be a dict of the
                         # form {'ox': 0.1, 'anox': 1.0}, etc.
@@ -241,7 +247,7 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
                         if 'diff_ratios' in kwargs:
                             if rc_type in kwargs['diff_ratios']:
                                 ratio = kwargs['diff_ratios'][rc_type]
-                        twa[ind][indf] = rcm.rates[rt] / (1.0 + ratio)
+                        twa[ind][indf] = rates[rt] / (1.0 + ratio)
                     if rt == "trap":
                         # find which trap state is being filled here
                         # 3 states per rc, so integer divide by 3
@@ -257,7 +263,7 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
                         twa[ind][indf] = 0.0
                         if jind == which_rc + 1:
                             indf = rcp["indices"][tuple(final)]
-                            twa[ind][indf] = rcm.rates[rt]
+                            twa[ind][indf] = rates[rt]
                             # detrapping:
                             # - only possible if exciton manifold is empty
                             indf = (rcp["indices"][tuple(initial)] +
@@ -268,7 +274,7 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
                         # cyclic: multiply the rate by alpha etc.
                         # we will need this below for nu(cyc)
                         which_rc = np.where(np.array(diff) == -1)[0][0]//3
-                        k_cyc = rcm.rates["cyc"]
+                        k_cyc = rates["cyc"]
                         if n_rc == 1:
                             # zeta = 11 to enforce nu_CHO == nu_cyc
                             k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
@@ -280,7 +286,7 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
                             twa[ind][indf] = k_cyc
                             rt = "cyclic"
                         # recombination can occur from any photosystem
-                        twa[ind][indf] += rcm.rates["rec"]
+                        twa[ind][indf] += rates["rec"]
             if jind > 0:
                 # occupied exciton block -> empty due to dissipation
                 # final state index is i because RC state is unaffected
@@ -312,13 +318,13 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
         s = toti[i]
         for j in range(n_rc):
             if s[trap_indices[j]] == 1:
-                recomb += p_i * rcm.rates["rec"]
+                recomb += p_i * rates["rec"]
             if s[oxidised_indices[j]] == 1:
                 redox[j, 0] += p_i
             if s[reduced_indices[j]] == 1:
                 redox[j, 1] += p_i
         if i in lindices:
-            nu_e += rcm.rates["red"] * p_i
+            nu_e += rates["red"] * p_i
         if i in cycdices:
             nu_cyc += k_cyc * p_i
 
@@ -328,6 +334,7 @@ def RC_only(rc_type, spectrum, solver_method='nnls', **kwargs):
                 "twa": twa,
                 "gamma": gamma,
                 "p_eq": p_eq,
+                "rates": rates,
                 "states": total_states,
                 "lindices": lindices,
                 "cycdices": cycdices,
