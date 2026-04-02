@@ -98,17 +98,17 @@ genome_parameters = {
         'mutable' : True,
         'norm'    : None,
     },
-    'rho': {
-        'type'    : np.float64,
-        'array'   : True,
-        'depends' : 'rc',
-        'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
-        # note that this is a bit fake - upper bound must just be
-        # >= the largest possible sum
-        'bounds'  : [0.1, 5.0],
-        'mutable' : True,
-        'norm'    : lambda p: p * (len(p) / np.sum(p)),
-    },
+    # 'rho': {
+    #     'type'    : np.float64,
+    #     'array'   : True,
+    #     'depends' : 'rc',
+    #     'size'    : lambda g: rcm.n_rc[getattr(g, 'rc')] + 1,
+    #     # note that this is a bit fake - upper bound must just be
+    #     # >= the largest possible sum
+    #     'bounds'  : [0.1, 5.0],
+    #     'mutable' : True,
+    #     'norm'    : lambda p: p * (len(p) / np.sum(p)),
+    # },
     # 'aff': {
     #     'type'    : np.float64,
     #     'array'   : True,
@@ -284,9 +284,9 @@ def fitness(g, nu_e, nu_cyc, redox, **kwargs):
     do this and it is fundamental to the GA, so think carefully about it.
     currently:
         1.) represents the electron output, multiplied by a weighting xi;
-        2.) represents maintenance cost, which is nu_cyc * antenna size.
-            note that this is implicitly weighted in the solver, since
-            constants.alpha modulates k_cyc; this might need more thought
+        2.) represents maintenance cost, which is nu_cyc.
+            note that this is already weighted by antenna size
+            in utils.py; might need more thought
         3.) is the overall redox state of RC 1, i.e. PS_{ox} or PSII,
             represented by redox[0, 0] (proportion of its time spent
             oxidised) / redox[0, 1] (proportion of its time spent reduced),
@@ -304,16 +304,21 @@ def fitness(g, nu_e, nu_cyc, redox, **kwargs):
     and remove the for p: if: else: checks, they'll be slow
     '''
     params = {}
-    for p in ['xi', 'chi', 'psi']:
+    for p in ['xi', 'phi', 'chi', 'psi']:
         if p in kwargs:
             params[p] = kwargs[p]
         else:
             params[p] = constants.fitness_params[p]
+            print(f"fitness parameter {p} not given.")
+            print(f"falling back to constants.py: value = {params[p]}")
     f = (
            (params['xi'] * nu_e) # 1.
-         - (nu_cyc * (g.n_b * np.sum(g.n_p))) # 2.
-         - (params['chi'] * (redox[0, 0] / redox[0, 1])) # 3.
-         - (params['psi'] * (redox[1, 1] / redox[1, 0])) # 4.
+         # - (nu_cyc * (g.n_b * np.sum(g.n_p))) # 2.
+         # - (params['chi'] * (redox[0, 0] / redox[0, 1])) # 3.
+         # - (params['psi'] * (redox[1, 1] / redox[1, 0])) # 4.
+         - (params['phi'] * nu_cyc) # 2.
+         - (params['chi'] * (redox[0, 0])) # 3.
+         - (params['psi'] * (redox[1, 1])) # 4.
          )
     return f if f >= 0.0 else 0.0
 

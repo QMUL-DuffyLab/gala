@@ -364,11 +364,11 @@ def calc_rates(p, spectrum, **kwargs):
                 k_cyc = rcm.rates["cyc"]
                 if n_rc == 1:
                     # zeta = 11 to enforce nu_CHO == nu_cyc
-                    k_cyc *= (11.0 + constants.alpha * np.sum(n_p))
+                    k_cyc *= (11.0 + constants.alpha * p.n_b * np.sum(n_p))
                     rc_mat[i][k] = k_cyc
                 # first photosystem cannot do cyclic
                 elif n_rc > 1 and which_rc > 0:
-                    k_cyc *= constants.alpha * np.sum(n_p)
+                    k_cyc *= constants.alpha * p.n_b * np.sum(n_p)
                     rc_mat[i][k] = k_cyc
                 # recombination can occur from any photosystem
                 rc_mat[i][k] += rcm.rates["rec"]

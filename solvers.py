@@ -372,6 +372,7 @@ def antenna_RC(p, spectrum, debug=False, do_redox=False,
         output['setup_time'] = end - start
         output['gamma'] = gamma
         output['k_b'] = k_b
+        output['k_cyc'] = k_cyc
         start = time.time()
 
     twa = build_matrix.build_matrix(p.n_b, p.n_s, n_rc, rc_mat,

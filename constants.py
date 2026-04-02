@@ -18,11 +18,12 @@ population_size = 500
 max_gen = 500
 n_runs = 3
 # multiplier for cyclic electron flow
-alpha = 0.015
-fitness_params = {
-'xi'  : 1.0, # weighting of electron output for fitness
-'chi' : 1.0, # weighting of PSII redox state
-'psi' : 1.0, # weighting of PSI redox state
+alpha = 0.0001
+fitness_params = { # weighting of different terms in fitness function
+'xi'  : 1.0, # electron output
+'phi' : 1.0, # cyclic
+'chi' : 1.0, # PSII redox state
+'psi' : 1.0, # PSI redox state
 }
 
 # long time to use for diagonalisation
