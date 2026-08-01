@@ -20,7 +20,7 @@ import light
 if __name__ == "__main__":
     rng = np.random.default_rng()
 
-    costs = [0.03]
+    costs = [0.01, 0.02]
     # various other examples of dicts in light.py
     spectra_dicts = [
           {'type': "filtered", 'kwargs': {'filter': 'red'}},
