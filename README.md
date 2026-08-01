@@ -26,38 +26,12 @@ in the `gala` directory and it should install all the python packages you need. 
 
 Once that's done: see `main.py` and `light.py` for the details but basically you set up the light environments you want to simulate, fix a value of the cost parameter, and then the code will run itself for those parameters (plus some other hyperparameters that control things like the reproduction algorithm, how new genomes are generated and so on). Once everything is set up as you want just run `python main.py` and it should all run for you. The python should compile my fortran NNLS solver for you and the output files should be put in sensibly-named directories which by default will be in the folder `out`.
 
-## Requirements
+## extending it
 
-### Python
-You need Python, obviously. I have not tested the code on different versions of python with different package versions or anything; so if you have some insane setup, like you're still running python 2 or something, please do not bother emailing me. I think any version > 3.9 should do (but see below for a couple of potential issues if you do have a very old version).
+### pigments
 
-If in doubt, one thing I have tested is getting it running from a fresh miniforge install: simply install [miniforge](https://conda-forge.org/download/) and then do
-```
-conda install cython numpy scipy pandas matplotlib seaborn setuptools
-python setup.py build_ext --inplace
-```
-to build the cython module called by the solvers. This is currently all Python 3.14, I think.
+Pigment details are in the file `pigments/pigment_data.json`. What I've done is to take pigments of interest, fit them to a set of Gaussians (makes it easier to shift their absorption if you want to do that, and also avoids having to do any work to make sure the wavelength values are consistent with the input spectrum) and then the `bounds` dict in `constants.py` contains a list of all the pigments that the genetic algorithm will use. The keys in that list must match those in the JSON file, and you'll need to fit both absorption and emission spectra. Hopefully the syntax in the JSON file is self-explanatory.
 
-### other
+### light inputs
 
-I also have a modern fortran version of scipy's NNLS solver included here; it's not currently used in the code but you can turn it on by passing
-`solver_kwargs={'method': 'nnls', 'nnls_method': 'fortran'}`
-to one of the solvers if you really want to.
-If you do want to do this you'll need a fortran compiler to build the library.
-There's a makefile included and any modern compiler should do, it's strict F2008.
-
-### issues i've run into
-
-- before moving to miniforge and updating to python 3.14 I was using a fairly old version of Python, i think 3.10. if you happen to be doing this as well (inadvisable but i see you, i too am too lazy to update anything), you might need to add the option
-`define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]`
-after the `include_dirs` line in `setup.py` in order to get the cython to compile. this is because your version of numpy will also be old and at some point (unsure when, can't be bothered to find out) some internal change was made to the pyarray structs-- the class members have changed and the compiler will throw an error without those macros.
-- if you get an `argparse` error that says something about `BooleanOptionalAction` you're using an ancient version of python (ancient here meaning >7 years and no longer supported) and you desperately need to update. i only found this out because i tried to run some simulations on an old machine with an old anaconda install on it and the base version was 3.7.
-- You might also need Qt by default for matplotlib; I'm not sure but I think the default renderer is QtAgg. if you get an error that looks something like
-`qt.qpa.plugin: Could not find the Qt platform plugin .....`
-then (obviously) there's some kind of Qt error. explicitly setting `backend` to something non-Qt-related (i use `pdf`) in `matplotlibrc` fixed this for me, or just add `--no-stats` when you run the code and it won't make any plots. i'd assume this is more likely if you're running the code through WSL or on an HPC cluster like i am because you're less likely to have gui stuff set up.
-
-## TO DO:
-
-- Try to standardise the output of all the stats functions, as much as possible at least. Requires some thought
-- lookup tables for photon input rates and overlap between adjacent subunits. in theory this is mostly done but i haven't tested it yet
-- some more intuitive way of setting up the initial spectra would be good, but i need to think about how that will work
+There are a couple of wrapper functions in `light.py` that then call a few other functions to (for example) filter out blue light, pull up a PHOENIX stellar spectrum, or whatever else. All of these internal functions return a 2-column array of x (wavelength) and y (irradiance), and then the wrapper function `spectrum_setup` also generates an output prefix which will be prefixed to the output files to make them easier to keep track of. So to add new light environments you can add a function in `light.py` to generate the array and then add them to that wrapper function, or just read in a text file and make an output prefix yourself.
