@@ -172,11 +172,11 @@ def gauss(l, mu, sigma, a = None):
     else:
         for i in range(len(mu)):
             g += a[i] * np.exp(-1.0 * (l - mu[i])**2/(2.0 * sigma[i]**2))
-    n = np.trapz(g, l)
+    n = np.trapezoid(g, l)
     return g/n
 
 def overlap(l, f1, f2):
-    return np.trapz(f1 * f2, l)
+    return np.trapezoid(f1 * f2, l)
 
 def dG(l1, l2, n, T):
     '''

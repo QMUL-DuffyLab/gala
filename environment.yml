@@ -1,0 +1,16 @@
+name: gala
+channels:
+  - conda-forge
+dependencies:
+  - python >=3.14
+  - setuptools
+  - cython
+  - make
+  - gfortran
+  - mpi4py
+  - numpy
+  - openmpi
+  - pandas
+  - scipy
+  - matplotlib >=3.11
+  - seaborn
