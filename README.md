@@ -1,6 +1,6 @@
 # gala - Genetic Algorithm for Lattice Antenna
 
-github repo for the code used in [this paper](https://doi.org/10.1371/journal.pcbi.1012845)
+github repo for the code used in 
 ## hey man what the dickens does all this stuff do anyway
 
 Broadly: it is a (hopefully fairly extensible and configurable) collection of bits which you can use to run genetic algorithms, specifically related to photosynthetic light harvesting.
@@ -15,6 +15,8 @@ Other than that there's some utilities in `utils.py` and various hyperparameters
 
 ## how do i use all this stuff
 
+**NB: this branch is currently, to put it politely, a bit stinky. I am halfway through refactoring and trying to fix everything up to make it more extensible but I have a lot of other projects going on and I'm not done yet.** If you would like to use the code for [this paper](https://doi.org/10.1371/journal.pcbi.1012845), do `git checkout plos` once you've cloned this repo. If you want the code for [this paper](https://arxiv.org/abs/2606.24458) do `git checkout mnras`. The way you set up and run things in each is slightly different so check the respective README files and comments in the code itself for more details.
+
 `argparse` is set up both for `main.py` and `simulation.py`. Basically you hand-write or generate a list of dicts, where each dict represents an input spectrum. Then `main.py` will call `light.py` to build the actual spectra from those specifications, generate the directory structures and save the spectrum files, and then optionally call `simulation.py` to actually do the simulations, one per spectrum. This is maybe not the most obvious or intuitive way of doing things, but I needed a way to set it up so I could submit batches of parallel jobs on a cluster, and this was the way that required the least refactoring. There are several options for `main.py` and `simulation.py` which you can check with the `-h` flag; other hyperparameters etc. are in `constants.py` as mentioned above.
 
 ## Requirements
@@ -24,10 +26,10 @@ You need Python, obviously. I have not tested the code on different versions of 
 
 If in doubt, one thing I have tested is getting it running from a fresh miniforge install: simply install [miniforge](https://conda-forge.org/download/) and then do
 ```
-conda install cython numpy scipy pandas matplotlib seaborn setuptools
+mamba create -f environment.yml
 python setup.py build_ext --inplace
 ```
-to build the cython module called by the solvers. This is currently all Python 3.14, I think.
+to build the cython module called by the solvers.
 
 ### other
 
