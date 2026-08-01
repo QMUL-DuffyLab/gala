@@ -1,6 +1,7 @@
 # gala - Genetic Algorithm for Lattice Antenna
 
-github repo for the code used in 
+github repo for the code used in [these](https://doi.org/10.1371/journal.pcbi.1012845) [papers](https://arxiv.org/abs/2606.24458)
+
 ## hey man what the dickens does all this stuff do anyway
 
 Broadly: it is a (hopefully fairly extensible and configurable) collection of bits which you can use to run genetic algorithms, specifically related to photosynthetic light harvesting.
@@ -51,6 +52,6 @@ then (obviously) there's some kind of Qt error. explicitly setting `backend` to 
 
 ## TO DO:
 
-- Try to standardise the output of all the stats functions, as much as possible at least. Requires some thought
-- lookup tables for photon input rates and overlap between adjacent subunits. in theory this is mostly done but i haven't tested it yet
-- some more intuitive way of setting up the initial spectra would be good, but i need to think about how that will work
+- Finish fixing the refactored code, make sure it matches the MNRAS results, etc.
+- Think about what parameters are likely to be getting looped over and make it as easy as possible to do that
+- maybe figure out a way to switch between antenna-only and antenna-RC modes in one branch with common output functions? big job that though
